@@ -1,0 +1,141 @@
+# youmightlike
+
+Motor de recomendação cultural cruzada entre **Filmes, Músicas, Livros e Jogos**. 
+
+Em vez de silos isolados (Spotify só recomenda música, Steam só recomenda jogo, Letterboxd só recomenda filme), o `youmightlike` conecta essas mídias em um grafo de afinidade estética e difunde o gosto do usuário usando algoritmos clássicos de grafos.
+
+**Zero LLMs, zero APIs pagas, 100% local e determinístico.**
+
+---
+
+## Por que não usar LLM?
+
+1. **Custo e Dependência:** Fazer chamadas de API proprietária para cada consulta de recomendação é caro, lento e quebra offline.
+2. **Explicabilidade:** LLMs alucinam conexões e sofrem de esquecimento/bias por popularidade na web. No grafo, cada sugestão tem uma rota clara e auditável (*"Recomendado porque você marcou o Filme X e o Artista Y, conectados pelo Compositor Z e pela estética Cyberpunk"*).
+3. **Desempenho:** Personalized PageRank e álgebra linear esparsa em CPU rodam em milissegundos sobre centenas de milhares de nós sem queimar GPU ou gastar um centavo.
+
+---
+
+## Como Funciona
+
+```
+[ Datasets Abertos (IMDb, Steam, Goodreads, MusicBrainz) ]
+                           │
+                 Ingestão Nativa (Parquet/TSV)
+                           ▼
+          ┌──────────────────────────────────┐
+          │   DuckDB Feature Store Local     │
+          │  392k nós │ 1.23M arestas ativas │
+          └─────────────────┬────────────────┘
+                            │
+               Zero-Copy / Views Ponderadas (IDF)
+                            ▼
+          ┌──────────────────────────────────┐
+          │   Motor de Difusão Estatística   │
+          │  (Personalized PageRank na CPU)  │
+          └─────────────────┬────────────────┘
+                            │
+                            ▼
+           Recomendações com Caminho Explicado
+```
+
+### Ponderação de Arestas (Adamic-Adar / IDF)
+Tags e categorias genéricas (como *"Ação"*, *"Rock"*, *"Ficção"*) saturam grafos e atuam como sumidouros de probabilidade, gerando apenas sugestões óbvias. 
+
+Para resolver isso de forma determinística, as arestas passam por uma view no DuckDB (`v_weighted_graph_edges`) que atenua o peso da conexão pelo inverso do logaritmo do grau do nó de destino:
+
+$$\text{peso}(u, v) = \frac{\text{base\_weight}(u, v)}{\ln(1 + \text{grau}(v))}$$
+
+Conexões específicas (uma tag de nicho, um compositor de trilha ou um autor cult) transferem muito mais energia no grafo do que categorias amplas.
+
+---
+
+## Volume Atual do Grafo (DuckDB)
+
+Todo o grafo roda localmente em um arquivo único (`data/processed/taste_graph.duckdb`):
+
+| Domínio / Tabela | Registros | Fonte / Licença |
+| :--- | :---: | :--- |
+| **Filmes** (`movies`) | **29.213** | IMDb Non-Commercial Datasets |
+| **Pessoas / Equipe** (`people`) | **37.045** | IMDb Datasets |
+| **Créditos de Filmes** (`movie_credits`) | **100.584** | Direção e roteiro (IMDb) |
+| **Jogos** (`games`) | **11.852** | Steam Dataset (CC0 Parquet) |
+| **Desenvolvedores** (`game_developers`) | **8.868** | Estúdios e publicadoras Steam |
+| **Tags de Jogos** (`game_tags`) | **112.725** | Tags e mecânicas da comunidade |
+| **Livros** (`books`) | **38.203** | Goodreads 100k (CC0 Parquet) |
+| **Autores de Livros** (`book_authors`) | **29.742** | Autores e co-autores |
+| **Temas Literários** (`book_subjects`) | **400.285** | Tópicos e categorias |
+| **Artistas Musicais** (`music_artists`) | **126.791** | MusicBrainz (CC0) + Spotify |
+| **Álbuns Musicais** (`music_albums`) | **63.289** | Discografias |
+| **Tags de Música** (`artist_tags`) | **475.786** | Microgêneros e folksonomia |
+| **Keywords Globais** (`keywords`) | **47.268** | Vocabulário temático unificado |
+| **Total de Nós (`v_graph_nodes`)** | **392.271** | Consulta analítica em ~0.01s |
+| **Total de Arestas (`v_graph_edges`)** | **1.233.719** | Ponderação e consulta em ~0.9s |
+
+---
+
+## Estrutura do Repositório
+
+```
+youmightlike/
+├── crates/
+│   └── engine/             # Core de difusão em Rust (PPR, Petgraph, Rayon)
+├── python/
+│   ├── src/youmightlike/
+│   │   ├── connectors/     # Clientes pontuais (Wikidata, OpenLibrary, MusicBrainz)
+│   │   └── storage/        # Schema SQL, conexão DuckDB e scripts de ingestão bulk
+├── data/                   # Ignorado no git
+│   ├── raw/                # Dumps compactados (IMDb, Steam, Goodreads, MusicBrainz)
+│   └── processed/          # taste_graph.duckdb
+└── docs/                   # Documentação detalhada da arquitetura e datasets
+```
+
+---
+
+## Como Rodar Localmente
+
+### 1. Pré-requisitos
+* Python 3.11+
+* Rust & Cargo (para o engine compilado)
+
+### 2. Configurar o Ambiente Python
+```bash
+# Criar e ativar o ambiente virtual
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Instalar o pacote em modo editável
+pip install -e python/
+```
+
+### 3. Rodar as Ingestões em Massa (Opcional se já tiver o banco gerado)
+O banco DuckDB é gerado em segundos lendo diretamente arquivos colunares:
+```bash
+# Ingestão de filmes (IMDb TSVs)
+python python/src/youmightlike/storage/ingest_imdb.py
+
+# Ingestão de jogos (Steam Parquet)
+python python/src/youmightlike/storage/ingest_steam.py
+
+# Ingestão de livros (Goodreads Parquet)
+python python/src/youmightlike/storage/ingest_books.py
+
+# Ingestão de música (MusicBrainz Parquet + Spotify CSV)
+python python/src/youmightlike/storage/ingest_music.py
+```
+
+### 4. Consultar o Grafo
+Você pode inspecionar o grafo direto no terminal ou conectando o DBeaver em modo `read_only`:
+```python
+import duckdb
+
+conn = duckdb.connect("data/processed/taste_graph.duckdb", read_only=True)
+print("Nós:", conn.execute("SELECT count(*) FROM v_graph_nodes").fetchone()[0])
+print("Arestas:", conn.execute("SELECT count(*) FROM v_graph_edges").fetchone()[0])
+```
+
+---
+
+## Licença
+
+MIT. Os datasets externos respeitam seus respectivos termos abertos (CC0, ODC-By, e licenças de dados comunitários).
