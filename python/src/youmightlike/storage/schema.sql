@@ -130,14 +130,44 @@ CREATE TABLE IF NOT EXISTS book_author_links (
     PRIMARY KEY (book_id, author_id)
 );
 
-CREATE TABLE IF NOT EXISTS book_subjects (
-    book_id BIGINT NOT NULL REFERENCES books(id),
+-- ----------------------------------------------------------------------------
+-- 4. DOMÍNIO: Games (Steam)
+-- ----------------------------------------------------------------------------
+CREATE SEQUENCE IF NOT EXISTS seq_games START 1;
+CREATE TABLE IF NOT EXISTS games (
+    id BIGINT PRIMARY KEY DEFAULT nextval('seq_games'),
+    app_id BIGINT UNIQUE NOT NULL,      -- Steam App ID (ex: 1091500)
+    title VARCHAR NOT NULL,
+    release_date VARCHAR,
+    release_year INTEGER,
+    price DOUBLE,
+    positive_reviews BIGINT,
+    negative_reviews BIGINT,
+    developers VARCHAR,
+    publishers VARCHAR,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE SEQUENCE IF NOT EXISTS seq_game_devs START 1;
+CREATE TABLE IF NOT EXISTS game_developers (
+    id BIGINT PRIMARY KEY DEFAULT nextval('seq_game_devs'),
+    name VARCHAR UNIQUE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS game_dev_links (
+    game_id BIGINT NOT NULL REFERENCES games(id),
+    developer_id BIGINT NOT NULL REFERENCES game_developers(id),
+    PRIMARY KEY (game_id, developer_id)
+);
+
+CREATE TABLE IF NOT EXISTS game_tags (
+    game_id BIGINT NOT NULL REFERENCES games(id),
     keyword_id BIGINT NOT NULL REFERENCES keywords(id),
-    PRIMARY KEY (book_id, keyword_id)
+    PRIMARY KEY (game_id, keyword_id)
 );
 
 -- ============================================================================
--- 4. VIEWS DE PROJEÇÃO EM GRAFO (Consumidas pelo Motor em Rust / SciPy)
+-- 5. VIEWS DE PROJEÇÃO EM GRAFO (Consumidas pelo Motor em Rust / SciPy)
 -- ============================================================================
 
 -- View unificada de todos os Nós do Grafo
@@ -148,7 +178,7 @@ SELECT
     'movie' AS node_type,
     'movie' AS media_type,
     release_year AS year,
-    wikidata_id AS external_id
+    COALESCE(wikidata_id, imdb_id) AS external_id
 FROM movies
 UNION ALL
 SELECT 
@@ -157,7 +187,7 @@ SELECT
     'person',
     NULL,
     NULL,
-    wikidata_id
+    COALESCE(wikidata_id, imdb_id)
 FROM people
 UNION ALL
 SELECT 
@@ -203,7 +233,25 @@ SELECT
     NULL,
     NULL,
     COALESCE(wikidata_id, author_key)
-FROM book_authors;
+FROM book_authors
+UNION ALL
+SELECT 
+    'game:' || CAST(id AS VARCHAR),
+    title,
+    'game',
+    'game',
+    release_year,
+    CAST(app_id AS VARCHAR)
+FROM games
+UNION ALL
+SELECT 
+    'developer:' || CAST(id AS VARCHAR),
+    name,
+    'developer',
+    NULL,
+    NULL,
+    NULL
+FROM game_developers;
 
 -- View unificada de todas as Arestas do Grafo (com pesos base)
 CREATE OR REPLACE VIEW v_graph_edges AS
@@ -297,7 +345,23 @@ SELECT
     'keyword:' || CAST(keyword_id AS VARCHAR) AS target_id,
     'has_subject' AS relation_type,
     1.0 AS base_weight
-FROM book_subjects;
+FROM book_subjects
+UNION ALL
+-- Game ➔ Desenvolvedor (developed_by)
+SELECT 
+    'game:' || CAST(game_id AS VARCHAR) AS source_id,
+    'developer:' || CAST(developer_id AS VARCHAR) AS target_id,
+    'developed_by' AS relation_type,
+    2.5 AS base_weight
+FROM game_dev_links
+UNION ALL
+-- Game ➔ Keyword / Tag (has_tag) -> Ponte Games ⇄ Filmes ⇄ Livros!
+SELECT 
+    'game:' || CAST(game_id AS VARCHAR) AS source_id,
+    'keyword:' || CAST(keyword_id AS VARCHAR) AS target_id,
+    'has_tag' AS relation_type,
+    1.2 AS base_weight
+FROM game_tags;
 
 -- View com Mitigação de Super-Nós: Ponderação Adamic-Adar / IDF
 CREATE OR REPLACE VIEW v_weighted_graph_edges AS
