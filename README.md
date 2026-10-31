@@ -25,7 +25,7 @@ Em vez de silos isolados (Spotify só recomenda música, Steam só recomenda jog
                            ▼
           ┌──────────────────────────────────┐
           │   DuckDB Feature Store Local     │
-          │  392k nós │ 1.23M arestas ativas │
+          │  492k nós │ 1.72M arestas ativas │
           └─────────────────┬────────────────┘
                             │
                Zero-Copy / Views Ponderadas (IDF)
@@ -68,11 +68,12 @@ Todo o grafo roda localmente em um arquivo único (`data/processed/taste_graph.d
 | **Temas Literários** (`book_subjects`) | **400.285** | Tópicos e categorias |
 | **Artistas Musicais** (`music_artists`) | **126.791** | MusicBrainz (CC0) + Spotify |
 | **Álbuns Musicais** (`music_albums`) | **63.289** | Discografias |
+| **Faixas / Músicas** (`music_tracks`) | **85.889** | Spotify Tracks com Audio Features (BPM, Valência, Energia) |
 | **Tags de Música** (`artist_tags`) | **475.786** | Microgêneros e folksonomia |
 | **Similaridades Musicais** (`artist_similarities`) | **61.680** | Last.fm Co-listening Graph (HetRec) |
 | **Keywords Globais** (`keywords`) | **47.890** | Vocabulário temático unificado |
-| **Total de Nós (`v_graph_nodes`)** | **406.915** | Consulta analítica em ~0.01s |
-| **Total de Arestas (`v_graph_edges`)** | **1.571.268** | Ponderação e consulta em ~1.0s |
+| **Total de Nós (`v_graph_nodes`)** | **492.804** | Consulta analítica em ~0.01s |
+| **Total de Arestas (`v_graph_edges`)** | **1.726.926** | Ponderação e consulta em ~1.0s |
 
 ---
 
@@ -131,8 +132,11 @@ python python/src/youmightlike/storage/ingest_console_games.py
 # Ingestão de livros (Goodreads Parquet)
 python python/src/youmightlike/storage/ingest_books.py
 
-# Ingestão de música (MusicBrainz Parquet + Spotify CSV)
+# Ingestão de discografia e artistas (MusicBrainz Parquet + Spotify CSV)
 python python/src/youmightlike/storage/ingest_music.py
+
+# Ingestão de faixas musicais individuais com audio features (Spotify)
+python python/src/youmightlike/storage/ingest_tracks.py
 
 # Ingestão de similaridades diretas entre artistas (Last.fm Graph)
 python python/src/youmightlike/storage/ingest_lastfm_similars.py

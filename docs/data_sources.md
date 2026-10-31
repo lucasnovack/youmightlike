@@ -93,7 +93,7 @@ Toda a malha de dados é alimentada por datasets abertos (CC0 / Domínio Públic
 ## 7. Música, Discografias e Grafo de Similaridade (MusicBrainz + Spotify + Last.fm)
 
 * **Origem Primária (Metadados & MBIDs):** [MusicBrainz Artist Dump](https://huggingface.co/datasets/LeData/media-metadata-musicbrainz-artists) (CC0 1.0)
-* **Origem Complementar (Álbuns & Gêneros):** Spotify 114k Tracks Dataset (CSV tabular com faixas, álbuns e subgêneros)
+* **Origem Complementar (Álbuns, Faixas & Audio Features):** Spotify 114k Tracks Dataset (CSV tabular com faixas, álbuns, subgêneros e métricas acústicas de áudio)
 * **Origem de Similaridade (Co-listening Graph):** [Last.fm HetRec 2011 Dataset](https://grouplens.org/datasets/hetrec2011/) (GroupLens / ACM RecSys)
 * **Campos Extraídos:**
   - `mbid`: MusicBrainz Identifier canônico.
@@ -101,11 +101,12 @@ Toda a malha de dados é alimentada por datasets abertos (CC0 / Domínio Públic
   - `country` e `type`: País de origem e formato (`Person` vs `Group`).
   - `tags`: Folksonomia e microgêneros musicais (`VARCHAR[]`).
   - `album_name`: Títulos de álbuns e discografias.
+  - `track_name` & `audio_features`: Faixas individuais com `tempo` (BPM), `valence`, `energy`, `danceability`, `acousticness`, `instrumentalness`.
   - `user_artists`: Histórico de co-escuta de ouvintes para cálculo vetorial de similaridade de cosseno com log-weight.
 * **Filtros de Ingestão:** 
   - Artistas com pelo menos 2 tags de caracterização estética e nomes reais.
   - Similaridade entre artistas com no mínimo 3 ouvintes compartilhados e índice de cosseno $\ge 0.15$.
-* **Volume Ingerido:** ~126.790 artistas, ~63.290 álbuns, ~475.780 arestas de tags musicais e **61.680 arestas bidirecionais de similaridade direta** (`artist_similarities`).
+* **Volume Ingerido:** ~126.790 artistas, ~63.290 álbuns, **85.889 faixas musicais individuais**, ~475.780 arestas de tags musicais e **61.680 arestas bidirecionais de similaridade direta** (`artist_similarities`).
 
 ---
 

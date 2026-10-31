@@ -103,6 +103,23 @@ CREATE TABLE IF NOT EXISTS artist_similarities (
     PRIMARY KEY (source_artist_id, target_artist_id)
 );
 
+CREATE SEQUENCE IF NOT EXISTS seq_tracks START 1;
+CREATE TABLE IF NOT EXISTS music_tracks (
+    id BIGINT PRIMARY KEY DEFAULT nextval('seq_tracks'),
+    spotify_id VARCHAR UNIQUE,
+    artist_id BIGINT NOT NULL REFERENCES music_artists(id),
+    album_id BIGINT REFERENCES music_albums(id),
+    title VARCHAR NOT NULL,
+    duration_ms BIGINT,
+    popularity INTEGER,
+    danceability DOUBLE,
+    energy DOUBLE,
+    tempo DOUBLE,
+    valence DOUBLE,
+    acousticness DOUBLE,
+    instrumentalness DOUBLE
+);
+
 -- ----------------------------------------------------------------------------
 -- 3. DOMÍNIO: Livros (OpenLibrary & Wikidata)
 -- ----------------------------------------------------------------------------
@@ -218,6 +235,15 @@ SELECT
 FROM music_albums
 UNION ALL
 SELECT 
+    'track:' || CAST(id AS VARCHAR),
+    title,
+    'track',
+    'music',
+    NULL,
+    spotify_id
+FROM music_tracks
+UNION ALL
+SELECT 
     'book:' || CAST(id AS VARCHAR),
     title,
     'book',
@@ -297,6 +323,22 @@ SELECT
     'released' AS relation_type,
     2.0 AS base_weight
 FROM music_albums
+UNION ALL
+-- Artista ➔ Faixa Musical (has_track)
+SELECT 
+    'artist:' || CAST(artist_id AS VARCHAR) AS source_id,
+    'track:' || CAST(id AS VARCHAR) AS target_id,
+    'has_track' AS relation_type,
+    2.0 AS base_weight
+FROM music_tracks
+UNION ALL
+-- Álbum ➔ Faixa Musical (contains_track)
+SELECT 
+    'album:' || CAST(album_id AS VARCHAR) AS source_id,
+    'track:' || CAST(id AS VARCHAR) AS target_id,
+    'contains_track' AS relation_type,
+    1.5 AS base_weight
+FROM music_tracks WHERE album_id IS NOT NULL
 UNION ALL
 -- Filme ➔ Roteirista (has_writer)
 SELECT 
