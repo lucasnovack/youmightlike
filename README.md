@@ -69,9 +69,10 @@ Todo o grafo roda localmente em um arquivo único (`data/processed/taste_graph.d
 | **Artistas Musicais** (`music_artists`) | **126.791** | MusicBrainz (CC0) + Spotify |
 | **Álbuns Musicais** (`music_albums`) | **63.289** | Discografias |
 | **Tags de Música** (`artist_tags`) | **475.786** | Microgêneros e folksonomia |
+| **Similaridades Musicais** (`artist_similarities`) | **61.680** | Last.fm Co-listening Graph (HetRec) |
 | **Keywords Globais** (`keywords`) | **47.826** | Vocabulário temático unificado |
 | **Total de Nós (`v_graph_nodes`)** | **392.829** | Consulta analítica em ~0.01s |
-| **Total de Arestas (`v_graph_edges`)** | **1.452.580** | Ponderação e consulta em ~1.0s |
+| **Total de Arestas (`v_graph_edges`)** | **1.514.260** | Ponderação e consulta em ~1.0s |
 
 ---
 
@@ -86,7 +87,7 @@ youmightlike/
 │   │   ├── connectors/     # Clientes pontuais (Wikidata, OpenLibrary, MusicBrainz)
 │   │   └── storage/        # Schema SQL, conexão DuckDB e scripts de ingestão bulk
 ├── data/                   # Ignorado no git
-│   ├── raw/                # Dumps compactados (IMDb, Steam, Goodreads, MusicBrainz, MovieLens)
+│   ├── raw/                # Dumps compactados (IMDb, Steam, Goodreads, MusicBrainz, Last.fm)
 │   └── processed/          # taste_graph.duckdb
 └── docs/                   # Documentação detalhada da arquitetura e datasets
 ```
@@ -126,6 +127,9 @@ python python/src/youmightlike/storage/ingest_books.py
 
 # Ingestão de música (MusicBrainz Parquet + Spotify CSV)
 python python/src/youmightlike/storage/ingest_music.py
+
+# Ingestão de similaridades diretas entre artistas (Last.fm Graph)
+python python/src/youmightlike/storage/ingest_lastfm_similars.py
 ```
 
 ### 4. Consultar o Grafo
