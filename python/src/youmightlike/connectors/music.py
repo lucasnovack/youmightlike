@@ -268,19 +268,19 @@ class MusicIngestionService:
 
         # 1. Inserir ou atualizar em music_artists
         existing = conn.execute(
-            "SELECT id FROM music_artists WHERE mbid = ?", [details.mbid]
+            "SELECT id, wikidata_id FROM music_artists WHERE mbid = ?", [details.mbid]
         ).fetchone()
 
         if existing:
             artist_id = existing[0]
-            conn.execute(
-                """
-                UPDATE music_artists
-                SET name = ?, country = ?, type = ?, wikidata_id = COALESCE(?, wikidata_id)
-                WHERE id = ?
-                """,
-                [details.name, details.country, details.artist_type, details.wikidata_id, artist_id],
-            )
+            if not existing[1] and details.wikidata_id:
+                try:
+                    conn.execute(
+                        "UPDATE music_artists SET wikidata_id = ? WHERE id = ?",
+                        [details.wikidata_id, artist_id],
+                    )
+                except Exception:
+                    pass
         else:
             artist_id = conn.execute(
                 """

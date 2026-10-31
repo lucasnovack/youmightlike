@@ -138,16 +138,14 @@ class OpenLibraryClient:
 
         if existing:
             book_id = existing[0]
-            conn.execute(
-                """
-                UPDATE books
-                SET work_key = COALESCE(work_key, ?),
-                    first_publish_year = COALESCE(first_publish_year, ?),
-                    description = COALESCE(description, ?)
-                WHERE id = ?
-                """,
-                [book.work_key, book.first_publish_year, book.description, book_id],
-            )
+            if not existing[1] and book.work_key:
+                try:
+                    conn.execute(
+                        "UPDATE books SET work_key = ?, first_publish_year = COALESCE(first_publish_year, ?) WHERE id = ?",
+                        [book.work_key, book.first_publish_year, book_id],
+                    )
+                except Exception:
+                    pass
         else:
             book_id = conn.execute(
                 """
