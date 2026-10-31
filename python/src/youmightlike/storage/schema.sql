@@ -306,6 +306,14 @@ SELECT
     1.5 AS base_weight
 FROM movie_credits WHERE job IN ('Screenplay', 'Writer')
 UNION ALL
+-- Filme / Anime ➔ Estúdio de Animação (produced_by)
+SELECT 
+    'movie:' || CAST(movie_id AS VARCHAR) AS source_id,
+    'person:' || CAST(person_id AS VARCHAR) AS target_id,
+    'produced_by' AS relation_type,
+    2.0 AS base_weight
+FROM movie_credits WHERE job = 'Animation Studio'
+UNION ALL
 -- Filme ➔ Keyword (has_keyword) -> Ponte Filme ⇄ Livro
 SELECT 
     'movie:' || CAST(movie_id AS VARCHAR) AS source_id,

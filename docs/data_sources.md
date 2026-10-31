@@ -33,7 +33,19 @@ Toda a malha de dados é alimentada por datasets abertos (CC0 / Domínio Públic
 
 ---
 
-## 3. Jogos e Estúdios (Steam Community Dataset)
+## 3. Animações, Estúdios e Tropos (MyAnimeList Top Anime)
+
+* **Origem:** [MyAnimeList Top Anime Dataset](https://huggingface.co/datasets/lyfesan/myanimelist-top-anime-dataset)
+* **Licença:** Dados abertos de comunidade
+* **Formato:** CSV tabular (`top_anime.csv`, 9.2 MB)
+* **Papel no Grafo:** Conecta séries, OVAs e filmes de animação a estúdios renomados (*Studio Ghibli*, *Madhouse*, *Bones*, *Wit Studio*, *Mappa*) através da relação `produced_by` e introduz tropos/temas narrativos (*Time Travel*, *Psychological*, *Mecha*, *Samurai*, *Cyberpunk*).
+* **Prevenção de Duplicatas:** Casamento de títulos em inglês e japonês com obras já catalogadas pelo IMDb. Obras pré-existentes apenas recebem novos créditos e tags; obras inéditas entram com chave `mal:<id>`.
+* **Filtro de Ingestão:** Obras com pelo menos 20.000 membros na comunidade.
+* **Volume Ingerido:** 5.341 obras de anime integradas, 453 estúdios de animação únicos com 5.839 arestas de produção e 239.528 conexões temáticas totais.
+
+---
+
+## 4. Jogos e Estúdios (Steam Community Dataset)
 
 * **Origem:** Dataset estruturado da loja Steam ([Hugging Face CC0](https://huggingface.co/datasets/FronkonGames/steam-games-dataset))
 * **Licença:** CC0 (Domínio Público)
@@ -50,7 +62,7 @@ Toda a malha de dados é alimentada por datasets abertos (CC0 / Domínio Públic
 
 ---
 
-## 4. Livros e Autores (Goodreads 100k Dataset)
+## 5. Livros e Autores (Goodreads 100k Dataset)
 
 * **Origem:** Dataset aberto de literatura ([Hugging Face CC0](https://huggingface.co/datasets/euclaise/goodreads_100k))
 * **Licença:** CC0 1.0 (Public Domain)
@@ -66,7 +78,7 @@ Toda a malha de dados é alimentada por datasets abertos (CC0 / Domínio Públic
 
 ---
 
-## 5. Música, Discografias e Grafo de Similaridade (MusicBrainz + Spotify + Last.fm)
+## 6. Música, Discografias e Grafo de Similaridade (MusicBrainz + Spotify + Last.fm)
 
 * **Origem Primária (Metadados & MBIDs):** [MusicBrainz Artist Dump](https://huggingface.co/datasets/LeData/media-metadata-musicbrainz-artists) (CC0 1.0)
 * **Origem Complementar (Álbuns & Gêneros):** Spotify 114k Tracks Dataset (CSV tabular com faixas, álbuns e subgêneros)
@@ -85,7 +97,7 @@ Toda a malha de dados é alimentada por datasets abertos (CC0 / Domínio Públic
 
 ---
 
-## 6. Conectores Pontuais (Wikidata & OpenLibrary APIs)
+## 7. Conectores Pontuais (Wikidata & OpenLibrary APIs)
 
 Para pesquisas sob demanda ou enriquecimento de obras específicas, o projeto possui conectores REST/SPARQL em `python/src/youmightlike/connectors/`:
 * `wikidata.py`: Extrai metadados semânticos via SPARQL (direção, compositores de trilha sonora, adaptações literárias e vínculos de IDs cruzados).
