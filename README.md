@@ -59,6 +59,7 @@ Todo o grafo roda localmente em um arquivo único (`data/processed/taste_graph.d
 | **Filmes** (`movies`) | **29.213** | IMDb Non-Commercial Datasets |
 | **Pessoas / Equipe** (`people`) | **37.045** | IMDb Datasets |
 | **Créditos de Filmes** (`movie_credits`) | **100.584** | Direção e roteiro (IMDb) |
+| **Keywords de Filmes** (`movie_keywords`) | **218.910** | MovieLens Tag Genome (GroupLens) |
 | **Jogos** (`games`) | **11.852** | Steam Dataset (CC0 Parquet) |
 | **Desenvolvedores** (`game_developers`) | **8.868** | Estúdios e publicadoras Steam |
 | **Tags de Jogos** (`game_tags`) | **112.725** | Tags e mecânicas da comunidade |
@@ -68,9 +69,9 @@ Todo o grafo roda localmente em um arquivo único (`data/processed/taste_graph.d
 | **Artistas Musicais** (`music_artists`) | **126.791** | MusicBrainz (CC0) + Spotify |
 | **Álbuns Musicais** (`music_albums`) | **63.289** | Discografias |
 | **Tags de Música** (`artist_tags`) | **475.786** | Microgêneros e folksonomia |
-| **Keywords Globais** (`keywords`) | **47.268** | Vocabulário temático unificado |
-| **Total de Nós (`v_graph_nodes`)** | **392.271** | Consulta analítica em ~0.01s |
-| **Total de Arestas (`v_graph_edges`)** | **1.233.719** | Ponderação e consulta em ~0.9s |
+| **Keywords Globais** (`keywords`) | **47.826** | Vocabulário temático unificado |
+| **Total de Nós (`v_graph_nodes`)** | **392.829** | Consulta analítica em ~0.01s |
+| **Total de Arestas (`v_graph_edges`)** | **1.452.580** | Ponderação e consulta em ~1.0s |
 
 ---
 
@@ -85,7 +86,7 @@ youmightlike/
 │   │   ├── connectors/     # Clientes pontuais (Wikidata, OpenLibrary, MusicBrainz)
 │   │   └── storage/        # Schema SQL, conexão DuckDB e scripts de ingestão bulk
 ├── data/                   # Ignorado no git
-│   ├── raw/                # Dumps compactados (IMDb, Steam, Goodreads, MusicBrainz)
+│   ├── raw/                # Dumps compactados (IMDb, Steam, Goodreads, MusicBrainz, MovieLens)
 │   └── processed/          # taste_graph.duckdb
 └── docs/                   # Documentação detalhada da arquitetura e datasets
 ```
@@ -113,6 +114,9 @@ O banco DuckDB é gerado em segundos lendo diretamente arquivos colunares:
 ```bash
 # Ingestão de filmes (IMDb TSVs)
 python python/src/youmightlike/storage/ingest_imdb.py
+
+# Ingestão de semântica e tags de filmes (MovieLens Tag Genome)
+python python/src/youmightlike/storage/ingest_movielens.py
 
 # Ingestão de jogos (Steam Parquet)
 python python/src/youmightlike/storage/ingest_steam.py

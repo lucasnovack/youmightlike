@@ -21,7 +21,19 @@ Toda a malha de dados é alimentada por datasets abertos (CC0 / Domínio Públic
 
 ---
 
-## 2. Jogos e Estúdios (Steam Community Dataset)
+## 2. Semântica e Tags de Filmes (MovieLens Tag Genome / GroupLens)
+
+* **Origem:** [MovieLens 20M/25M Tag Genome](https://grouplens.org/datasets/movielens/) (GroupLens Research / Universidade de Minnesota)
+* **Licença:** Gratuito para pesquisa e uso não-comercial
+* **Formato:** CSVs tabulares (`genome_tags.csv`, `genome_scores.csv`, `link.csv`)
+* **Papel no Grafo:** Conecta filmes a tags conceituais de alta precisão (`cyberpunk`, `dystopia`, `mindfuck`, `existentialism`, `atmospheric`, `neo-noir`, `space-opera`, `dark`, `philosophical`) com pontuação de relevância contínua (0.0 a 1.0).
+* **Vínculo com IMDb:** Mapeamento exato via `link.imdbId` convertido em formato canônico (`ttXXXXXXX`).
+* **Filtro de Ingestão:** Tags com relevância $\ge 0.65$.
+* **Volume Ingerido:** 218.910 arestas conceituais conectando mais de 15.500 filmes a 1.111 tags estéticas refinadas.
+
+---
+
+## 3. Jogos e Estúdios (Steam Community Dataset)
 
 * **Origem:** Dataset estruturado da loja Steam ([Hugging Face CC0](https://huggingface.co/datasets/FronkonGames/steam-games-dataset))
 * **Licença:** CC0 (Domínio Público)
@@ -38,7 +50,7 @@ Toda a malha de dados é alimentada por datasets abertos (CC0 / Domínio Públic
 
 ---
 
-## 3. Livros e Autores (Goodreads 100k Dataset)
+## 4. Livros e Autores (Goodreads 100k Dataset)
 
 * **Origem:** Dataset aberto de literatura ([Hugging Face CC0](https://huggingface.co/datasets/euclaise/goodreads_100k))
 * **Licença:** CC0 1.0 (Public Domain)
@@ -54,7 +66,7 @@ Toda a malha de dados é alimentada por datasets abertos (CC0 / Domínio Públic
 
 ---
 
-## 4. Música e Discografias (MusicBrainz + Spotify Tracks)
+## 5. Música e Discografias (MusicBrainz + Spotify Tracks)
 
 * **Origem Primária:** [MusicBrainz Artist Dump](https://huggingface.co/datasets/LeData/media-metadata-musicbrainz-artists) (CC0 1.0)
 * **Origem Complementar:** Spotify 114k Tracks Dataset (CSV tabular com faixas, álbuns e subgêneros)
@@ -69,7 +81,7 @@ Toda a malha de dados é alimentada por datasets abertos (CC0 / Domínio Públic
 
 ---
 
-## 5. Conectores Pontuais (Wikidata & OpenLibrary APIs)
+## 6. Conectores Pontuais (Wikidata & OpenLibrary APIs)
 
 Para pesquisas sob demanda ou enriquecimento de obras específicas, o projeto possui conectores REST/SPARQL em `python/src/youmightlike/connectors/`:
 * `wikidata.py`: Extrai metadados semânticos via SPARQL (direção, compositores de trilha sonora, adaptações literárias e vínculos de IDs cruzados).
