@@ -278,8 +278,17 @@ SELECT
     'is_artist' AS relation_type,
     3.0 AS base_weight
 FROM people p
-JOIN music_artists a ON (p.wikidata_id IS NOT NULL AND p.wikidata_id = a.wikidata_id)
-                     OR (LOWER(TRIM(p.name)) = LOWER(TRIM(a.name)))
+JOIN music_artists a ON p.wikidata_id = a.wikidata_id
+WHERE p.wikidata_id IS NOT NULL
+UNION ALL
+SELECT 
+    'person:' || CAST(p.id AS VARCHAR) AS source_id,
+    'artist:' || CAST(a.id AS VARCHAR) AS target_id,
+    'is_artist' AS relation_type,
+    3.0 AS base_weight
+FROM people p
+JOIN music_artists a ON LOWER(TRIM(p.name)) = LOWER(TRIM(a.name))
+WHERE p.wikidata_id IS NULL OR a.wikidata_id IS NULL
 UNION ALL
 -- Artista ➔ Álbum (released)
 SELECT 
