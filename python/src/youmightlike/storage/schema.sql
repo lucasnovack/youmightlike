@@ -1,35 +1,29 @@
 -- ============================================================================
 -- youmightlike: Esquema Canônico e Views de Projeção em Grafo (DuckDB)
+-- Fontes 100% Abertas e Livres: Wikidata (CC0) + MusicBrainz + OpenLibrary
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- 1. DOMÍNIO: Filmes & Séries (TMDB)
+-- 1. DOMÍNIO: Filmes & Séries (Wikidata / TVMaze)
 -- ----------------------------------------------------------------------------
 CREATE SEQUENCE IF NOT EXISTS seq_movies START 1;
 CREATE TABLE IF NOT EXISTS movies (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_movies'),
-    tmdb_id BIGINT UNIQUE NOT NULL,
+    wikidata_id VARCHAR UNIQUE NOT NULL, -- Ex: 'Q183611' (Blade Runner)
     imdb_id VARCHAR,
     title VARCHAR NOT NULL,
     original_title VARCHAR,
     release_year INTEGER,
-    release_date DATE,
-    runtime INTEGER,
-    vote_average DOUBLE,
-    vote_count BIGINT,
-    popularity DOUBLE,
-    overview TEXT,
-    original_language VARCHAR(10),
+    based_on_title VARCHAR,             -- Ex: 'Do Androids Dream of Electric Sheep?'
+    based_on_wikidata_id VARCHAR,       -- Ex: 'Q605249' (Livro original)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE SEQUENCE IF NOT EXISTS seq_people START 1;
 CREATE TABLE IF NOT EXISTS people (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_people'),
-    tmdb_id BIGINT UNIQUE NOT NULL,
-    name VARCHAR NOT NULL,
-    known_for_department VARCHAR,
-    popularity DOUBLE
+    wikidata_id VARCHAR UNIQUE NOT NULL, -- Ex: 'Q56005' (Ridley Scott), 'Q153996' (Vangelis)
+    name VARCHAR NOT NULL
 );
 
 CREATE SEQUENCE IF NOT EXISTS seq_movie_credits START 1;
@@ -37,17 +31,15 @@ CREATE TABLE IF NOT EXISTS movie_credits (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_movie_credits'),
     movie_id BIGINT NOT NULL REFERENCES movies(id),
     person_id BIGINT NOT NULL REFERENCES people(id),
-    job VARCHAR NOT NULL,               -- 'Director', 'Original Music Composer', 'Screenplay', etc.
-    department VARCHAR NOT NULL,        -- 'Directing', 'Sound', 'Writing', 'Camera'
-    character VARCHAR,
-    cast_order INTEGER
+    job VARCHAR NOT NULL,               -- 'Director', 'Original Music Composer', 'Screenplay'
+    department VARCHAR NOT NULL         -- 'Directing', 'Sound', 'Writing'
 );
 
 CREATE SEQUENCE IF NOT EXISTS seq_keywords START 1;
 CREATE TABLE IF NOT EXISTS keywords (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_keywords'),
     name VARCHAR UNIQUE NOT NULL,       -- Normalizado em minúsculas (ex: 'cyberpunk', 'dystopia')
-    source VARCHAR DEFAULT 'tmdb'       -- 'tmdb', 'openlibrary', 'lastfm'
+    source VARCHAR DEFAULT 'wikidata'   -- 'wikidata', 'openlibrary', 'lastfm'
 );
 
 CREATE TABLE IF NOT EXISTS movie_keywords (
@@ -59,7 +51,6 @@ CREATE TABLE IF NOT EXISTS movie_keywords (
 CREATE SEQUENCE IF NOT EXISTS seq_genres START 1;
 CREATE TABLE IF NOT EXISTS genres (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_genres'),
-    tmdb_id BIGINT UNIQUE NOT NULL,
     name VARCHAR UNIQUE NOT NULL
 );
 
@@ -76,6 +67,7 @@ CREATE SEQUENCE IF NOT EXISTS seq_artists START 1;
 CREATE TABLE IF NOT EXISTS music_artists (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_artists'),
     mbid VARCHAR UNIQUE,                -- MusicBrainz ID
+    wikidata_id VARCHAR UNIQUE,         -- Ponte Wikidata ⇄ MusicBrainz!
     name VARCHAR NOT NULL,
     country VARCHAR(10),
     type VARCHAR(20),                   -- 'Person', 'Group'
@@ -96,24 +88,25 @@ CREATE TABLE IF NOT EXISTS music_albums (
 CREATE TABLE IF NOT EXISTS artist_tags (
     artist_id BIGINT NOT NULL REFERENCES music_artists(id),
     keyword_id BIGINT NOT NULL REFERENCES keywords(id),
-    weight DOUBLE DEFAULT 1.0,          -- Relevância atribuída pela comunidade (0 a 100 normalizada)
+    weight DOUBLE DEFAULT 1.0,          -- Relevância de tag Last.fm
     PRIMARY KEY (artist_id, keyword_id)
 );
 
 CREATE TABLE IF NOT EXISTS artist_similarities (
     source_artist_id BIGINT NOT NULL REFERENCES music_artists(id),
     target_artist_id BIGINT NOT NULL REFERENCES music_artists(id),
-    match_score DOUBLE NOT NULL,        -- Grau de similaridade do Last.fm (0.0 a 1.0)
+    match_score DOUBLE NOT NULL,        -- Similaridade (0.0 a 1.0)
     PRIMARY KEY (source_artist_id, target_artist_id)
 );
 
 -- ----------------------------------------------------------------------------
--- 3. DOMÍNIO: Livros (OpenLibrary)
+-- 3. DOMÍNIO: Livros (OpenLibrary & Wikidata)
 -- ----------------------------------------------------------------------------
 CREATE SEQUENCE IF NOT EXISTS seq_books START 1;
 CREATE TABLE IF NOT EXISTS books (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_books'),
-    work_key VARCHAR UNIQUE NOT NULL,   -- Ex: '/works/OL45804W'
+    work_key VARCHAR UNIQUE,            -- Ex: '/works/OL45804W'
+    wikidata_id VARCHAR UNIQUE,         -- Ex: 'Q605249'
     title VARCHAR NOT NULL,
     first_publish_year INTEGER,
     description TEXT
@@ -122,7 +115,8 @@ CREATE TABLE IF NOT EXISTS books (
 CREATE SEQUENCE IF NOT EXISTS seq_book_authors START 1;
 CREATE TABLE IF NOT EXISTS book_authors (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_book_authors'),
-    author_key VARCHAR UNIQUE NOT NULL, -- Ex: '/authors/OL23919A'
+    author_key VARCHAR UNIQUE,          -- Ex: '/authors/OL23919A'
+    wikidata_id VARCHAR UNIQUE,
     name VARCHAR NOT NULL
 );
 
@@ -150,7 +144,7 @@ SELECT
     'movie' AS node_type,
     'movie' AS media_type,
     release_year AS year,
-    popularity AS score
+    wikidata_id AS external_id
 FROM movies
 UNION ALL
 SELECT 
@@ -159,7 +153,7 @@ SELECT
     'person',
     NULL,
     NULL,
-    popularity
+    wikidata_id
 FROM people
 UNION ALL
 SELECT 
@@ -177,7 +171,7 @@ SELECT
     'artist',
     'music',
     NULL,
-    CAST(listeners AS DOUBLE)
+    COALESCE(wikidata_id, mbid)
 FROM music_artists
 UNION ALL
 SELECT 
@@ -186,7 +180,7 @@ SELECT
     'book',
     'book',
     first_publish_year,
-    NULL
+    COALESCE(wikidata_id, work_key)
 FROM books
 UNION ALL
 SELECT 
@@ -195,7 +189,7 @@ SELECT
     'author',
     NULL,
     NULL,
-    NULL
+    COALESCE(wikidata_id, author_key)
 FROM book_authors;
 
 -- View unificada de todas as Arestas do Grafo (com pesos base)
@@ -232,6 +226,16 @@ SELECT
     1.0 AS base_weight
 FROM movie_keywords
 UNION ALL
+-- Filme ➔ Livro Original / Adaptação (based_on) -> Ponte Direta Filme ⇄ Livro!
+SELECT 
+    'movie:' || CAST(m.id AS VARCHAR) AS source_id,
+    'book:' || CAST(b.id AS VARCHAR) AS target_id,
+    'based_on' AS relation_type,
+    3.0 AS base_weight
+FROM movies m
+JOIN books b ON (m.based_on_wikidata_id IS NOT NULL AND m.based_on_wikidata_id = b.wikidata_id)
+             OR (LOWER(TRIM(m.based_on_title)) = LOWER(TRIM(b.title)))
+UNION ALL
 -- Artista ➔ Tag / Microgênero (has_tag)
 SELECT 
     'artist:' || CAST(artist_id AS VARCHAR) AS source_id,
@@ -265,7 +269,6 @@ SELECT
 FROM book_subjects;
 
 -- View com Mitigação de Super-Nós: Ponderação Adamic-Adar / IDF
--- Penaliza nós com grau gigantesco (evita contaminação por tags muito genéricas)
 CREATE OR REPLACE VIEW v_weighted_graph_edges AS
 WITH node_degrees AS (
     SELECT target_id, COUNT(*) AS degree
@@ -276,7 +279,6 @@ SELECT
     e.source_id,
     e.target_id,
     e.relation_type,
-    -- Peso efetivo: base_weight dividido pelo logaritmo do grau do nó de destino
     ROUND(e.base_weight / LN(GREATEST(nd.degree, 2.718281828)), 4) AS effective_weight
 FROM v_graph_edges e
 JOIN node_degrees nd ON e.target_id = nd.target_id;

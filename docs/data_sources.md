@@ -1,38 +1,31 @@
 # 📚 Mapeamento de Fontes de Dados — youmightlike
 
-Este documento detalha as fontes de dados gratuitas e abertas utilizadas para alimentar o grafo cultural heterogêneo do **`youmightlike`**.
+Este documento detalha as fontes de dados gratuitas, abertas e livres de termos invasivos utilizadas para alimentar o grafo cultural heterogêneo do **`youmightlike`**.
 
 ---
 
-## 🎬 1. Filmes & 📺 Séries: TMDB (The Movie Database)
+## 🎬 1. Filmes & 📺 Séries: Wikidata (Wikimedia Foundation)
 
-* **Site Oficial:** [https://www.themoviedb.org/](https://www.themoviedb.org/)
-* **Documentação da API:** [https://developer.themoviedb.org/docs](https://developer.themoviedb.org/docs)
-* **Tipo de Acesso:** API REST v3/v4 gratuita (requer criação de conta e geração de chave de API).
-* **Custo:** R$ 0,00 (Gratuito para uso não-comercial/desenvolvimento).
-* **Rate Limits:** ~40 a 50 requisições a cada 10 segundos.
+* **Site Oficial:** [https://www.wikidata.org/](https://www.wikidata.org/)
+* **Documentação SPARQL:** [https://query.wikidata.org/](https://query.wikidata.org/)
+* **Tipo de Acesso:** API REST (`wbsearchentities`) + SPARQL Endpoint (`query.wikidata.org/sparql`).
+* **Licença:** **Creative Commons Zero (CC0 / Domínio Público)**.
+* **Autenticação:** **Zero cadastro, zero API keys, zero dados pessoais**. Requer apenas cabeçalho `User-Agent` descritivo.
+* **Rate Limits:** Livre e generoso para requisições de desenvolvimento/pessoal.
 
-### Dumps Diários de IDs (Daily File Exports)
-O TMDB fornece exportações diárias compactadas em formato JSON Lines contendo todos os IDs válidos de obras e pessoas.
-* URL Base: `http://files.tmdb.org/p/exports/movie_ids_MM_DD_YYYY.json.gz`
-* Tipos exportados: `movie_ids`, `tv_series_ids`, `person_ids`, `keyword_ids`.
-
-### Principais Endpoints & Entidades Extraídas:
-1. **`/movie/{movie_id}` e `/tv/{series_id}`:**
-   - Título, título original, sinopse, tagline.
-   - Ano/data de lançamento (`release_date`), duração (`runtime`).
-   - Avaliação (`vote_average`), contagem de votos (`vote_count`), popularidade.
-   - Gêneros (`genres`).
-2. **`/movie/{movie_id}/keywords`:**
-   - Palavras-chave semânticas e temáticas (ex: *cyberpunk*, *neo-noir*, *dystopia*, *artificial intelligence*).
-   - **Papel:** Ponte estética direta com livros (OpenLibrary) e games (Steam).
-3. **`/movie/{movie_id}/credits`:**
-   - Direção (`crew` onde `job = 'Director'`).
-   - Roteiro (`crew` onde `job = 'Screenplay'` ou `'Writer'`).
-   - **Trilha Sonora Original (`crew` onde `job = 'Original Music Composer'`):**
-     - **Papel de Ouro:** Cria a ponte transmidiática primária entre Filmes e Músicas (ex: Hans Zimmer, Vangelis, Trent Reznor).
-   - Direção de Fotografia (`crew` onde `job = 'Director of Photography'`).
-   - Elenco principal (`cast`).
+### Principais Entidades e Propriedades Extraídas:
+1. **Filme / Série (`Q11424` / `Q53984`):**
+   - Título, data/ano de publicação (`P577`), identificador IMDb (`P345`).
+2. **Pessoas & Créditos Criativos:**
+   - **Direção (`P57`):** Cria nós `person` com aresta `has_director`.
+   - **Compositor da Trilha Sonora (`P86`):**
+     - **Papel de Ouro:** Cria a ponte transmidiática primária entre Filmes e Músicas (ex: Vangelis, Hans Zimmer, Trent Reznor).
+   - **Roteirista (`P58`):** Aresta `has_writer`.
+3. **Ponte Direta com Livros:**
+   - **Baseado na Obra (`P144`):** Conecta diretamente o filme ao livro/romance que o inspirou (ex: *Blade Runner* ➔ *Do Androids Dream of Electric Sheep?* de Philip K. Dick).
+4. **Gêneros & Temáticas:**
+   - **Gênero (`P136`):** Classificação estética (*cyberpunk*, *neo-noir*, *dystopia*).
+   - **Assunto Principal (`P921`):** Temáticas semânticas (*artificial intelligence*, *space travel*).
 
 ---
 
