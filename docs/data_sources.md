@@ -1,75 +1,77 @@
-# 📚 Mapeamento de Fontes de Dados — youmightlike
+# Fontes de Dados e Dumps Utilizados
 
-Este documento detalha as fontes de dados gratuitas, abertas e livres de termos invasivos utilizadas para alimentar o grafo cultural heterogêneo do **`youmightlike`**.
+O `youmightlike` foi desenhado com uma regra clara: **zero custo de API, zero dependência de aprovação cadastral e zero scraping frágil**.
 
----
-
-## 🎬 1. Filmes & 📺 Séries: Wikidata (Wikimedia Foundation)
-
-* **Site Oficial:** [https://www.wikidata.org/](https://www.wikidata.org/)
-* **Documentação SPARQL:** [https://query.wikidata.org/](https://query.wikidata.org/)
-* **Tipo de Acesso:** API REST (`wbsearchentities`) + SPARQL Endpoint (`query.wikidata.org/sparql`).
-* **Licença:** **Creative Commons Zero (CC0 / Domínio Público)**.
-* **Autenticação:** **Zero cadastro, zero API keys, zero dados pessoais**. Requer apenas cabeçalho `User-Agent` descritivo.
-* **Rate Limits:** Livre e generoso para requisições de desenvolvimento/pessoal.
-
-### Principais Entidades e Propriedades Extraídas:
-1. **Filme / Série (`Q11424` / `Q53984`):**
-   - Título, data/ano de publicação (`P577`), identificador IMDb (`P345`).
-2. **Pessoas & Créditos Criativos:**
-   - **Direção (`P57`):** Cria nós `person` com aresta `has_director`.
-   - **Compositor da Trilha Sonora (`P86`):**
-     - **Papel de Ouro:** Cria a ponte transmidiática primária entre Filmes e Músicas (ex: Vangelis, Hans Zimmer, Trent Reznor).
-   - **Roteirista (`P58`):** Aresta `has_writer`.
-3. **Ponte Direta com Livros:**
-   - **Baseado na Obra (`P144`):** Conecta diretamente o filme ao livro/romance que o inspirou (ex: *Blade Runner* ➔ *Do Androids Dream of Electric Sheep?* de Philip K. Dick).
-4. **Gêneros & Temáticas:**
-   - **Gênero (`P136`):** Classificação estética (*cyberpunk*, *neo-noir*, *dystopia*).
-   - **Assunto Principal (`P921`):** Temáticas semânticas (*artificial intelligence*, *space travel*).
+Toda a malha de dados é alimentada por datasets abertos (CC0 / Domínio Público / dumps comunitários) processados nativamente em arquivos colunares (Parquet e TSV compactados em gzip) direto para o DuckDB.
 
 ---
 
-## 🎵 2. Músicas: MusicBrainz + Last.fm
+## 1. Filmes e Pessoas (IMDb Non-Commercial Datasets)
 
-### Fonte A: MusicBrainz (MetaBrainz Foundation)
-* **Site Oficial:** [https://musicbrainz.org/](https://musicbrainz.org/)
-* **Tipo de Acesso:** API REST pública aberta ou dumps completos (PostgreSQL/JSON).
-* **Custo:** R$ 0,00 (Sem fins lucrativos / Creative Commons).
-* **Autenticação:** Não requer chave de API; exige apenas um cabeçalho `User-Agent` descritivo.
-* **Rate Limit:** 1 requisição/segundo na API pública.
-* **Entidades Extraídas:**
-  - `Artist`: Nome, país, tipo (grupo, pessoa), datas de atividade.
-  - `Release Group` (Álbuns / EPs): Título, data da primeira versão, tipo primário.
-  - `Work` / `Recording`: Faixas, compositores e letristas.
-  - `Relationships`: Relações entre artistas (membro de banda, projetos paralelos, colaborações).
-
-### Fonte B: Last.fm API
-* **Site Oficial:** [https://www.last.fm/api](https://www.last.fm/api)
-* **Tipo de Acesso:** API REST pública (requer API Key gratuita).
-* **Custo:** R$ 0,00.
-* **Entidades Extraídas:**
-  - **Folksonomia de Tags Comunitárias (`artist.getTopTags`):** Microgêneros e humores curados por ouvintes há mais de 20 anos (*shoegaze*, *post-punk*, *dark ambient*, *melancholic*, *synthwave*).
-  - **Similaridade Pré-calculada (`artist.getSimilar`):** Artistas com proximidade de escuta e respectivos índices de afinidade.
-  - Principais faixas e álbuns do artista (`artist.getTopTracks`, `artist.getTopAlbums`).
+* **Origem:** [IMDb Datasets oficiais](https://developer.imdb.com/non-commercial-datasets/)
+* **Licença:** Gratuito para uso pessoal / não-comercial
+* **Formato:** TSV compactado (`.tsv.gz`)
+* **Arquivos utilizados:**
+  - `title.basics.tsv.gz`: Metadados dos títulos (filmes, ano de lançamento, duração, gêneros primários).
+  - `title.ratings.tsv.gz`: Avaliações médias e contagem de votos.
+  - `title.crew.tsv.gz`: Mapeamento de diretores e roteiristas de cada título.
+  - `name.basics.tsv.gz`: Nomes e identificadores canônicos de pessoas (`nmXXXXXXX`).
+* **Filtro de Ingestão:** Títulos do tipo `movie` com pelo menos 2.500 votos (corte de relevância estatística para evitar títulos obscuros sem conexões).
+* **Volume Ingerido:** ~29.200 filmes, ~37.000 diretores/roteiristas e ~100.500 créditos criativos.
 
 ---
 
-## 📚 3. Livros: Open Library (Internet Archive)
+## 2. Jogos e Estúdios (Steam Community Dataset)
 
-* **Site Oficial:** [https://openlibrary.org/](https://openlibrary.org/)
-* **Documentação:** [https://openlibrary.org/developers/api](https://openlibrary.org/developers/api)
-* **Tipo de Acesso:** API REST aberta + Dumps mensais em TSV/JSON.
-* **Custo:** R$ 0,00 (Projeto sem fins lucrativos).
-* **Autenticação:** Nenhuma necessária.
-* **Entidades Extraídas:**
-  - `Works`: Título, sinopse, ano da primeira publicação.
-  - `Authors`: Autores e biografias.
-  - **`Subjects` (Assuntos / Temas):** Classificações temáticas (ex: *cyberpunk fiction*, *existentialism*, *space exploration*, *dystopian fiction*).
-  - **Papel:** Conecta diretamente com as *keywords* do TMDB e tags do Last.fm.
+* **Origem:** Dataset estruturado da loja Steam ([Hugging Face CC0](https://huggingface.co/datasets/FronkonGames/steam-games-dataset))
+* **Licença:** CC0 (Domínio Público)
+* **Formato:** Parquet nativo (`games.parquet`, 184 MB)
+* **Campos Extraídos:**
+  - `appID`: Steam App ID único.
+  - `name`: Título oficial do jogo.
+  - `release_date`: Ano de lançamento.
+  - `developers`: Array de estúdios desenvolvedores (`VARCHAR[]`).
+  - `genres` e `categories`: Tags de gameplay e estéticas (`VARCHAR[]`).
+  - `positive` / `negative`: Reviews da comunidade na Steam.
+* **Filtro de Ingestão:** Jogos com no mínimo 400 reviews totais.
+* **Volume Ingerido:** ~11.850 jogos, ~8.860 desenvolvedoras e ~112.700 tags estéticas.
 
 ---
 
-## 🎮 4. Games (Fase de Expansão): IGDB & Steam API
+## 3. Livros e Autores (Goodreads 100k Dataset)
 
-* **IGDB (Twitch Developer):** API gratuita para desenvolvedores com dados profundos de desenvolvedoras, franquias, temas e mecânicas de gameplay.
-* **Steam Web API:** Acesso público a metadados de jogos e tags comunitárias da Steam store.
+* **Origem:** Dataset aberto de literatura ([Hugging Face CC0](https://huggingface.co/datasets/euclaise/goodreads_100k))
+* **Licença:** CC0 1.0 (Public Domain)
+* **Formato:** Parquet nativo (`goodreads_100k.parquet`, 66 MB)
+* **Campos Extraídos:**
+  - `title`: Título do livro.
+  - `author`: Autores (separados por vírgula para desaninhamento).
+  - `desc`: Sinopse / resumo da obra.
+  - `genre`: Categorias, microgêneros e temas.
+  - `totalratings`: Quantidade de avaliações dos leitores.
+* **Filtro de Ingestão:** Obras com no mínimo 300 avaliações.
+* **Volume Ingerido:** ~38.200 livros, ~29.740 autores e ~400.200 conexões temáticas (`book_subjects`).
+
+---
+
+## 4. Música e Discografias (MusicBrainz + Spotify Tracks)
+
+* **Origem Primária:** [MusicBrainz Artist Dump](https://huggingface.co/datasets/LeData/media-metadata-musicbrainz-artists) (CC0 1.0)
+* **Origem Complementar:** Spotify 114k Tracks Dataset (CSV tabular com faixas, álbuns e subgêneros)
+* **Campos Extraídos:**
+  - `mbid`: MusicBrainz Identifier canônico.
+  - `name`: Nome do artista / banda.
+  - `country` e `type`: País de origem e formato (`Person` vs `Group`).
+  - `tags`: Folksonomia e microgêneros musicais (`VARCHAR[]`).
+  - `album_name`: Títulos de álbuns e discografias.
+* **Filtro de Ingestão:** Artistas com pelo menos 2 tags de caracterização estética e nomes reais (descartando entradas dummy como `[unknown]` ou `Various Artists`).
+* **Volume Ingerido:** ~126.790 artistas, ~63.290 álbuns e ~475.780 arestas de tags musicais.
+
+---
+
+## 5. Conectores Pontuais (Wikidata & OpenLibrary APIs)
+
+Para pesquisas sob demanda ou enriquecimento de obras específicas, o projeto possui conectores REST/SPARQL em `python/src/youmightlike/connectors/`:
+* `wikidata.py`: Extrai metadados semânticos via SPARQL (direção, compositores de trilha sonora, adaptações literárias e vínculos de IDs cruzados).
+* `music.py`: Integração com API REST do MusicBrainz e Last.fm para microgêneros ao vivo.
+* `books.py`: Integração com OpenLibrary API (Internet Archive) para metadados de edições.
