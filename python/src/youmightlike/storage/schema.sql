@@ -175,6 +175,15 @@ SELECT
 FROM music_artists
 UNION ALL
 SELECT 
+    'album:' || CAST(id AS VARCHAR),
+    title,
+    'album',
+    'music',
+    release_year,
+    mbid
+FROM music_albums
+UNION ALL
+SELECT 
     'book:' || CAST(id AS VARCHAR),
     title,
     'book',
@@ -209,6 +218,24 @@ SELECT
     'has_composer' AS relation_type,
     2.5 AS base_weight
 FROM movie_credits WHERE job = 'Original Music Composer'
+UNION ALL
+-- Pessoa / Compositor ➔ Artista Musical (is_artist) -> Ponte Filme ⇄ Música!
+SELECT 
+    'person:' || CAST(p.id AS VARCHAR) AS source_id,
+    'artist:' || CAST(a.id AS VARCHAR) AS target_id,
+    'is_artist' AS relation_type,
+    3.0 AS base_weight
+FROM people p
+JOIN music_artists a ON (p.wikidata_id IS NOT NULL AND p.wikidata_id = a.wikidata_id)
+                     OR (LOWER(TRIM(p.name)) = LOWER(TRIM(a.name)))
+UNION ALL
+-- Artista ➔ Álbum (released)
+SELECT 
+    'artist:' || CAST(artist_id AS VARCHAR) AS source_id,
+    'album:' || CAST(id AS VARCHAR) AS target_id,
+    'released' AS relation_type,
+    2.0 AS base_weight
+FROM music_albums
 UNION ALL
 -- Filme ➔ Roteirista (has_writer)
 SELECT 
