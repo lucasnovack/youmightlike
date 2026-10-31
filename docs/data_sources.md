@@ -62,7 +62,19 @@ Toda a malha de dados é alimentada por datasets abertos (CC0 / Domínio Públic
 
 ---
 
-## 5. Livros e Autores (Goodreads 100k Dataset)
+## 5. Clássicos de Console (Nintendo, PlayStation, Sega, Xbox)
+
+* **Origem:** [Video Game Sales Dataset](https://huggingface.co/datasets/Gokalp35/VideoGameSales)
+* **Licença:** Domínio Público / Dados Abertos
+* **Formato:** Parquet nativo (`console_games.parquet`, 1.5 MB)
+* **Papel no Grafo:** Incorpora clássicos fundamentais que não existem na Steam por exclusividade de plataforma (*The Legend of Zelda*, *Silent Hill*, *Super Mario*, *Bloodborne*, *Shadow of the Colossus*, *Pokémon*, *Metal Gear Solid clássico*), suas publicadoras e tags de plataforma.
+* **Prevenção de Duplicatas:** Join de título normalizado com os jogos existentes da Steam. Títulos multiplataforma pré-existentes não são duplicados; títulos inéditos recebem `app_id` sintético no espaço reservado (`2_000_000_000 + rank`).
+* **Filtro de Ingestão:** Obras com mais de 50.000 cópias vendidas globalmente.
+* **Volume Ingerido:** 8.205 clássicos inéditos integrados (totalizando 20.064 jogos no catálogo), 9.250 desenvolvedoras e 133.983 tags de jogos.
+
+---
+
+## 6. Livros e Autores (Goodreads 100k Dataset)
 
 * **Origem:** Dataset aberto de literatura ([Hugging Face CC0](https://huggingface.co/datasets/euclaise/goodreads_100k))
 * **Licença:** CC0 1.0 (Public Domain)
@@ -78,7 +90,7 @@ Toda a malha de dados é alimentada por datasets abertos (CC0 / Domínio Públic
 
 ---
 
-## 6. Música, Discografias e Grafo de Similaridade (MusicBrainz + Spotify + Last.fm)
+## 7. Música, Discografias e Grafo de Similaridade (MusicBrainz + Spotify + Last.fm)
 
 * **Origem Primária (Metadados & MBIDs):** [MusicBrainz Artist Dump](https://huggingface.co/datasets/LeData/media-metadata-musicbrainz-artists) (CC0 1.0)
 * **Origem Complementar (Álbuns & Gêneros):** Spotify 114k Tracks Dataset (CSV tabular com faixas, álbuns e subgêneros)
@@ -97,7 +109,7 @@ Toda a malha de dados é alimentada por datasets abertos (CC0 / Domínio Públic
 
 ---
 
-## 7. Conectores Pontuais (Wikidata & OpenLibrary APIs)
+## 8. Conectores Pontuais (Wikidata & OpenLibrary APIs)
 
 Para pesquisas sob demanda ou enriquecimento de obras específicas, o projeto possui conectores REST/SPARQL em `python/src/youmightlike/connectors/`:
 * `wikidata.py`: Extrai metadados semânticos via SPARQL (direção, compositores de trilha sonora, adaptações literárias e vínculos de IDs cruzados).

@@ -60,9 +60,9 @@ Todo o grafo roda localmente em um arquivo único (`data/processed/taste_graph.d
 | **Pessoas & Estúdios** (`people`) | **37.498** | Diretores, roteiristas e estúdios de animação |
 | **Créditos & Produção** (`movie_credits`) | **106.423** | Direção, roteiro e estúdios (`produced_by`) |
 | **Keywords de Filmes/Animes** (`movie_keywords`) | **239.528** | MovieLens Tag Genome + MyAnimeList |
-| **Jogos** (`games`) | **11.852** | Steam Dataset (CC0 Parquet) |
-| **Desenvolvedores** (`game_developers`) | **8.868** | Estúdios e publicadoras Steam |
-| **Tags de Jogos** (`game_tags`) | **112.725** | Tags e mecânicas da comunidade |
+| **Jogos** (`games`) | **20.064** | Steam Dataset + Clássicos de Console (Nintendo/PS/Sega) |
+| **Desenvolvedores** (`game_developers`) | **9.250** | Estúdios e publicadoras (PC e Consoles) |
+| **Tags de Jogos** (`game_tags`) | **133.983** | Tags comunitárias e plataformas clássicas |
 | **Livros** (`books`) | **38.203** | Goodreads 100k (CC0 Parquet) |
 | **Autores de Livros** (`book_authors`) | **29.742** | Autores e co-autores |
 | **Temas Literários** (`book_subjects`) | **400.285** | Tópicos e categorias |
@@ -70,9 +70,9 @@ Todo o grafo roda localmente em um arquivo único (`data/processed/taste_graph.d
 | **Álbuns Musicais** (`music_albums`) | **63.289** | Discografias |
 | **Tags de Música** (`artist_tags`) | **475.786** | Microgêneros e folksonomia |
 | **Similaridades Musicais** (`artist_similarities`) | **61.680** | Last.fm Co-listening Graph (HetRec) |
-| **Keywords Globais** (`keywords`) | **47.856** | Vocabulário temático unificado |
-| **Total de Nós (`v_graph_nodes`)** | **398.287** | Consulta analítica em ~0.01s |
-| **Total de Arestas (`v_graph_edges`)** | **1.540.758** | Ponderação e consulta em ~1.0s |
+| **Keywords Globais** (`keywords`) | **47.890** | Vocabulário temático unificado |
+| **Total de Nós (`v_graph_nodes`)** | **406.915** | Consulta analítica em ~0.01s |
+| **Total de Arestas (`v_graph_edges`)** | **1.571.268** | Ponderação e consulta em ~1.0s |
 
 ---
 
@@ -87,7 +87,7 @@ youmightlike/
 │   │   ├── connectors/     # Clientes pontuais (Wikidata, OpenLibrary, MusicBrainz)
 │   │   └── storage/        # Schema SQL, conexão DuckDB e scripts de ingestão bulk
 ├── data/                   # Ignorado no git
-│   ├── raw/                # Dumps compactados (IMDb, Steam, Goodreads, MusicBrainz, Last.fm, Anime)
+│   ├── raw/                # Dumps compactados (IMDb, Steam, Goodreads, MusicBrainz, Last.fm, Games)
 │   └── processed/          # taste_graph.duckdb
 └── docs/                   # Documentação detalhada da arquitetura e datasets
 ```
@@ -122,8 +122,11 @@ python python/src/youmightlike/storage/ingest_movielens.py
 # Ingestão de animes, estúdios e temas (MyAnimeList)
 python python/src/youmightlike/storage/ingest_anime.py
 
-# Ingestão de jogos (Steam Parquet)
+# Ingestão de jogos modernos (Steam Parquet)
 python python/src/youmightlike/storage/ingest_steam.py
+
+# Ingestão de clássicos de consoles (Nintendo, PlayStation, Sega)
+python python/src/youmightlike/storage/ingest_console_games.py
 
 # Ingestão de livros (Goodreads Parquet)
 python python/src/youmightlike/storage/ingest_books.py
