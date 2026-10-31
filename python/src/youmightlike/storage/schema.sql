@@ -9,20 +9,24 @@
 CREATE SEQUENCE IF NOT EXISTS seq_movies START 1;
 CREATE TABLE IF NOT EXISTS movies (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_movies'),
-    wikidata_id VARCHAR UNIQUE NOT NULL, -- Ex: 'Q183611' (Blade Runner)
-    imdb_id VARCHAR,
+    wikidata_id VARCHAR UNIQUE,          -- Ex: 'Q183611' (Blade Runner)
+    imdb_id VARCHAR UNIQUE,              -- Ex: 'tt0083658'
     title VARCHAR NOT NULL,
     original_title VARCHAR,
     release_year INTEGER,
-    based_on_title VARCHAR,             -- Ex: 'Do Androids Dream of Electric Sheep?'
-    based_on_wikidata_id VARCHAR,       -- Ex: 'Q605249' (Livro original)
+    runtime INTEGER,
+    vote_average DOUBLE,
+    vote_count BIGINT,
+    based_on_title VARCHAR,              -- Ex: 'Do Androids Dream of Electric Sheep?'
+    based_on_wikidata_id VARCHAR,        -- Ex: 'Q605249' (Livro original)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE SEQUENCE IF NOT EXISTS seq_people START 1;
 CREATE TABLE IF NOT EXISTS people (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_people'),
-    wikidata_id VARCHAR UNIQUE NOT NULL, -- Ex: 'Q56005' (Ridley Scott), 'Q153996' (Vangelis)
+    wikidata_id VARCHAR UNIQUE,          -- Ex: 'Q56005' (Ridley Scott)
+    imdb_id VARCHAR UNIQUE,              -- Ex: 'nm0000631'
     name VARCHAR NOT NULL
 );
 
