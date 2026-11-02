@@ -66,8 +66,16 @@ impl GraphCSR {
             let u = get_or_create_id(&src_key, &mut node_to_id, &mut id_to_node);
             let v = get_or_create_id(&dst_key, &mut node_to_id, &mut id_to_node);
 
+            let w = base_w as f32;
             *in_degrees.entry(v).or_insert(0) += 1;
-            raw_edges.push((u, v, base_w as f32));
+            raw_edges.push((u, v, w));
+
+            // Grafo de afinidade cultural não-direcionado: permite difusão bidirecional
+            // Ex: Artista -> Tag -> Outros Artistas, Filme -> Diretor -> Outros Filmes
+            if u != v {
+                *in_degrees.entry(u).or_insert(0) += 1;
+                raw_edges.push((v, u, w));
+            }
         }
 
         let num_nodes = id_to_node.len();

@@ -102,31 +102,39 @@ def search_entities(
             art_placeholders = ", ".join(["?" for _ in variants])
             art_rows = conn.execute(
                 f"""
-                SELECT id, name, country, listeners 
-                FROM music_artists 
-                WHERE name IN ({art_placeholders}) OR name ILIKE ? || '%'
+                SELECT ma.id, ma.name, ma.country, ma.listeners,
+                       (SELECT k.name FROM artist_tags tag_rel JOIN keywords k ON k.id = tag_rel.keyword_id WHERE tag_rel.artist_id = ma.id ORDER BY tag_rel.weight DESC LIMIT 1) as top_tag
+                FROM music_artists ma
+                WHERE ma.name IN ({art_placeholders}) 
+                   OR ma.name ILIKE ? || '%'
+                   OR ma.name ILIKE '%' || ? || '%'
                 ORDER BY 
-                    CASE WHEN LOWER(name) = LOWER(?) THEN 1
-                         WHEN name NOT LIKE '%;%' THEN 2
-                         ELSE 3 END,
-                    LENGTH(name) ASC,
-                    listeners DESC 
-                LIMIT 6;
+                    CASE WHEN LOWER(ma.name) = LOWER(?) || ' (br)' THEN 1
+                         WHEN LOWER(ma.name) = LOWER(?) THEN 2
+                         WHEN LOWER(ma.name) LIKE LOWER(?) || ' (%)' THEN 3
+                         WHEN LOWER(ma.name) LIKE LOWER(?) || '%' THEN 4
+                         WHEN ma.name NOT LIKE '%;%' THEN 5
+                         ELSE 6 END,
+                    CASE WHEN ma.country = 'BR' THEN 1 WHEN ma.country IS NOT NULL THEN 2 ELSE 3 END,
+                    LENGTH(ma.name) ASC,
+                    ma.listeners DESC 
+                LIMIT 8;
                 """,
-                variants + [q_str, q_str],
+                variants + [q_str, q_str, q_str, q_str, q_str, q_str],
             ).fetchall()
 
-            for aid, aname, country, listeners in art_rows:
+            for aid, aname, country, listeners, top_tag in art_rows:
                 nid = f"artist:{aid}"
                 if nid not in seen:
                     seen.add(nid)
-                    loc = f" • {country}" if country else ""
+                    genre_str = f" • #{top_tag}" if top_tag else ""
+                    loc_str = f" ({country})" if country else ""
                     items.append(
                         EntityItem(
                             id=nid,
                             name=aname,
                             type="artist",
-                            subtitle=f"Artist{loc}",
+                            subtitle=f"Artist{loc_str}{genre_str}",
                         )
                     )
 
@@ -297,7 +305,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
             "--seeds",
             ",".join(diffusion_seeds if diffusion_seeds else req.seeds),
             "--limit",
-            str(req.limit * 4),
+            str(max(req.limit * 8, 150)),
             "--db-path",
             DB_PATH,
             "--query-edges",
@@ -328,7 +336,36 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                 "val": 18.0,
             })
 
+        # Adiciona explicitamente as tags ou atributos compartilhados diretamente entre as sementes
+        if len(diffusion_seeds) > 1:
+            seeds_in_sql = ", ".join(f"'{s}'" for s in diffusion_seeds)
+            seed_bridges = conn.execute(
+                f"""
+                SELECT e1.target_id, k.name, count(*) as common_cnt
+                FROM graph_semantic_edges e1
+                JOIN graph_semantic_edges e2 ON e1.target_id = e2.target_id
+                JOIN keywords k ON 'keyword:' || k.id = e1.target_id
+                WHERE e1.source_id IN ({seeds_in_sql})
+                  AND e2.source_id IN ({seeds_in_sql})
+                  AND e1.source_id != e2.source_id
+                  AND e1.relation_type = 'has_tag'
+                  AND e2.relation_type = 'has_tag'
+                GROUP BY e1.target_id, k.name
+                ORDER BY common_cnt DESC
+                LIMIT 3;
+                """
+            ).fetchall()
+            for b_id, b_name, _ in seed_bridges:
+                if not any(n["id"] == b_id for n in graph_nodes):
+                    graph_nodes.append({
+                        "id": b_id,
+                        "label": f"#{b_name}",
+                        "type": "tag",
+                        "val": 9.0,
+                    })
+
         recs_count = 0
+        bridge_count = 0
         for item in diffusion_results:
             nkey = item["node_key"]
             score = item["score"]
@@ -338,7 +375,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
             prefix, raw_id = nkey.split(":")
             nid = int(raw_id)
 
-            if prefix == "artist":
+            if prefix == "artist" and recs_count < req.limit:
                 row = conn.execute("SELECT name, country FROM music_artists WHERE id = ?", [nid]).fetchone()
                 if row:
                     # Busca 1 faixa mais famosa desse artista
@@ -415,7 +452,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                     })
                     recs_count += 1
 
-            elif prefix == "movie":
+            elif prefix == "movie" and recs_count < req.limit:
                 row = conn.execute("SELECT title, release_year, vote_average FROM movies WHERE id = ?", [nid]).fetchone()
                 if row:
                     results.append({
@@ -433,7 +470,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                     })
                     recs_count += 1
 
-            elif prefix == "game":
+            elif prefix == "game" and recs_count < req.limit:
                 row = conn.execute("SELECT title, release_year FROM games WHERE id = ?", [nid]).fetchone()
                 if row:
                     results.append({
@@ -451,7 +488,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                     })
                     recs_count += 1
 
-            elif prefix in ("keyword", "person") and len(graph_nodes) < 30:
+            elif prefix in ("keyword", "person") and bridge_count < 8:
                 # Nós ponte explicativos no grafo
                 label = ""
                 if prefix == "keyword":
@@ -463,16 +500,14 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                     if prow:
                         label = prow[0]
 
-                if label:
+                if label and not any(n["id"] == nkey for n in graph_nodes):
                     graph_nodes.append({
                         "id": nkey,
                         "label": label,
                         "type": prefix,
                         "val": 7.0,
                     })
-
-            if recs_count >= req.limit:
-                break
+                    bridge_count += 1
 
         # 4. Extrai conexões entre os nós exibidos para o force-graph
         all_graph_node_ids = {n["id"] for n in graph_nodes}
