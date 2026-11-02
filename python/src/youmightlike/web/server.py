@@ -173,14 +173,15 @@ def search_entities(q: str = Query(..., min_length=2), limit: int = 8) -> List[E
                     )
                 )
 
-        # 4. Músicas mais populares com esse título (se couber no limite)
+        # 4. Músicas mais populares com esse título (Deduplicadas por título e artista)
         if len(items) < limit:
-            needed = limit - len(items)
+            needed = (limit - len(items)) * 3
             trk_rows = conn.execute(
                 """
-                SELECT t.id, t.title, ma.name, t.popularity, t.tempo, t.valence, t.energy
+                SELECT t.id, t.title, ma.name, t.popularity, t.tempo, t.valence, t.energy, alb.title
                 FROM music_tracks t
                 JOIN music_artists ma ON ma.id = t.artist_id
+                LEFT JOIN music_albums alb ON alb.id = t.album_id
                 WHERE t.title = ? OR t.title LIKE ? || '%'
                 ORDER BY t.popularity DESC
                 LIMIT ?;
@@ -188,20 +189,28 @@ def search_entities(q: str = Query(..., min_length=2), limit: int = 8) -> List[E
                 [q_str, q_str, needed],
             ).fetchall()
 
-            for tid, ttitle, taname, tpop, bpm, val, eng in trk_rows:
+            seen_track_keys = set()
+            for tid, ttitle, taname, tpop, bpm, val, eng, albtitle in trk_rows:
+                key = (ttitle.lower().strip(), taname.lower().strip())
+                if key in seen_track_keys:
+                    continue
+                seen_track_keys.add(key)
                 nid = f"track:{tid}"
                 if nid not in seen:
                     seen.add(nid)
-                    vibe = f"{int(round(bpm))} BPM" if bpm else ""
+                    alb_str = f" • {albtitle}" if albtitle else ""
+                    vibe = f" ({int(round(bpm))} BPM)" if bpm else ""
                     items.append(
                         EntityItem(
                             id=nid,
                             name=ttitle,
                             type="track",
-                            subtitle=f"Faixa de {taname} ({vibe})",
+                            subtitle=f"{taname}{alb_str}{vibe}",
                             extra={"popularity": tpop, "artist_name": taname},
                         )
                     )
+                if len(items) >= limit:
+                    break
 
     return items[:limit]
 
@@ -214,6 +223,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
 
     seed_set = set(req.seeds)
     seeds_resolved: List[EntityItem] = []
+    diffusion_seeds: List[str] = []
 
     with get_db() as conn:
         # 1. Carrega os metadados dos nós semente
@@ -224,24 +234,30 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                 row = conn.execute("SELECT name, country FROM music_artists WHERE id = ?", [nid]).fetchone()
                 if row:
                     seeds_resolved.append(EntityItem(id=s, name=row[0], type="artist", subtitle=row[1]))
+                    diffusion_seeds.append(s)
             elif prefix == "movie":
                 row = conn.execute("SELECT title, release_year FROM movies WHERE id = ?", [nid]).fetchone()
                 if row:
                     seeds_resolved.append(EntityItem(id=s, name=row[0], type="movie", subtitle=str(row[1])))
+                    diffusion_seeds.append(s)
             elif prefix == "game":
                 row = conn.execute("SELECT title, release_year FROM games WHERE id = ?", [nid]).fetchone()
                 if row:
                     seeds_resolved.append(EntityItem(id=s, name=row[0], type="game", subtitle=str(row[1])))
+                    diffusion_seeds.append(s)
             elif prefix == "track":
                 row = conn.execute(
-                    "SELECT t.title, ma.name FROM music_tracks t JOIN music_artists ma ON ma.id = t.artist_id WHERE t.id = ?",
+                    "SELECT t.title, ma.name, t.artist_id FROM music_tracks t JOIN music_artists ma ON ma.id = t.artist_id WHERE t.id = ?",
                     [nid],
                 ).fetchone()
                 if row:
                     seeds_resolved.append(EntityItem(id=s, name=row[0], type="track", subtitle=row[1]))
+                    # Faixas conectam ao grafo semântico através do seu artista
+                    art_node = f"artist:{row[2]}"
+                    if art_node not in diffusion_seeds:
+                        diffusion_seeds.append(art_node)
 
         # 2. Executa a difusão no motor Rust
-        # Usamos as arestas de grafo sem as 40M de faixas brutas para ter retorno em ~0.1s
         target_prefix = ""
         if req.target_type == "music":
             target_prefix = "artist:"
@@ -255,9 +271,9 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
         cmd = [
             str(RUST_ENGINE_BIN),
             "--seeds",
-            ",".join(req.seeds),
+            ",".join(diffusion_seeds if diffusion_seeds else req.seeds),
             "--limit",
-            str(req.limit * 3),
+            str(req.limit * 4),
             "--db-path",
             DB_PATH,
             "--query-edges",
@@ -301,20 +317,48 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
             if prefix == "artist":
                 row = conn.execute("SELECT name, country FROM music_artists WHERE id = ?", [nid]).fetchone()
                 if row:
-                    # Busca 1 faixa mais famosa desse artista para tocar/mostrar
-                    top_trk = conn.execute(
-                        "SELECT title, popularity, tempo, valence, energy FROM music_tracks WHERE artist_id = ? ORDER BY popularity DESC LIMIT 1",
-                        [nid],
+                    # Explicação auditável: arestas diretas ou tags compartilhadas com as sementes
+                    explanation_parts = []
+                    seed_ids_sql = ", ".join(f"'{s}'" for s in (diffusion_seeds if diffusion_seeds else req.seeds))
+                    
+                    direct_edge = conn.execute(
+                        f"""
+                        SELECT e.relation_type, e.base_weight, ma_other.name
+                        FROM graph_semantic_edges e
+                        JOIN music_artists ma_other ON e.target_id = 'artist:' || ma_other.id OR e.source_id = 'artist:' || ma_other.id
+                        WHERE ((e.source_id IN ({seed_ids_sql}) AND e.target_id = '{nkey}')
+                           OR (e.source_id = '{nkey}' AND e.target_id IN ({seed_ids_sql})))
+                          AND 'artist:' || ma_other.id != '{nkey}'
+                        LIMIT 1;
+                        """
                     ).fetchone()
-                    trk_info = None
-                    if top_trk:
-                        trk_info = {
-                            "title": top_trk[0],
-                            "popularity": top_trk[1],
-                            "tempo": top_trk[2],
-                            "valence": top_trk[3],
-                            "energy": top_trk[4],
-                        }
+                    if direct_edge:
+                        rel, w, src_name = direct_edge
+                        if rel == "similar_to":
+                            pct = int(round(w * 100))
+                            explanation_parts.append(f"Co-escuta com {src_name} ({pct}%)")
+                        else:
+                            explanation_parts.append(f"Conexão direta com {src_name}")
+
+                    shared_tags = conn.execute(
+                        f"""
+                        SELECT k.name
+                        FROM graph_semantic_edges e1
+                        JOIN graph_semantic_edges e2 ON e1.target_id = e2.target_id
+                        JOIN keywords k ON 'keyword:' || k.id = e1.target_id
+                        WHERE e1.source_id IN ({seed_ids_sql})
+                          AND e2.source_id = '{nkey}'
+                          AND e1.relation_type = 'has_tag'
+                          AND e2.relation_type = 'has_tag'
+                        LIMIT 2;
+                        """
+                    ).fetchall()
+                    if shared_tags:
+                        tag_names = ", ".join(f"#{t[0]}" for t in shared_tags)
+                        explanation_parts.append(f"Tags: {tag_names}")
+
+                    full_reason = " • ".join(explanation_parts) if explanation_parts else "Difusão estocástica topológica"
+
                     results.append({
                         "id": nkey,
                         "title": row[0],
@@ -322,6 +366,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                         "subtitle": f"Artista Musical ({row[1] or 'Global'})",
                         "score": round(score * 1000, 2),
                         "top_track": trk_info,
+                        "reason": full_reason,
                     })
                     graph_nodes.append({
                         "id": nkey,

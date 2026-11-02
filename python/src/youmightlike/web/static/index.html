@@ -18,21 +18,14 @@
             mono: ['"JetBrains Mono"', 'monospace', 'ui-monospace'],
           },
           colors: {
-            brand: {
-              bg: '#fcfcfc',
-              sidebar: '#f7f7f8',
-              surface: '#ffffff',
-              hover: '#f1f1f3',
-              border: '#e5e5e7',
-              borderDark: '#d1d1d6',
-              text: '#111113',
-              muted: '#6e6e73',
-              subtle: '#8e8e93',
-              accent: '#0066cc',
-              seed: '#d9381e',
-              music: '#0e7e38',
-              movie: '#b25900',
-              game: '#0055b3',
+            palette: {
+              pine: '#182825',     // Dark rich deep pine
+              parchment: '#faf3dd',// Warm parchment cream
+              sage: '#4e937a',     // Fresh sage green
+              coral: '#e84855',    // Vibrant warm coral/red
+              denim: '#2660a4',    // Deep classic blue
+              sand: '#f5efe0',     // Subtle warm sand border/hover
+              cardBg: '#ffffff',
             }
           }
         }
@@ -42,116 +35,116 @@
   <style>
     * { font-feature-settings: "zero" 1; }
     body {
-      background-color: #fcfcfc;
-      color: #111113;
+      background-color: #faf3dd;
+      color: #182825;
       font-family: 'JetBrains Mono', monospace;
       -webkit-font-smoothing: antialiased;
     }
     ::selection {
-      background: #111113;
-      color: #ffffff;
+      background: #182825;
+      color: #faf3dd;
     }
-    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #d1d1d6; border-radius: 2px; }
-    ::-webkit-scrollbar-thumb:hover { background: #8e8e93; }
+    ::-webkit-scrollbar-thumb { background: #e5dec3; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: #4e937a; }
   </style>
 </head>
 <body class="h-screen overflow-hidden flex flex-col font-mono text-[12px] leading-relaxed antialiased">
   <div id="app" class="flex flex-col h-full">
 
-    <!-- Top Minimal Header -->
-    <header class="h-12 border-b border-brand-border bg-white/95 backdrop-blur px-5 flex items-center justify-between z-30 shrink-0">
+    <!-- Top Editorial Header -->
+    <header class="h-13 border-b border-[#e5dec3] bg-[#faf3dd]/95 backdrop-blur px-6 py-2.5 flex items-center justify-between z-30 shrink-0">
       <div class="flex items-center gap-3">
-        <span class="font-bold tracking-tight text-[13px] text-brand-text flex items-center gap-2">
+        <span class="font-bold tracking-tight text-[14px] text-palette-pine flex items-center gap-2">
           youmightlike
-          <span class="text-[9px] text-brand-muted font-normal border border-brand-border px-1.5 py-0.5 rounded">v0.3</span>
+          <span class="text-[9px] text-palette-sage uppercase font-bold border border-palette-sage/30 px-1.5 py-0.5 rounded bg-palette-sage/10">graph engine</span>
         </span>
       </div>
 
-      <!-- Search Input -->
-      <div class="relative w-80">
+      <!-- Centered Monospace Search -->
+      <div class="relative w-96">
         <div class="relative flex items-center">
-          <span class="absolute left-3 text-brand-muted text-[11px] font-medium">$</span>
+          <span class="absolute left-3 text-palette-pine/40 text-[11px] font-bold">›</span>
           <input 
             type="text" 
             v-model="searchQuery" 
             @input="onSearchInput"
             placeholder="search artist, movie, game..."
-            class="w-full bg-brand-sidebar border border-brand-border hover:border-brand-borderDark focus:border-brand-text rounded pl-7 pr-7 py-1 text-xs text-brand-text placeholder-brand-muted focus:outline-none focus:bg-white transition-all"
+            class="w-full bg-white/70 border border-[#e5dec3] hover:border-palette-sage focus:border-palette-pine rounded-md pl-7 pr-7 py-1.5 text-xs text-palette-pine placeholder-palette-pine/40 focus:outline-none focus:bg-white shadow-xs transition-all"
           />
-          <span v-if="isSearching" class="w-1.5 h-1.5 rounded-full bg-brand-accent animate-ping absolute right-3"></span>
+          <span v-if="isSearching" class="w-1.5 h-1.5 rounded-full bg-palette-coral animate-ping absolute right-3"></span>
         </div>
 
-        <!-- Dropdown Search -->
-        <div v-if="searchResults.length > 0" class="absolute top-9 left-0 right-0 bg-white border border-brand-border rounded shadow-lg p-1 z-50 max-h-80 overflow-y-auto">
+        <!-- Search Results Dropdown -->
+        <div v-if="searchResults.length > 0" class="absolute top-10 left-0 right-0 bg-white border border-[#e5dec3] rounded-lg shadow-xl p-1.5 z-50 max-h-80 overflow-y-auto">
           <div 
             v-for="item in searchResults" 
             :key="item.id"
             @click="addSeed(item)"
-            class="flex items-center justify-between px-2.5 py-1.5 hover:bg-brand-hover rounded cursor-pointer transition-colors group"
+            class="flex items-center justify-between px-3 py-2 hover:bg-[#faf3dd] rounded cursor-pointer transition-colors group"
           >
-            <div class="flex items-center gap-2 truncate">
-              <span class="text-[9px] uppercase font-bold text-brand-muted shrink-0 w-12">[{{ item.type }}]</span>
+            <div class="flex items-center gap-2.5 truncate">
+              <span class="text-[9px] uppercase font-bold text-palette-sage shrink-0 w-14">[{{ item.type }}]</span>
               <div class="truncate">
-                <span class="text-xs font-semibold text-brand-text group-hover:text-brand-accent transition-colors">{{ item.name }}</span>
-                <span v-if="item.subtitle" class="text-[10px] text-brand-muted ml-1.5">({{ item.subtitle }})</span>
+                <span class="text-xs font-semibold text-palette-pine group-hover:text-palette-denim transition-colors">{{ item.name }}</span>
+                <span v-if="item.subtitle" class="text-[10px] text-palette-pine/60 ml-1.5">({{ item.subtitle }})</span>
               </div>
             </div>
-            <span class="text-[10px] font-semibold text-brand-accent opacity-0 group-hover:opacity-100 transition-opacity shrink-0">+add</span>
+            <span class="text-[10px] font-bold text-palette-coral opacity-0 group-hover:opacity-100 transition-opacity shrink-0">+add</span>
           </div>
         </div>
       </div>
 
-      <!-- Stats / Controls -->
-      <div class="flex items-center gap-4 text-xs text-brand-muted">
-        <span class="text-[10px] font-mono">61.9M nodes • 99.2M edges</span>
+      <!-- Stats / Right Controls -->
+      <div class="flex items-center gap-4 text-xs text-palette-pine/60">
+        <span class="text-[10px] font-mono font-medium">61.9M nodes • 99.2M edges</span>
         <button 
           @click="clearProfile" 
           v-if="profileSeeds.length > 0"
-          class="text-[10px] text-brand-muted hover:text-red-600 transition-colors"
+          class="text-[10px] font-bold text-palette-coral hover:underline transition-colors"
         >
           [reset]
         </button>
       </div>
     </header>
 
-    <!-- Main Split: Feed Left (440px) + Graph Right (flex-1) -->
+    <!-- Main Workspace: Results Left + Topology Map Right -->
     <div class="flex-1 flex overflow-hidden">
 
-      <!-- LEFT: Discovery Feed -->
-      <main class="w-[440px] border-r border-brand-border flex flex-col bg-white z-10 shrink-0">
+      <!-- LEFT: Discovery Feed (460px) -->
+      <main class="w-[460px] border-r border-[#e5dec3] flex flex-col bg-white/70 backdrop-blur z-10 shrink-0">
         <!-- Filter Header -->
-        <div class="h-10 border-b border-brand-border px-4 flex items-center justify-between bg-brand-sidebar shrink-0">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-brand-muted">
-            Results ({{ recommendations.length }})
+        <div class="h-10 border-b border-[#e5dec3] px-4 flex items-center justify-between bg-[#faf3dd]/60 shrink-0">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-palette-pine/70">
+            Discoveries ({{ recommendations.length }})
           </span>
-          <div class="flex items-center border border-brand-border rounded bg-white overflow-hidden text-[9px]">
+          <div class="flex items-center border border-[#e5dec3] rounded bg-white overflow-hidden text-[9px] font-bold">
             <button 
               @click="targetFilter = null; computeRecommendations()" 
-              :class="{'bg-brand-text text-white font-semibold': targetFilter === null, 'text-brand-muted hover:text-brand-text': targetFilter !== null}"
-              class="px-2 py-0.5 transition-colors"
+              :class="{'bg-palette-pine text-white': targetFilter === null, 'text-palette-pine/60 hover:text-palette-pine': targetFilter !== null}"
+              class="px-2.5 py-0.5 transition-colors"
             >
               ALL
             </button>
             <button 
               @click="targetFilter = 'music'; computeRecommendations()" 
-              :class="{'bg-brand-text text-white font-semibold': targetFilter === 'music', 'text-brand-muted hover:text-brand-text': targetFilter !== 'music'}"
-              class="px-2 py-0.5 border-l border-brand-border transition-colors"
+              :class="{'bg-palette-pine text-white': targetFilter === 'music', 'text-palette-pine/60 hover:text-palette-pine': targetFilter !== 'music'}"
+              class="px-2.5 py-0.5 border-l border-[#e5dec3] transition-colors"
             >
               MUSIC
             </button>
             <button 
               @click="targetFilter = 'movie'; computeRecommendations()" 
-              :class="{'bg-brand-text text-white font-semibold': targetFilter === 'movie', 'text-brand-muted hover:text-brand-text': targetFilter !== 'movie'}"
-              class="px-2 py-0.5 border-l border-brand-border transition-colors"
+              :class="{'bg-palette-pine text-white': targetFilter === 'movie', 'text-palette-pine/60 hover:text-palette-pine': targetFilter !== 'movie'}"
+              class="px-2.5 py-0.5 border-l border-[#e5dec3] transition-colors"
             >
               FILMS
             </button>
             <button 
               @click="targetFilter = 'game'; computeRecommendations()" 
-              :class="{'bg-brand-text text-white font-semibold': targetFilter === 'game', 'text-brand-muted hover:text-brand-text': targetFilter !== 'game'}"
-              class="px-2 py-0.5 border-l border-brand-border transition-colors"
+              :class="{'bg-palette-pine text-white': targetFilter === 'game', 'text-palette-pine/60 hover:text-palette-pine': targetFilter !== 'game'}"
+              class="px-2.5 py-0.5 border-l border-[#e5dec3] transition-colors"
             >
               GAMES
             </button>
@@ -159,40 +152,46 @@
         </div>
 
         <!-- Feed List -->
-        <div class="flex-1 overflow-y-auto p-3 space-y-2">
-          <div v-if="recommendations.length === 0 && !isLoadingRecs" class="text-center py-20 text-brand-muted text-xs">
-            Add items in the bottom bar and click<br><span class="text-brand-text font-bold">"Compute Discovery"</span>.
+        <div class="flex-1 overflow-y-auto p-3 space-y-2.5">
+          <div v-if="recommendations.length === 0 && !isLoadingRecs" class="text-center py-24 text-palette-pine/50 text-xs">
+            Add entities in the bottom bar and click<br><span class="text-palette-pine font-bold">"Run Diffusion"</span>.
           </div>
 
-          <!-- Card Item -->
+          <!-- Card Item with Explanation Details -->
           <div 
             v-for="rec in recommendations" 
             :key="rec.id"
-            class="bg-brand-surface hover:bg-brand-hover border border-brand-border p-2.5 rounded transition-colors group"
+            class="bg-white hover:bg-[#fffdf9] border border-[#e5dec3] hover:border-palette-sage p-3 rounded-lg shadow-xs transition-all group"
           >
             <div class="flex items-start justify-between gap-2 mb-1">
               <div>
-                <span class="text-[9px] uppercase font-bold text-brand-muted tracking-wide mr-1">[{{ rec.type }}]</span>
-                <span class="text-xs font-bold text-brand-text group-hover:text-brand-accent transition-colors">
+                <span class="text-[9px] uppercase font-bold text-palette-sage tracking-wide mr-1.5">[{{ rec.type }}]</span>
+                <span class="text-xs font-bold text-palette-pine group-hover:text-palette-denim transition-colors">
                   {{ rec.title }}
                 </span>
-                <p class="text-[10px] text-brand-muted mt-0.5">{{ rec.subtitle }}</p>
+                <p class="text-[10px] text-palette-pine/60 mt-0.5">{{ rec.subtitle }}</p>
               </div>
-              <span class="text-[10px] font-mono text-brand-muted bg-brand-sidebar px-1.5 py-0.5 rounded border border-brand-border shrink-0">
-                p:{{ rec.score }}
+              <span class="text-[10px] font-mono font-bold text-palette-denim bg-palette-parchment/60 px-1.5 py-0.5 rounded border border-[#e5dec3] shrink-0">
+                score {{ rec.score }}
               </span>
             </div>
 
-            <!-- Track preview if artist -->
-            <div v-if="rec.top_track" class="mt-1.5 pt-1.5 border-t border-brand-border flex items-center justify-between text-[10px] text-brand-muted">
-              <span class="truncate">♫ {{ rec.top_track.title }}</span>
-              <span class="text-brand-music font-mono shrink-0">pop {{ rec.top_track.popularity }}</span>
+            <!-- Mathematical / Graph Explanation (Why this is here) -->
+            <div v-if="rec.reason" class="mt-2 text-[10px] text-palette-sage bg-palette-sage/10 px-2 py-1 rounded border border-palette-sage/20 flex items-center gap-1.5">
+              <span class="font-bold shrink-0">↳ Ponderação:</span>
+              <span class="truncate">{{ rec.reason }}</span>
             </div>
 
-            <div class="mt-1.5 flex justify-end">
+            <!-- Popular Track Preview -->
+            <div v-if="rec.top_track" class="mt-1.5 pt-1.5 border-t border-[#f0ebda] flex items-center justify-between text-[10px] text-palette-pine/60">
+              <span class="truncate">♫ {{ rec.top_track.title }}</span>
+              <span class="text-palette-sage font-mono font-bold shrink-0">pop {{ rec.top_track.popularity }}</span>
+            </div>
+
+            <div class="mt-2 flex justify-end">
               <button 
                 @click="addSeed({ id: rec.id, name: rec.title, type: rec.type, subtitle: rec.subtitle })"
-                class="text-[9px] text-brand-accent hover:underline font-medium"
+                class="text-[9px] font-bold text-palette-coral hover:underline"
               >
                 + add to profile
               </button>
@@ -201,18 +200,18 @@
         </div>
       </main>
 
-      <!-- RIGHT: Interactive Graph Canvas -->
-      <section class="flex-1 relative bg-brand-bg flex flex-col overflow-hidden">
-        <div class="absolute top-3 left-3 z-20 bg-white/95 border border-brand-border rounded p-2.5 shadow-xs max-w-xs text-[10px]">
-          <div class="font-bold text-brand-text mb-0.5">Topology Map</div>
-          <p class="text-brand-muted leading-tight mb-1.5">
-            Personalized PageRank paths linking seeds to discoveries.
+      <!-- RIGHT: Elegant Canvas Topology Map -->
+      <section class="flex-1 relative bg-[#faf3dd] flex flex-col overflow-hidden">
+        <div class="absolute top-4 left-4 z-20 bg-white/90 backdrop-blur border border-[#e5dec3] rounded-lg p-3 shadow-md max-w-xs text-[10px]">
+          <div class="font-bold text-palette-pine text-[11px] mb-0.5">Topological Taste Field</div>
+          <p class="text-palette-pine/60 leading-tight mb-2">
+            Multi-hop Personalized PageRank network showing harmonic convergence between your profile nodes.
           </p>
-          <div class="flex items-center gap-2.5 font-medium">
-            <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-brand-seed"></span> Seed</span>
-            <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-brand-music"></span> Music</span>
-            <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-brand-movie"></span> Movie</span>
-            <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-brand-game"></span> Game</span>
+          <div class="flex flex-wrap items-center gap-2.5 font-bold">
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-palette-coral"></span> Seed</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-palette-sage"></span> Music</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-palette-denim"></span> Movie/Game</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-[#8c827a]"></span> Tag</span>
           </div>
         </div>
 
@@ -222,29 +221,29 @@
     </div>
 
     <!-- BOTTOM HORIZONTAL TASTE PROFILE BAR -->
-    <footer class="h-20 border-t border-brand-border bg-white px-5 py-2.5 flex items-center justify-between gap-4 z-30 shrink-0 shadow-xs">
+    <footer class="h-20 border-t border-[#e5dec3] bg-white px-6 py-2.5 flex items-center justify-between gap-5 z-30 shrink-0 shadow-lg">
       <div class="flex items-center gap-4 overflow-hidden flex-1">
         <div class="shrink-0">
-          <span class="text-[10px] uppercase font-bold text-brand-muted tracking-wider block">Taste Profile</span>
-          <span class="text-xs font-bold text-brand-text">{{ profileSeeds.length }} nodes</span>
+          <span class="text-[9px] uppercase font-bold text-palette-pine/50 tracking-wider block">Taste Profile</span>
+          <span class="text-xs font-bold text-palette-pine">{{ profileSeeds.length }} nodes</span>
         </div>
 
-        <div class="h-8 w-px bg-brand-border shrink-0"></div>
+        <div class="h-8 w-px bg-[#e5dec3] shrink-0"></div>
 
         <!-- Horizontal Chips Slider -->
         <div class="flex items-center gap-2 overflow-x-auto py-1 flex-1">
-          <div v-if="profileSeeds.length === 0" class="text-brand-muted text-[11px] flex items-center gap-2">
+          <div v-if="profileSeeds.length === 0" class="text-palette-pine/50 text-[11px] flex items-center gap-2">
             <span>Empty profile. Quick add:</span>
-            <button @click="quickAdd('Daft Punk')" class="text-[10px] bg-brand-sidebar hover:bg-brand-hover border border-brand-border px-2 py-0.5 rounded transition-colors text-brand-text">
-              + Daft Punk
-            </button>
-            <button @click="quickAdd('The Cure')" class="text-[10px] bg-brand-sidebar hover:bg-brand-hover border border-brand-border px-2 py-0.5 rounded transition-colors text-brand-text">
+            <button @click="quickAdd('The Cure')" class="text-[10px] font-semibold bg-[#faf3dd] hover:bg-[#f0e8ce] border border-[#e5dec3] px-2.5 py-1 rounded transition-colors text-palette-pine">
               + The Cure
             </button>
-            <button @click="quickAdd('LCD Soundsystem')" class="text-[10px] bg-brand-sidebar hover:bg-brand-hover border border-brand-border px-2 py-0.5 rounded transition-colors text-brand-text">
+            <button @click="quickAdd('LCD Soundsystem')" class="text-[10px] font-semibold bg-[#faf3dd] hover:bg-[#f0e8ce] border border-[#e5dec3] px-2.5 py-1 rounded transition-colors text-palette-pine">
               + LCD Soundsystem
             </button>
-            <button @click="quickAdd('Blade Runner')" class="text-[10px] bg-brand-sidebar hover:bg-brand-hover border border-brand-border px-2 py-0.5 rounded transition-colors text-brand-text">
+            <button @click="quickAdd('Mochakk')" class="text-[10px] font-semibold bg-[#faf3dd] hover:bg-[#f0e8ce] border border-[#e5dec3] px-2.5 py-1 rounded transition-colors text-palette-pine">
+              + Mochakk
+            </button>
+            <button @click="quickAdd('Blade Runner')" class="text-[10px] font-semibold bg-[#faf3dd] hover:bg-[#f0e8ce] border border-[#e5dec3] px-2.5 py-1 rounded transition-colors text-palette-pine">
               + Blade Runner
             </button>
           </div>
@@ -253,13 +252,13 @@
           <div 
             v-for="seed in profileSeeds" 
             :key="seed.id" 
-            class="flex items-center gap-1.5 px-2.5 py-1 bg-brand-sidebar hover:bg-brand-hover rounded border border-brand-border transition-colors shrink-0 group text-[11px]"
+            class="flex items-center gap-1.5 px-3 py-1 bg-[#faf3dd] hover:bg-[#f0e8ce] rounded-full border border-[#e5dec3] transition-colors shrink-0 group text-[11px]"
           >
-            <span class="text-[9px] font-bold uppercase text-brand-muted">[{{ seed.type }}]</span>
-            <span class="font-semibold text-brand-text">{{ seed.name }}</span>
+            <span class="text-[9px] font-bold uppercase text-palette-sage">[{{ seed.type }}]</span>
+            <span class="font-bold text-palette-pine">{{ seed.name }}</span>
             <button 
               @click="removeSeed(seed.id)" 
-              class="text-brand-muted hover:text-red-600 font-bold ml-1"
+              class="text-palette-pine/40 hover:text-palette-coral font-bold ml-1"
             >
               ×
             </button>
@@ -267,15 +266,15 @@
         </div>
       </div>
 
-      <!-- Execute Discovery Button -->
+      <!-- Action Button -->
       <div class="shrink-0">
         <button 
           @click="computeRecommendations"
           :disabled="profileSeeds.length === 0 || isLoadingRecs"
-          class="bg-brand-text hover:bg-black disabled:opacity-30 disabled:pointer-events-none text-white font-medium text-xs py-2 px-4 rounded transition-colors flex items-center gap-2 shadow-xs"
+          class="bg-palette-pine hover:bg-black disabled:opacity-30 disabled:pointer-events-none text-palette-parchment font-bold text-xs py-2.5 px-5 rounded-lg transition-all flex items-center gap-2 shadow-sm"
         >
-          <span v-if="isLoadingRecs" class="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-          <span>{{ isLoadingRecs ? 'Computing...' : 'Run Discovery →' }}</span>
+          <span v-if="isLoadingRecs" class="w-2.5 h-2.5 border-2 border-palette-parchment/30 border-t-palette-parchment rounded-full animate-spin"></span>
+          <span>{{ isLoadingRecs ? 'Computing PPR...' : 'Run Diffusion →' }}</span>
         </button>
       </div>
     </footer>
@@ -398,42 +397,52 @@
         const initGraph = () => {
           const elem = document.getElementById('graph-container');
           graphInstance = ForceGraph()(elem)
-            .backgroundColor('#fcfcfc')
+            .backgroundColor('#faf3dd')
             .nodeId('id')
             .nodeVal('val')
             .nodeLabel(node => `${node.label} (${node.type})`)
             .nodeCanvasObject((node, ctx, globalScale) => {
               const label = node.label;
               const fontSize = 11 / globalScale;
-              ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+              ctx.font = `600 ${fontSize}px "JetBrains Mono", monospace`;
 
-              let fill = '#8e8e93';
-              if (node.type === 'seed') fill = '#d9381e';
-              else if (node.type === 'artist' || node.type === 'track') fill = '#0e7e38';
-              else if (node.type === 'movie') fill = '#b25900';
-              else if (node.type === 'game') fill = '#0055b3';
-              else if (node.type === 'keyword') fill = '#8e8e93';
-              else if (node.type === 'person') fill = '#5856d6';
+              // Colors from palette
+              let fill = '#8c827a';
+              if (node.type === 'seed') fill = '#e84855';      // Coral
+              else if (node.type === 'artist' || node.type === 'track') fill = '#4e937a'; // Sage
+              else if (node.type === 'movie' || node.type === 'game') fill = '#2660a4';   // Denim
+              else if (node.type === 'keyword') fill = '#a0998f'; // Warm grey
+              else if (node.type === 'person') fill = '#182825';  // Pine
 
-              const r = (node.val || 6) / 2;
+              const r = (node.val || 7) / 2;
+              
+              // Shadow glow for seeds
+              if (node.type === 'seed') {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, r + 2, 0, 2 * Math.PI, false);
+                ctx.fillStyle = 'rgba(232, 72, 85, 0.25)';
+                ctx.fill();
+              }
+
               ctx.beginPath();
               ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
               ctx.fillStyle = fill;
               ctx.fill();
 
-              ctx.strokeStyle = '#ffffff';
-              ctx.lineWidth = 1 / globalScale;
+              ctx.strokeStyle = '#faf3dd';
+              ctx.lineWidth = 1.2 / globalScale;
               ctx.stroke();
 
+              // Clear crisp label
               ctx.textAlign = 'center';
               ctx.textBaseline = 'top';
-              ctx.fillStyle = '#111113';
-              ctx.fillText(label, node.x, node.y + r + 2);
+              ctx.fillStyle = '#182825';
+              ctx.fillText(label, node.x, node.y + r + 3);
             })
-            .linkDirectionalParticles(1)
+            .linkDirectionalParticles(2)
             .linkDirectionalParticleSpeed(0.003)
-            .linkColor(() => '#e5e5e7')
-            .linkWidth(link => Math.min(link.weight || 1, 2));
+            .linkColor(() => '#e5dec3')
+            .linkWidth(link => Math.min(link.weight || 1, 2.5));
         };
 
         const updateGraph = (graphData) => {
