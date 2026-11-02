@@ -56,6 +56,8 @@ class RecommendationRequest(BaseModel):
     seeds: List[str]  # Lista de IDs: ['artist:11', 'movie:12406']
     target_type: Optional[str] = None  # None ou 'music', 'movie', 'game', 'book'
     limit: int = 12
+    lang: str = "pt"  # 'pt' | 'en'
+
 
 
 class GraphNode(BaseModel):
@@ -259,9 +261,10 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
         return RecommendationResponse(seeds=[], results=[], graph={"nodes": [], "links": []})
 
     # Cache key determinística ordenada
-    cache_key = f"{','.join(sorted(req.seeds))}|{req.target_type or 'all'}|{req.limit}"
+    cache_key = f"{','.join(sorted(req.seeds))}|{req.target_type or 'all'}|{req.limit}|{req.lang}"
     if cache_key in _RECOMMENDATION_CACHE:
         return _RECOMMENDATION_CACHE[cache_key]
+
 
     seed_set = set(req.seeds)
     seeds_resolved: List[EntityItem] = []
@@ -490,13 +493,14 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                         LIMIT 1;
                         """
                     ).fetchone()
+                    is_pt = (req.lang == "pt")
                     if direct_edge:
                         rel, w, src_name = direct_edge
                         if rel == "similar_to":
                             pct = int(round(w * 100))
-                            explanation_parts.append(f"Co-escuta com {src_name} ({pct}%)")
+                            explanation_parts.append(f"Co-escuta com {src_name} ({pct}%)" if is_pt else f"Co-listening with {src_name} ({pct}%)")
                         else:
-                            explanation_parts.append(f"Conexão direta com {src_name}")
+                            explanation_parts.append(f"Conexão direta com {src_name}" if is_pt else f"Direct link with {src_name}")
 
                     shared_tags = conn.execute(
                         f"""
@@ -515,13 +519,15 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                         tag_names = ", ".join(f"#{t[0]}" for t in shared_tags)
                         explanation_parts.append(f"Tags: {tag_names}")
 
-                    full_reason = " • ".join(explanation_parts) if explanation_parts else "Difusão estocástica topológica"
+                    default_artist_reason = "Difusão estocástica topológica" if is_pt else "Topological graph diffusion"
+                    full_reason = " • ".join(explanation_parts) if explanation_parts else default_artist_reason
+                    artist_subtitle = f"Artista Musical ({row[1] or 'Global'})" if is_pt else f"Musical Artist ({row[1] or 'Global'})"
 
                     results.append({
                         "id": nkey,
                         "title": row[0],
                         "type": "artist",
-                        "subtitle": f"Artista Musical ({row[1] or 'Global'})",
+                        "subtitle": artist_subtitle,
                         "score": round(score * 1000, 2),
                         "top_track": trk_info,
                         "reason": full_reason,
@@ -537,6 +543,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
             elif prefix == "movie" and recs_count < req.limit:
                 row = conn.execute("SELECT title, release_year, vote_average FROM movies WHERE id = ?", [nid]).fetchone()
                 if row:
+                    is_pt = (req.lang == "pt")
                     movie_explanation = []
                     # 1. Diretor ou estúdio compartilhado
                     shared_person = conn.execute(
@@ -552,7 +559,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                         """
                     ).fetchone()
                     if shared_person:
-                        movie_explanation.append(f"Mesmo realizador/compositor ({shared_person[0]})")
+                        movie_explanation.append(f"Mesmo realizador/compositor ({shared_person[0]})" if is_pt else f"Same director/composer ({shared_person[0]})")
 
                     # 2. Tags estéticas compartilhadas
                     shared_movie_tags = conn.execute(
@@ -570,15 +577,17 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                     ).fetchall()
                     if shared_movie_tags:
                         tag_str = ", ".join(f"#{t[0]}" for t in shared_movie_tags)
-                        movie_explanation.append(f"Tags em comum: {tag_str}")
+                        movie_explanation.append(f"Tags em comum: {tag_str}" if is_pt else f"Shared tags: {tag_str}")
 
-                    full_movie_reason = " • ".join(movie_explanation) if movie_explanation else "Afinidade de difusão de gênero e estilo"
+                    default_movie_reason = "Afinidade de difusão de gênero e estilo" if is_pt else "Genre and style diffusion affinity"
+                    full_movie_reason = " • ".join(movie_explanation) if movie_explanation else default_movie_reason
+                    movie_subtitle = f"Filme ({row[1] or 'N/A'}) • Nota {row[2] or 'N/A'}" if is_pt else f"Movie ({row[1] or 'N/A'}) • Rating: {row[2] or 'N/A'}"
 
                     results.append({
                         "id": nkey,
                         "title": row[0],
                         "type": "movie",
-                        "subtitle": f"Filme ({row[1] or 'N/A'}) • Nota {row[2] or 'N/A'}",
+                        "subtitle": movie_subtitle,
                         "score": round(score * 1000, 2),
                         "reason": full_movie_reason,
                     })
@@ -593,6 +602,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
             elif prefix == "game" and recs_count < req.limit:
                 row = conn.execute("SELECT title, release_year FROM games WHERE id = ?", [nid]).fetchone()
                 if row:
+                    is_pt = (req.lang == "pt")
                     game_explanation = []
                     # 1. Desenvolvedor ou estúdio compartilhado com a semente
                     shared_dev = conn.execute(
@@ -608,7 +618,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                         """
                     ).fetchone()
                     if shared_dev:
-                        game_explanation.append(f"Mesmo estúdio ({shared_dev[0]})")
+                        game_explanation.append(f"Mesmo estúdio ({shared_dev[0]})" if is_pt else f"Same studio ({shared_dev[0]})")
 
                     # 2. Tags estéticas e mecânicas compartilhadas (excluindo ruídos genéricos)
                     shared_game_tags = conn.execute(
@@ -627,7 +637,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                     ).fetchall()
                     if shared_game_tags:
                         tag_str = ", ".join(f"#{t[0]}" for t in shared_game_tags)
-                        game_explanation.append(f"Tags em comum: {tag_str}")
+                        game_explanation.append(f"Tags em comum: {tag_str}" if is_pt else f"Shared tags: {tag_str}")
                     else:
                         # Fallback se só tiver tags amplas
                         any_tags = conn.execute(
@@ -645,13 +655,15 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                         if any_tags:
                             game_explanation.append(f"Tags: {', '.join(f'#{t[0]}' for t in any_tags)}")
 
-                    full_game_reason = " • ".join(game_explanation) if game_explanation else "Afinidade de jogabilidade e universo temático"
+                    default_game_reason = "Afinidade de jogabilidade e universo temático" if is_pt else "Gameplay and thematic universe affinity"
+                    full_game_reason = " • ".join(game_explanation) if game_explanation else default_game_reason
+                    game_subtitle = f"Jogo ({row[1] or 'N/A'})" if is_pt else f"Game ({row[1] or 'N/A'})"
 
                     results.append({
                         "id": nkey,
                         "title": row[0],
                         "type": "game",
-                        "subtitle": f"Jogo ({row[1] or 'N/A'})",
+                        "subtitle": game_subtitle,
                         "score": round(score * 1000, 2),
                         "reason": full_game_reason,
                     })
@@ -718,6 +730,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                 })
 
         # 5. Enriquece cada nó do grafo com suas tags e metadados descritivos
+        is_pt = (req.lang == "pt")
         for n in graph_nodes:
             n_id = n["id"]
             if ":" not in n_id:
@@ -737,7 +750,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                     [nid],
                 ).fetchall()
                 node_tags = [f"#{r[0]}" for r in trows]
-                node_desc = "Artista musical"
+                node_desc = "Artista musical" if is_pt else "Musical Artist"
 
             elif pfx == "track":
                 # Tags diretas da faixa ou do artista
@@ -753,7 +766,8 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                 node_tags = [f"#{r[0]}" for r in trows]
                 t_info = conn.execute("SELECT a.name, t.tempo, t.energy FROM music_tracks t JOIN music_artists a ON a.id = t.artist_id WHERE t.id = ?", [nid]).fetchone()
                 if t_info:
-                    node_desc = f"Faixa de {t_info[0]} • {round(t_info[1] or 0)} BPM"
+                    bpm_str = f"{round(t_info[1] or 0)} BPM"
+                    node_desc = f"Faixa de {t_info[0]} • {bpm_str}" if is_pt else f"Track by {t_info[0]} • {bpm_str}"
 
             elif pfx == "game":
                 trows = conn.execute(
@@ -763,7 +777,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                 node_tags = [f"#{r[0]}" for r in trows]
                 grow = conn.execute("SELECT release_year FROM games WHERE id = ?", [nid]).fetchone()
                 if grow and grow[0]:
-                    node_desc = f"Jogo ({grow[0]})"
+                    node_desc = f"Jogo ({grow[0]})" if is_pt else f"Game ({grow[0]})"
 
             elif pfx == "movie":
                 trows = conn.execute(
@@ -771,9 +785,10 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                     [nid],
                 ).fetchall()
                 node_tags = [f"#{r[0]}" for r in trows]
-                mrow = conn.execute("SELECT release_year, rating FROM movies WHERE id = ?", [nid]).fetchone()
+                mrow = conn.execute("SELECT release_year, vote_average FROM movies WHERE id = ?", [nid]).fetchone()
                 if mrow:
-                    node_desc = f"Filme ({mrow[0] or 'N/A'}) • Nota {mrow[1] or 'N/A'}"
+                    rating_fmt = f"{mrow[1]:.1f}" if mrow[1] is not None else "N/A"
+                    node_desc = f"Filme ({mrow[0] or 'N/A'}) • Nota {rating_fmt}" if is_pt else f"Movie ({mrow[0] or 'N/A'}) • Rating: {rating_fmt}"
 
             elif pfx == "book":
                 trows = conn.execute(
@@ -781,19 +796,20 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                     [nid],
                 ).fetchall()
                 node_tags = [f"#{r[0]}" for r in trows]
-                node_desc = "Livro"
+                node_desc = "Livro" if is_pt else "Book"
 
             elif pfx == "developer":
-                node_desc = "Estúdio de Desenvolvimento"
+                node_desc = "Estúdio de Desenvolvimento" if is_pt else "Game Developer Studio"
 
             elif pfx == "keyword":
-                node_desc = "Tag Conceitual"
+                node_desc = "Tag Conceitual" if is_pt else "Conceptual Tag"
 
             elif pfx == "person":
-                node_desc = "Diretor / Compositor / Roteirista"
+                node_desc = "Diretor / Compositor / Roteirista" if is_pt else "Director / Composer / Writer"
 
             n["tags"] = node_tags
             n["desc"] = node_desc
+
 
     resp_obj = RecommendationResponse(
         seeds=seeds_resolved,

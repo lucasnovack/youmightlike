@@ -77,11 +77,11 @@
             @change="onSearchInput"
             class="bg-transparent border-r border-canvas-border px-2.5 py-1.5 text-[11px] font-bold text-canvas-muted focus:outline-none cursor-pointer"
           >
-            <option value="">All Types</option>
-            <option value="game">Games</option>
-            <option value="artist">Artists</option>
-            <option value="track">Tracks</option>
-            <option value="movie">Movies</option>
+            <option value="">{{ t('allTypes') }}</option>
+            <option value="game">{{ t('typeGames') }}</option>
+            <option value="artist">{{ t('typeArtists') }}</option>
+            <option value="track">{{ t('typeTracks') }}</option>
+            <option value="movie">{{ t('typeMovies') }}</option>
           </select>
 
           <span class="pl-3 text-canvas-muted text-[11px] font-bold">›</span>
@@ -115,23 +115,42 @@
                 <span v-if="item.subtitle" class="text-[10px] text-canvas-muted ml-1.5">({{ item.subtitle }})</span>
               </div>
             </div>
-            <span class="text-[10px] font-bold text-canvas-coral opacity-0 group-hover:opacity-100 transition-opacity shrink-0">+add</span>
+            <span class="text-[10px] font-bold text-canvas-coral opacity-0 group-hover:opacity-100 transition-opacity shrink-0">{{ t('addBtn') }}</span>
           </div>
         </div>
       </div>
 
       <!-- Stats / Right Controls -->
       <div class="flex items-center gap-4 text-xs text-canvas-muted">
-        <span class="text-[10px] font-mono font-medium">61.9M nodes • 99.2M edges</span>
+        <!-- Language Switcher Pill -->
+        <div class="flex items-center border border-canvas-border rounded bg-canvas-sidebar overflow-hidden text-[10px] font-mono font-bold">
+          <button 
+            @click="setLang('pt')" 
+            :class="{'bg-canvas-text text-white': currentLang === 'pt', 'text-canvas-muted hover:text-canvas-text': currentLang !== 'pt'}"
+            class="px-2 py-0.5 transition-colors"
+          >
+            PT
+          </button>
+          <button 
+            @click="setLang('en')" 
+            :class="{'bg-canvas-text text-white': currentLang === 'en', 'text-canvas-muted hover:text-canvas-text': currentLang !== 'en'}"
+            class="px-2 py-0.5 border-l border-canvas-border transition-colors"
+          >
+            EN
+          </button>
+        </div>
+
+        <span class="text-[10px] font-mono font-medium hidden sm:inline">61.9M {{ t('nodes') }} • 99.2M {{ t('edges') }}</span>
         <button 
           @click="clearProfile" 
           v-if="profileSeeds.length > 0"
           class="text-[10px] font-bold text-canvas-coral hover:underline transition-colors"
         >
-          [reset]
+          [{{ t('reset') }}]
         </button>
       </div>
     </header>
+
 
     <!-- Main Workspace: Results Left + Topology Map Right -->
     <div class="flex-1 flex overflow-hidden">
@@ -141,7 +160,7 @@
         <!-- Filter Header -->
         <div class="h-10 border-b border-canvas-border px-4 flex items-center justify-between bg-canvas-sidebar shrink-0">
           <span class="text-[10px] font-bold uppercase tracking-wider text-canvas-muted">
-            Discoveries ({{ recommendations.length }})
+            {{ t('discoveries') }} ({{ recommendations.length }})
           </span>
           <div class="flex items-center border border-canvas-border rounded bg-white overflow-hidden text-[9px] font-bold">
             <button 
@@ -149,28 +168,28 @@
               :class="{'bg-canvas-text text-white': targetFilter === null, 'text-canvas-muted hover:text-canvas-text': targetFilter !== null}"
               class="px-2.5 py-0.5 transition-colors"
             >
-              ALL
+              {{ t('filterAll') }}
             </button>
             <button 
               @click="targetFilter = 'music'; computeRecommendations()" 
               :class="{'bg-canvas-text text-white': targetFilter === 'music', 'text-canvas-muted hover:text-canvas-text': targetFilter !== 'music'}"
               class="px-2.5 py-0.5 border-l border-canvas-border transition-colors"
             >
-              MUSIC
+              {{ t('filterMusic') }}
             </button>
             <button 
               @click="targetFilter = 'movie'; computeRecommendations()" 
               :class="{'bg-canvas-text text-white': targetFilter === 'movie', 'text-canvas-muted hover:text-canvas-text': targetFilter !== 'movie'}"
               class="px-2.5 py-0.5 border-l border-canvas-border transition-colors"
             >
-              FILMS
+              {{ t('filterFilms') }}
             </button>
             <button 
               @click="targetFilter = 'game'; computeRecommendations()" 
               :class="{'bg-canvas-text text-white': targetFilter === 'game', 'text-canvas-muted hover:text-canvas-text': targetFilter !== 'game'}"
               class="px-2.5 py-0.5 border-l border-canvas-border transition-colors"
             >
-              GAMES
+              {{ t('filterGames') }}
             </button>
           </div>
         </div>
@@ -181,12 +200,12 @@
             <div class="flex items-center gap-1.5 truncate">
               <span class="w-2 h-2 rounded-full bg-canvas-coral animate-pulse shrink-0"></span>
               <span class="text-[10px] font-bold text-canvas-text uppercase tracking-wide truncate">
-                Foco: {{ inspectedNodes[0].label }}
+                {{ t('focus') }}: {{ inspectedNodes[0].label }}
               </span>
               <span class="text-[9px] text-canvas-muted shrink-0">({{ inspectedNodes[0].type }})</span>
             </div>
             <button @click="clearSelection" class="text-[8px] font-bold text-canvas-muted hover:text-canvas-coral uppercase tracking-wider shrink-0">
-              [ver todos]
+              [{{ t('seeAll') }}]
             </button>
           </div>
 
@@ -200,7 +219,7 @@
           <!-- Sugestões recomendadas para este nó específico -->
           <div v-if="focusedNodeSuggestions.length > 0" class="space-y-1.5">
             <span class="text-[9px] uppercase font-bold text-canvas-muted tracking-wider block">
-              Sugestões relacionadas para adicionar ao perfil:
+              {{ t('relatedSuggestions') }}
             </span>
             <div 
               v-for="sug in focusedNodeSuggestions.slice(0, 3)" 
@@ -215,7 +234,7 @@
                 @click="addSeed({ id: sug.id, name: sug.title, type: sug.type, subtitle: sug.subtitle })"
                 class="px-2 py-1 bg-canvas-coral text-white rounded text-[9px] font-bold shrink-0 hover:opacity-90 transition-opacity"
               >
-                + Adicionar
+                {{ t('addBtn') }}
               </button>
             </div>
           </div>
@@ -224,8 +243,9 @@
         <!-- Feed List -->
         <div class="flex-1 overflow-y-auto p-3 space-y-2.5">
           <div v-if="recommendations.length === 0 && !isLoadingRecs" class="text-center py-24 text-canvas-muted text-xs">
-            Add entities in the bottom bar and click<br><span class="text-canvas-text font-bold">"Run Diffusion"</span>.
+            {{ t('emptyFeed') }}
           </div>
+
 
 
           <!-- Card Item with Mathematical Explanation Details -->
@@ -254,14 +274,14 @@
 
             <!-- Mathematical / Graph Explanation (Why this is here) -->
             <div v-if="rec.reason" class="mt-2 text-[10px] text-canvas-sage bg-canvas-sage/10 px-2.5 py-1 rounded border border-canvas-sage/20 flex items-center gap-1.5">
-              <span class="font-bold shrink-0">↳ Path:</span>
+              <span class="font-bold shrink-0">↳ {{ t('path') }}</span>
               <span class="truncate font-medium">{{ rec.reason }}</span>
             </div>
 
             <!-- Popular Track Preview -->
             <div v-if="rec.top_track" class="mt-1.5 pt-1.5 border-t border-canvas-border/60 flex items-center justify-between text-[10px] text-canvas-muted">
               <span class="truncate text-canvas-text font-medium">{{ rec.top_track.title }}</span>
-              <span class="text-canvas-sage font-mono font-bold shrink-0">pop {{ rec.top_track.popularity }}</span>
+              <span class="text-canvas-sage font-mono font-bold shrink-0">{{ t('pop') }} {{ rec.top_track.popularity }}</span>
             </div>
 
             <div class="mt-2 flex justify-end">
@@ -269,7 +289,7 @@
                 @click="addSeed({ id: rec.id, name: rec.title, type: rec.type, subtitle: rec.subtitle })"
                 class="text-[9px] font-bold text-canvas-coral hover:underline"
               >
-                + add to profile
+                {{ t('addToProfile') }}
               </button>
             </div>
           </div>
@@ -280,17 +300,17 @@
       <section class="flex-1 relative bg-canvas-bg flex flex-col overflow-hidden">
         <!-- Legend Pill -->
         <div class="absolute top-4 left-4 z-20 bg-white/95 backdrop-blur border border-canvas-border rounded-lg p-3 shadow-md max-w-xs text-[10px]">
-          <div class="font-bold text-canvas-text text-[11px] mb-0.5">Topological Field</div>
+          <div class="font-bold text-canvas-text text-[11px] mb-0.5">{{ t('topologicalField') }}</div>
           <p class="text-canvas-muted leading-tight mb-2">
-            Personalized PageRank paths linking your profile nodes to recommendations.
+            {{ t('topologyDesc') }}
           </p>
           <div class="flex flex-wrap items-center gap-2 font-bold text-[9px]">
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-coral"></span> Seed</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-sage"></span> Music</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-denim"></span> Game</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#1d4ed8]"></span> Studio</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#b25900]"></span> Movie</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#a1a1aa]"></span> Tag</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-coral"></span> {{ t('seed') }}</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-sage"></span> {{ t('music') }}</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-denim"></span> {{ t('game') }}</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#1d4ed8]"></span> {{ t('studio') }}</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#b25900]"></span> {{ t('movie') }}</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#a1a1aa]"></span> {{ t('tag') }}</span>
           </div>
         </div>
 
@@ -299,10 +319,10 @@
           <div class="flex items-center justify-between gap-3 mb-2 border-b border-canvas-border/80 pb-2">
             <span class="font-bold text-canvas-text text-[11px] flex items-center gap-1.5">
               <span class="w-2 h-2 rounded-full bg-canvas-coral animate-pulse"></span>
-              <span>{{ selectedNodeIds.size === 1 ? 'Nó Selecionado' : selectedNodeIds.size + ' Nós Selecionados' }}</span>
+              <span>{{ selectedNodeIds.size === 1 ? t('inspecting1') : selectedNodeIds.size + ' ' + t('inspectingMulti') }}</span>
             </span>
             <button @click="clearSelection" class="text-[9px] font-bold text-canvas-muted hover:text-canvas-coral uppercase tracking-wider transition-colors">
-              [esc / fechar]
+              [esc / {{ t('close') }}]
             </button>
           </div>
 
@@ -323,7 +343,7 @@
               <!-- Tags do Nó -->
               <div v-if="node.tags && node.tags.length > 0" class="mt-2 pt-2 border-t border-canvas-border/40">
                 <span class="text-[8px] uppercase font-bold text-canvas-muted tracking-wider block mb-1">
-                  Tags & Atributos ({{ node.tags.length }})
+                  {{ t('tagsAndAttrs') }} ({{ node.tags.length }})
                 </span>
                 <div class="flex flex-wrap gap-1">
                   <span v-for="t in node.tags" :key="t" class="px-1.5 py-0.5 bg-canvas-border/50 text-canvas-text rounded text-[9px]">
@@ -335,7 +355,7 @@
               <!-- Conexões diretas no subgrafo -->
               <div v-if="node.neighbors && node.neighbors.length > 0" class="mt-2 pt-2 border-t border-canvas-border/40">
                 <span class="text-[8px] uppercase font-bold text-canvas-muted tracking-wider block mb-1">
-                  Conexões no Grafo ({{ node.neighbors.length }})
+                  {{ t('graphConnections') }} ({{ node.neighbors.length }})
                 </span>
                 <div class="space-y-1 max-h-24 overflow-y-auto pr-1">
                   <div v-for="(nbr, idx) in node.neighbors" :key="idx" class="flex items-center justify-between text-[9px] text-canvas-muted">
@@ -349,10 +369,10 @@
 
           <div class="mt-2.5 pt-2 border-t border-canvas-border/60 text-[9px] text-canvas-muted leading-tight">
             <span v-if="selectedNodeIds.size === 1">
-              Segure <span class="font-bold text-canvas-text">Shift</span> e clique em outro nó para destacar o caminho entre eles.
+              {{ t('holdShift') }}
             </span>
             <span v-else>
-              Arestas diretas e pontes mútuas estão realçadas em coral no grafo.
+              {{ t('sharedBridgesHighlighted') }}
             </span>
           </div>
         </div>
@@ -367,8 +387,8 @@
     <footer class="h-20 border-t border-canvas-border bg-white px-6 py-2.5 flex items-center justify-between gap-5 z-30 shrink-0 shadow-lg">
       <div class="flex items-center gap-4 overflow-hidden flex-1">
         <div class="shrink-0">
-          <span class="text-[9px] uppercase font-bold text-canvas-muted tracking-wider block">Taste Profile</span>
-          <span class="text-xs font-bold text-canvas-text">{{ profileSeeds.length }} nodes</span>
+          <span class="text-[9px] uppercase font-bold text-canvas-muted tracking-wider block">{{ t('tasteProfile') }}</span>
+          <span class="text-xs font-bold text-canvas-text">{{ profileSeeds.length }} {{ t('nodes') }}</span>
         </div>
 
         <div class="h-8 w-px bg-canvas-border shrink-0"></div>
@@ -376,18 +396,18 @@
         <!-- Horizontal Chips Slider -->
         <div class="flex items-center gap-2 overflow-x-auto py-1 flex-1">
           <div v-if="profileSeeds.length === 0" class="text-canvas-muted text-[11px] flex items-center gap-2">
-            <span>Empty profile. Quick add:</span>
+            <span>{{ t('emptyProfile') }}</span>
             <button @click="quickAdd('The Elder Scrolls V: Skyrim')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text">
-              + Skyrim (Game)
+              {{ t('quickSkyrim') }}
             </button>
             <button @click="quickAdd('The Cure')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text">
-              + The Cure
+              {{ t('quickTheCure') }}
             </button>
             <button @click="quickAdd('LCD Soundsystem')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text">
-              + LCD Soundsystem
+              {{ t('quickLcd') }}
             </button>
             <button @click="quickAdd('Blade Runner')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text">
-              + Blade Runner
+              {{ t('quickBladeRunner') }}
             </button>
           </div>
 
@@ -422,7 +442,7 @@
           class="bg-canvas-pine hover:bg-black disabled:opacity-30 disabled:pointer-events-none text-white font-bold text-xs py-2.5 px-5 rounded-lg transition-all flex items-center gap-2 shadow-sm"
         >
           <span v-if="isLoadingRecs" class="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-          <span>{{ isLoadingRecs ? 'Computing PPR...' : 'Run Diffusion →' }}</span>
+          <span>{{ isLoadingRecs ? t('computingPpr') : t('runDiffusion') }}</span>
         </button>
       </div>
     </footer>
@@ -432,8 +452,124 @@
   <script>
     const { createApp, ref, computed, onMounted } = Vue;
 
+    const I18N = {
+      pt: {
+        nodes: "nós",
+        edges: "arestas",
+        reset: "limpar",
+        discoveries: "Descobertas",
+        filterAll: "TODOS",
+        filterMusic: "MÚSICA",
+        filterFilms: "FILMES",
+        filterGames: "JOGOS",
+        emptyFeed: "Adicione itens na barra inferior e clique em \"Calcular Difusão\".",
+        addToProfile: "+ Adicionar ao perfil",
+        path: "Caminho:",
+        pop: "pop",
+        topologicalField: "Campo Topológico",
+        topologyDesc: "Rotas de Personalized PageRank conectando os nós do seu perfil às recomendações.",
+        seed: "Semente",
+        music: "Música",
+        game: "Jogo",
+        studio: "Estúdio",
+        movie: "Filme",
+        tag: "Tag",
+        inspecting1: "Nó Selecionado",
+        inspectingMulti: "Nós Selecionados",
+        close: "fechar",
+        tagsAndAttrs: "Tags & Atributos",
+        graphConnections: "Conexões no Grafo",
+        holdShift: "Segure Shift e clique em outro nó para destacar o caminho entre eles.",
+        sharedBridgesHighlighted: "Arestas diretas e pontes mútuas estão realçadas em coral no grafo.",
+        tasteProfile: "Perfil de Afinidade",
+        emptyProfile: "Perfil vazio. Adição rápida:",
+        computingPpr: "Calculando Difusão...",
+        runDiffusion: "Calcular Difusão →",
+        focus: "Foco",
+        seeAll: "ver todos",
+        relatedSuggestions: "Sugestões relacionadas para adicionar ao perfil:",
+        addBtn: "+ Adicionar",
+        searchAll: "buscar jogos, artistas, faixas, filmes...",
+        searchGame: "buscar jogos (ex: skyrim, cyberpunk)...",
+        searchArtist: "buscar artistas (ex: daft punk, the cure)...",
+        searchTrack: "buscar faixas (ex: many rivers, killing moon)...",
+        searchMovie: "buscar filmes (ex: blade runner, dune)...",
+        allTypes: "Todos os Tipos",
+        typeGames: "Jogos",
+        typeArtists: "Artistas",
+        typeTracks: "Faixas",
+        typeMovies: "Filmes",
+        quickSkyrim: "+ Skyrim (Jogo)",
+        quickTheCure: "+ The Cure (Música)",
+        quickLcd: "+ LCD Soundsystem",
+        quickBladeRunner: "+ Blade Runner (Filme)",
+      },
+      en: {
+        nodes: "nodes",
+        edges: "edges",
+        reset: "reset",
+        discoveries: "Discoveries",
+        filterAll: "ALL",
+        filterMusic: "MUSIC",
+        filterFilms: "FILMS",
+        filterGames: "GAMES",
+        emptyFeed: "Add entities in the bottom bar and click \"Run Diffusion\".",
+        addToProfile: "+ Add to profile",
+        path: "Path:",
+        pop: "pop",
+        topologicalField: "Topological Field",
+        topologyDesc: "Personalized PageRank paths linking your profile nodes to recommendations.",
+        seed: "Seed",
+        music: "Music",
+        game: "Game",
+        studio: "Studio",
+        movie: "Movie",
+        tag: "Tag",
+        inspecting1: "Inspecting 1 Node",
+        inspectingMulti: "Nodes Inspected",
+        close: "close",
+        tagsAndAttrs: "Tags & Attributes",
+        graphConnections: "Graph Connections",
+        holdShift: "Hold Shift and click another node to highlight bridges between them.",
+        sharedBridgesHighlighted: "Direct links and shared bridges are highlighted in coral.",
+        tasteProfile: "Taste Profile",
+        emptyProfile: "Empty profile. Quick add:",
+        computingPpr: "Computing Diffusion...",
+        runDiffusion: "Run Diffusion →",
+        focus: "Focus",
+        seeAll: "see all",
+        relatedSuggestions: "Related recommendations to add to profile:",
+        addBtn: "+ Add",
+        searchAll: "search games, artists, tracks, movies...",
+        searchGame: "search games (e.g. skyrim, cyberpunk)...",
+        searchArtist: "search artists (e.g. daft punk, the cure)...",
+        searchTrack: "search tracks (e.g. many rivers, killing moon)...",
+        searchMovie: "search movies (e.g. blade runner, dune)...",
+        allTypes: "All Types",
+        typeGames: "Games",
+        typeArtists: "Artists",
+        typeTracks: "Tracks",
+        typeMovies: "Movies",
+        quickSkyrim: "+ Skyrim (Game)",
+        quickTheCure: "+ The Cure (Music)",
+        quickLcd: "+ LCD Soundsystem",
+        quickBladeRunner: "+ Blade Runner (Movie)",
+      }
+    };
+
     createApp({
       setup() {
+        const currentLang = ref(localStorage.getItem('ym_lang') || 'pt');
+        const t = (key) => I18N[currentLang.value]?.[key] || I18N.en[key] || key;
+
+        const setLang = (lang) => {
+          currentLang.value = lang;
+          localStorage.setItem('ym_lang', lang);
+          if (profileSeeds.value.length > 0) {
+            computeRecommendations();
+          }
+        };
+
         const searchQuery = ref('');
         const searchType = ref(''); // '', 'game', 'artist', 'track', 'movie'
         const searchResults = ref([]);
@@ -461,12 +597,13 @@
         };
 
         const getSearchPlaceholder = () => {
-          if (searchType.value === 'game') return 'search games (e.g. skyrim, cyberpunk)...';
-          if (searchType.value === 'artist') return 'search artists (e.g. daft punk, the cure)...';
-          if (searchType.value === 'track') return 'search tracks (e.g. dance yrself clean)...';
-          if (searchType.value === 'movie') return 'search movies (e.g. blade runner, dune)...';
-          return 'search games, artists, tracks, movies...';
+          if (searchType.value === 'game') return t('searchGame');
+          if (searchType.value === 'artist') return t('searchArtist');
+          if (searchType.value === 'track') return t('searchTrack');
+          if (searchType.value === 'movie') return t('searchMovie');
+          return t('searchAll');
         };
+
 
         const getTypeBadgeClass = (type) => {
           switch(type) {
@@ -564,9 +701,11 @@
               const payload = {
                 seeds: profileSeeds.value.map(s => s.id),
                 target_type: targetFilter.value,
-                limit: 15
+                limit: 15,
+                lang: currentLang.value
               };
               const res = await fetch('/api/recommend', {
+
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -646,7 +785,11 @@
                 if (sharesNeighbor) affinityScore += 25;
               });
 
+              const isPt = currentLang.value === 'pt';
               if (affinityScore > 0 || rec.score > 0) {
+                const reasonStr = hasDirectLink 
+                  ? (isPt ? `Ligação direta com ${primary.label}` : `Direct link with ${primary.label}`)
+                  : (isPt ? `Conectado via vizinhos e tags de ${primary.label}` : `Connected via neighbors & tags of ${primary.label}`);
                 suggestions.push({
                   id: rec.id,
                   title: rec.title,
@@ -654,13 +797,14 @@
                   subtitle: rec.subtitle,
                   score: rec.score,
                   affinityScore: affinityScore + Math.round(rec.score || 0),
-                  reason: hasDirectLink ? `Ligação direta com ${primary.label}` : `Conectado via vizinhos e tags de ${primary.label}`,
+                  reason: reasonStr,
                 });
               }
             }
           });
 
           // 2. Vizinhos do próprio nó que não sejam apenas keywords e não estejam no perfil
+          const isPt = currentLang.value === 'pt';
           primary.neighbors.forEach(nbr => {
             if (!profileIds.has(nbr.id) && nbr.id !== primary.id && nbr.type !== 'keyword' && nbr.type !== 'tag') {
               if (!suggestions.some(s => s.id === nbr.id)) {
@@ -668,16 +812,17 @@
                   id: nbr.id,
                   title: nbr.label,
                   type: nbr.type,
-                  subtitle: `Vizinho direto (${nbr.rel})`,
+                  subtitle: isPt ? `Vizinho direto (${nbr.rel})` : `Direct neighbor (${nbr.rel})`,
                   score: Math.round((nbr.weight || 1) * 10),
                   affinityScore: 90,
-                  reason: `Aresta direta '${nbr.rel}' com ${primary.label}`,
+                  reason: isPt ? `Aresta direta '${nbr.rel}' com ${primary.label}` : `Direct edge '${nbr.rel}' with ${primary.label}`,
                 });
               }
             }
           });
 
           return suggestions.sort((a, b) => b.affinityScore - a.affinityScore).slice(0, 10);
+
         });
 
         const clearSelection = () => {
@@ -897,6 +1042,9 @@
           inspectedNodes,
           focusedNodeSuggestions,
           clearSelection,
+          currentLang,
+          setLang,
+          t,
         };
       }
     }).mount('#app');
