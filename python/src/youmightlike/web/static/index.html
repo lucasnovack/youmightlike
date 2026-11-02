@@ -18,14 +18,19 @@
             mono: ['"JetBrains Mono"', 'monospace', 'ui-monospace'],
           },
           colors: {
-            palette: {
-              pine: '#182825',     // Dark rich deep pine
-              parchment: '#faf3dd',// Warm parchment cream
-              sage: '#4e937a',     // Fresh sage green
-              coral: '#e84855',    // Vibrant warm coral/red
-              denim: '#2660a4',    // Deep classic blue
-              sand: '#f5efe0',     // Subtle warm sand border/hover
-              cardBg: '#ffffff',
+            canvas: {
+              bg: '#fbfbfb',
+              panel: '#ffffff',
+              sidebar: '#f6f6f7',
+              border: '#e4e4e7',
+              borderDark: '#d4d4d8',
+              text: '#182825',
+              muted: '#71717a',
+              pine: '#182825',
+              sage: '#4e937a',
+              coral: '#e84855',
+              denim: '#2660a4',
+              accent: '#182825',
             }
           }
         }
@@ -35,74 +40,93 @@
   <style>
     * { font-feature-settings: "zero" 1; }
     body {
-      background-color: #faf3dd;
+      background-color: #fbfbfb;
       color: #182825;
       font-family: 'JetBrains Mono', monospace;
       -webkit-font-smoothing: antialiased;
     }
     ::selection {
       background: #182825;
-      color: #faf3dd;
+      color: #ffffff;
     }
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #e5dec3; border-radius: 2px; }
-    ::-webkit-scrollbar-thumb:hover { background: #4e937a; }
+    ::-webkit-scrollbar-thumb { background: #e4e4e7; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
   </style>
 </head>
 <body class="h-screen overflow-hidden flex flex-col font-mono text-[12px] leading-relaxed antialiased">
   <div id="app" class="flex flex-col h-full">
 
-    <!-- Top Editorial Header -->
-    <header class="h-13 border-b border-[#e5dec3] bg-[#faf3dd]/95 backdrop-blur px-6 py-2.5 flex items-center justify-between z-30 shrink-0">
+    <!-- Top Minimalist Header -->
+    <header class="h-13 border-b border-canvas-border bg-white/95 backdrop-blur px-6 py-2.5 flex items-center justify-between z-30 shrink-0">
       <div class="flex items-center gap-3">
-        <span class="font-bold tracking-tight text-[14px] text-palette-pine flex items-center gap-2">
+        <span class="font-bold tracking-tight text-[13px] text-canvas-text flex items-center gap-2">
           youmightlike
-          <span class="text-[9px] text-palette-sage uppercase font-bold border border-palette-sage/30 px-1.5 py-0.5 rounded bg-palette-sage/10">graph engine</span>
+          <span class="text-[9px] text-canvas-sage uppercase font-bold border border-canvas-sage/30 px-1.5 py-0.5 rounded bg-canvas-sage/10">graph engine</span>
         </span>
       </div>
 
-      <!-- Centered Monospace Search -->
-      <div class="relative w-96">
-        <div class="relative flex items-center">
-          <span class="absolute left-3 text-palette-pine/40 text-[11px] font-bold">›</span>
+      <!-- Spotlight Search Input with Type Selector -->
+      <div class="relative w-[480px]">
+        <div class="relative flex items-center border border-canvas-border focus-within:border-canvas-text rounded-md bg-canvas-sidebar focus-within:bg-white shadow-xs transition-all overflow-hidden">
+          
+          <!-- Category Quick Selector Dropdown/Tabs inside input -->
+          <select 
+            v-model="searchType" 
+            @change="onSearchInput"
+            class="bg-transparent border-r border-canvas-border px-2.5 py-1.5 text-[11px] font-bold text-canvas-muted focus:outline-none cursor-pointer"
+          >
+            <option value="">All Types</option>
+            <option value="game">Games</option>
+            <option value="artist">Artists</option>
+            <option value="track">Tracks</option>
+            <option value="movie">Movies</option>
+          </select>
+
+          <span class="pl-3 text-canvas-muted text-[11px] font-bold">›</span>
           <input 
             type="text" 
             v-model="searchQuery" 
             @input="onSearchInput"
-            placeholder="search artist, movie, game..."
-            class="w-full bg-white/70 border border-[#e5dec3] hover:border-palette-sage focus:border-palette-pine rounded-md pl-7 pr-7 py-1.5 text-xs text-palette-pine placeholder-palette-pine/40 focus:outline-none focus:bg-white shadow-xs transition-all"
+            :placeholder="getSearchPlaceholder()"
+            class="w-full bg-transparent px-2.5 py-1.5 text-xs text-canvas-text placeholder-canvas-muted/60 focus:outline-none"
           />
-          <span v-if="isSearching" class="w-1.5 h-1.5 rounded-full bg-palette-coral animate-ping absolute right-3"></span>
+          <span v-if="isSearching" class="w-1.5 h-1.5 rounded-full bg-canvas-coral animate-ping mr-3"></span>
         </div>
 
         <!-- Search Results Dropdown -->
-        <div v-if="searchResults.length > 0" class="absolute top-10 left-0 right-0 bg-white border border-[#e5dec3] rounded-lg shadow-xl p-1.5 z-50 max-h-80 overflow-y-auto">
+        <div v-if="searchResults.length > 0" class="absolute top-10 left-0 right-0 bg-white border border-canvas-border rounded-lg shadow-xl p-1.5 z-50 max-h-80 overflow-y-auto">
           <div 
             v-for="item in searchResults" 
             :key="item.id"
             @click="addSeed(item)"
-            class="flex items-center justify-between px-3 py-2 hover:bg-[#faf3dd] rounded cursor-pointer transition-colors group"
+            class="flex items-center justify-between px-3 py-2 hover:bg-canvas-sidebar rounded cursor-pointer transition-colors group"
           >
             <div class="flex items-center gap-2.5 truncate">
-              <span class="text-[9px] uppercase font-bold text-palette-sage shrink-0 w-14">[{{ item.type }}]</span>
+              <span 
+                :class="getTypeBadgeClass(item.type)"
+                class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border shrink-0 w-16 text-center"
+              >
+                {{ item.type }}
+              </span>
               <div class="truncate">
-                <span class="text-xs font-semibold text-palette-pine group-hover:text-palette-denim transition-colors">{{ item.name }}</span>
-                <span v-if="item.subtitle" class="text-[10px] text-palette-pine/60 ml-1.5">({{ item.subtitle }})</span>
+                <span class="text-xs font-semibold text-canvas-text group-hover:text-canvas-denim transition-colors">{{ item.name }}</span>
+                <span v-if="item.subtitle" class="text-[10px] text-canvas-muted ml-1.5">({{ item.subtitle }})</span>
               </div>
             </div>
-            <span class="text-[10px] font-bold text-palette-coral opacity-0 group-hover:opacity-100 transition-opacity shrink-0">+add</span>
+            <span class="text-[10px] font-bold text-canvas-coral opacity-0 group-hover:opacity-100 transition-opacity shrink-0">+add</span>
           </div>
         </div>
       </div>
 
       <!-- Stats / Right Controls -->
-      <div class="flex items-center gap-4 text-xs text-palette-pine/60">
+      <div class="flex items-center gap-4 text-xs text-canvas-muted">
         <span class="text-[10px] font-mono font-medium">61.9M nodes • 99.2M edges</span>
         <button 
           @click="clearProfile" 
           v-if="profileSeeds.length > 0"
-          class="text-[10px] font-bold text-palette-coral hover:underline transition-colors"
+          class="text-[10px] font-bold text-canvas-coral hover:underline transition-colors"
         >
           [reset]
         </button>
@@ -113,38 +137,38 @@
     <div class="flex-1 flex overflow-hidden">
 
       <!-- LEFT: Discovery Feed (460px) -->
-      <main class="w-[460px] border-r border-[#e5dec3] flex flex-col bg-white/70 backdrop-blur z-10 shrink-0">
+      <main class="w-[460px] border-r border-canvas-border flex flex-col bg-white z-10 shrink-0">
         <!-- Filter Header -->
-        <div class="h-10 border-b border-[#e5dec3] px-4 flex items-center justify-between bg-[#faf3dd]/60 shrink-0">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-palette-pine/70">
+        <div class="h-10 border-b border-canvas-border px-4 flex items-center justify-between bg-canvas-sidebar shrink-0">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-canvas-muted">
             Discoveries ({{ recommendations.length }})
           </span>
-          <div class="flex items-center border border-[#e5dec3] rounded bg-white overflow-hidden text-[9px] font-bold">
+          <div class="flex items-center border border-canvas-border rounded bg-white overflow-hidden text-[9px] font-bold">
             <button 
               @click="targetFilter = null; computeRecommendations()" 
-              :class="{'bg-palette-pine text-white': targetFilter === null, 'text-palette-pine/60 hover:text-palette-pine': targetFilter !== null}"
+              :class="{'bg-canvas-text text-white': targetFilter === null, 'text-canvas-muted hover:text-canvas-text': targetFilter !== null}"
               class="px-2.5 py-0.5 transition-colors"
             >
               ALL
             </button>
             <button 
               @click="targetFilter = 'music'; computeRecommendations()" 
-              :class="{'bg-palette-pine text-white': targetFilter === 'music', 'text-palette-pine/60 hover:text-palette-pine': targetFilter !== 'music'}"
-              class="px-2.5 py-0.5 border-l border-[#e5dec3] transition-colors"
+              :class="{'bg-canvas-text text-white': targetFilter === 'music', 'text-canvas-muted hover:text-canvas-text': targetFilter !== 'music'}"
+              class="px-2.5 py-0.5 border-l border-canvas-border transition-colors"
             >
               MUSIC
             </button>
             <button 
               @click="targetFilter = 'movie'; computeRecommendations()" 
-              :class="{'bg-palette-pine text-white': targetFilter === 'movie', 'text-palette-pine/60 hover:text-palette-pine': targetFilter !== 'movie'}"
-              class="px-2.5 py-0.5 border-l border-[#e5dec3] transition-colors"
+              :class="{'bg-canvas-text text-white': targetFilter === 'movie', 'text-canvas-muted hover:text-canvas-text': targetFilter !== 'movie'}"
+              class="px-2.5 py-0.5 border-l border-canvas-border transition-colors"
             >
               FILMS
             </button>
             <button 
               @click="targetFilter = 'game'; computeRecommendations()" 
-              :class="{'bg-palette-pine text-white': targetFilter === 'game', 'text-palette-pine/60 hover:text-palette-pine': targetFilter !== 'game'}"
-              class="px-2.5 py-0.5 border-l border-[#e5dec3] transition-colors"
+              :class="{'bg-canvas-text text-white': targetFilter === 'game', 'text-canvas-muted hover:text-canvas-text': targetFilter !== 'game'}"
+              class="px-2.5 py-0.5 border-l border-canvas-border transition-colors"
             >
               GAMES
             </button>
@@ -153,45 +177,50 @@
 
         <!-- Feed List -->
         <div class="flex-1 overflow-y-auto p-3 space-y-2.5">
-          <div v-if="recommendations.length === 0 && !isLoadingRecs" class="text-center py-24 text-palette-pine/50 text-xs">
-            Add entities in the bottom bar and click<br><span class="text-palette-pine font-bold">"Run Diffusion"</span>.
+          <div v-if="recommendations.length === 0 && !isLoadingRecs" class="text-center py-24 text-canvas-muted text-xs">
+            Add entities in the bottom bar and click<br><span class="text-canvas-text font-bold">"Run Diffusion"</span>.
           </div>
 
-          <!-- Card Item with Explanation Details -->
+          <!-- Card Item with Mathematical Explanation Details -->
           <div 
             v-for="rec in recommendations" 
             :key="rec.id"
-            class="bg-white hover:bg-[#fffdf9] border border-[#e5dec3] hover:border-palette-sage p-3 rounded-lg shadow-xs transition-all group"
+            class="bg-white hover:bg-canvas-sidebar border border-canvas-border hover:border-canvas-sage p-3 rounded-lg shadow-xs transition-all group"
           >
             <div class="flex items-start justify-between gap-2 mb-1">
               <div>
-                <span class="text-[9px] uppercase font-bold text-palette-sage tracking-wide mr-1.5">[{{ rec.type }}]</span>
-                <span class="text-xs font-bold text-palette-pine group-hover:text-palette-denim transition-colors">
+                <span 
+                  :class="getTypeBadgeClass(rec.type)"
+                  class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border tracking-wide mr-1.5"
+                >
+                  {{ rec.type }}
+                </span>
+                <span class="text-xs font-bold text-canvas-text group-hover:text-canvas-denim transition-colors">
                   {{ rec.title }}
                 </span>
-                <p class="text-[10px] text-palette-pine/60 mt-0.5">{{ rec.subtitle }}</p>
+                <p class="text-[10px] text-canvas-muted mt-0.5">{{ rec.subtitle }}</p>
               </div>
-              <span class="text-[10px] font-mono font-bold text-palette-denim bg-palette-parchment/60 px-1.5 py-0.5 rounded border border-[#e5dec3] shrink-0">
+              <span class="text-[10px] font-mono font-bold text-canvas-denim bg-canvas-sidebar px-1.5 py-0.5 rounded border border-canvas-border shrink-0">
                 score {{ rec.score }}
               </span>
             </div>
 
             <!-- Mathematical / Graph Explanation (Why this is here) -->
-            <div v-if="rec.reason" class="mt-2 text-[10px] text-palette-sage bg-palette-sage/10 px-2 py-1 rounded border border-palette-sage/20 flex items-center gap-1.5">
-              <span class="font-bold shrink-0">↳ Ponderação:</span>
-              <span class="truncate">{{ rec.reason }}</span>
+            <div v-if="rec.reason" class="mt-2 text-[10px] text-canvas-sage bg-canvas-sage/10 px-2.5 py-1 rounded border border-canvas-sage/20 flex items-center gap-1.5">
+              <span class="font-bold shrink-0">↳ Path:</span>
+              <span class="truncate font-medium">{{ rec.reason }}</span>
             </div>
 
             <!-- Popular Track Preview -->
-            <div v-if="rec.top_track" class="mt-1.5 pt-1.5 border-t border-[#f0ebda] flex items-center justify-between text-[10px] text-palette-pine/60">
+            <div v-if="rec.top_track" class="mt-1.5 pt-1.5 border-t border-canvas-border/60 flex items-center justify-between text-[10px] text-canvas-muted">
               <span class="truncate">♫ {{ rec.top_track.title }}</span>
-              <span class="text-palette-sage font-mono font-bold shrink-0">pop {{ rec.top_track.popularity }}</span>
+              <span class="text-canvas-sage font-mono font-bold shrink-0">pop {{ rec.top_track.popularity }}</span>
             </div>
 
             <div class="mt-2 flex justify-end">
               <button 
                 @click="addSeed({ id: rec.id, name: rec.title, type: rec.type, subtitle: rec.subtitle })"
-                class="text-[9px] font-bold text-palette-coral hover:underline"
+                class="text-[9px] font-bold text-canvas-coral hover:underline"
               >
                 + add to profile
               </button>
@@ -200,18 +229,18 @@
         </div>
       </main>
 
-      <!-- RIGHT: Elegant Canvas Topology Map -->
-      <section class="flex-1 relative bg-[#faf3dd] flex flex-col overflow-hidden">
-        <div class="absolute top-4 left-4 z-20 bg-white/90 backdrop-blur border border-[#e5dec3] rounded-lg p-3 shadow-md max-w-xs text-[10px]">
-          <div class="font-bold text-palette-pine text-[11px] mb-0.5">Topological Taste Field</div>
-          <p class="text-palette-pine/60 leading-tight mb-2">
-            Multi-hop Personalized PageRank network showing harmonic convergence between your profile nodes.
+      <!-- RIGHT: Interactive Clean Topology Map -->
+      <section class="flex-1 relative bg-canvas-bg flex flex-col overflow-hidden">
+        <div class="absolute top-4 left-4 z-20 bg-white/95 backdrop-blur border border-canvas-border rounded-lg p-3 shadow-md max-w-xs text-[10px]">
+          <div class="font-bold text-canvas-text text-[11px] mb-0.5">Topological Field</div>
+          <p class="text-canvas-muted leading-tight mb-2">
+            Personalized PageRank paths linking your profile nodes to recommendations.
           </p>
           <div class="flex flex-wrap items-center gap-2.5 font-bold">
-            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-palette-coral"></span> Seed</span>
-            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-palette-sage"></span> Music</span>
-            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-palette-denim"></span> Movie/Game</span>
-            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-[#8c827a]"></span> Tag</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-canvas-coral"></span> Seed</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-canvas-sage"></span> Music</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-canvas-denim"></span> Movie/Game</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-[#a1a1aa]"></span> Tag</span>
           </div>
         </div>
 
@@ -221,29 +250,29 @@
     </div>
 
     <!-- BOTTOM HORIZONTAL TASTE PROFILE BAR -->
-    <footer class="h-20 border-t border-[#e5dec3] bg-white px-6 py-2.5 flex items-center justify-between gap-5 z-30 shrink-0 shadow-lg">
+    <footer class="h-20 border-t border-canvas-border bg-white px-6 py-2.5 flex items-center justify-between gap-5 z-30 shrink-0 shadow-lg">
       <div class="flex items-center gap-4 overflow-hidden flex-1">
         <div class="shrink-0">
-          <span class="text-[9px] uppercase font-bold text-palette-pine/50 tracking-wider block">Taste Profile</span>
-          <span class="text-xs font-bold text-palette-pine">{{ profileSeeds.length }} nodes</span>
+          <span class="text-[9px] uppercase font-bold text-canvas-muted tracking-wider block">Taste Profile</span>
+          <span class="text-xs font-bold text-canvas-text">{{ profileSeeds.length }} nodes</span>
         </div>
 
-        <div class="h-8 w-px bg-[#e5dec3] shrink-0"></div>
+        <div class="h-8 w-px bg-canvas-border shrink-0"></div>
 
         <!-- Horizontal Chips Slider -->
         <div class="flex items-center gap-2 overflow-x-auto py-1 flex-1">
-          <div v-if="profileSeeds.length === 0" class="text-palette-pine/50 text-[11px] flex items-center gap-2">
+          <div v-if="profileSeeds.length === 0" class="text-canvas-muted text-[11px] flex items-center gap-2">
             <span>Empty profile. Quick add:</span>
-            <button @click="quickAdd('The Cure')" class="text-[10px] font-semibold bg-[#faf3dd] hover:bg-[#f0e8ce] border border-[#e5dec3] px-2.5 py-1 rounded transition-colors text-palette-pine">
+            <button @click="quickAdd('The Elder Scrolls V: Skyrim')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text">
+              + Skyrim (Game)
+            </button>
+            <button @click="quickAdd('The Cure')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text">
               + The Cure
             </button>
-            <button @click="quickAdd('LCD Soundsystem')" class="text-[10px] font-semibold bg-[#faf3dd] hover:bg-[#f0e8ce] border border-[#e5dec3] px-2.5 py-1 rounded transition-colors text-palette-pine">
+            <button @click="quickAdd('LCD Soundsystem')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text">
               + LCD Soundsystem
             </button>
-            <button @click="quickAdd('Mochakk')" class="text-[10px] font-semibold bg-[#faf3dd] hover:bg-[#f0e8ce] border border-[#e5dec3] px-2.5 py-1 rounded transition-colors text-palette-pine">
-              + Mochakk
-            </button>
-            <button @click="quickAdd('Blade Runner')" class="text-[10px] font-semibold bg-[#faf3dd] hover:bg-[#f0e8ce] border border-[#e5dec3] px-2.5 py-1 rounded transition-colors text-palette-pine">
+            <button @click="quickAdd('Blade Runner')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text">
               + Blade Runner
             </button>
           </div>
@@ -252,13 +281,18 @@
           <div 
             v-for="seed in profileSeeds" 
             :key="seed.id" 
-            class="flex items-center gap-1.5 px-3 py-1 bg-[#faf3dd] hover:bg-[#f0e8ce] rounded-full border border-[#e5dec3] transition-colors shrink-0 group text-[11px]"
+            class="flex items-center gap-1.5 px-3 py-1 bg-canvas-sidebar hover:bg-canvas-border/80 rounded-full border border-canvas-border transition-colors shrink-0 group text-[11px]"
           >
-            <span class="text-[9px] font-bold uppercase text-palette-sage">[{{ seed.type }}]</span>
-            <span class="font-bold text-palette-pine">{{ seed.name }}</span>
+            <span 
+              :class="getTypeBadgeClass(seed.type)"
+              class="text-[9px] font-bold uppercase px-1 rounded border"
+            >
+              {{ seed.type }}
+            </span>
+            <span class="font-bold text-canvas-text">{{ seed.name }}</span>
             <button 
               @click="removeSeed(seed.id)" 
-              class="text-palette-pine/40 hover:text-palette-coral font-bold ml-1"
+              class="text-canvas-muted hover:text-canvas-coral font-bold ml-1"
             >
               ×
             </button>
@@ -271,9 +305,9 @@
         <button 
           @click="computeRecommendations"
           :disabled="profileSeeds.length === 0 || isLoadingRecs"
-          class="bg-palette-pine hover:bg-black disabled:opacity-30 disabled:pointer-events-none text-palette-parchment font-bold text-xs py-2.5 px-5 rounded-lg transition-all flex items-center gap-2 shadow-sm"
+          class="bg-canvas-pine hover:bg-black disabled:opacity-30 disabled:pointer-events-none text-white font-bold text-xs py-2.5 px-5 rounded-lg transition-all flex items-center gap-2 shadow-sm"
         >
-          <span v-if="isLoadingRecs" class="w-2.5 h-2.5 border-2 border-palette-parchment/30 border-t-palette-parchment rounded-full animate-spin"></span>
+          <span v-if="isLoadingRecs" class="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
           <span>{{ isLoadingRecs ? 'Computing PPR...' : 'Run Diffusion →' }}</span>
         </button>
       </div>
@@ -287,6 +321,7 @@
     createApp({
       setup() {
         const searchQuery = ref('');
+        const searchType = ref(''); // '', 'game', 'artist', 'track', 'movie'
         const searchResults = ref([]);
         const isSearching = ref(false);
         const profileSeeds = ref([]);
@@ -311,6 +346,24 @@
           localStorage.setItem('ym_taste_profile', JSON.stringify(profileSeeds.value));
         };
 
+        const getSearchPlaceholder = () => {
+          if (searchType.value === 'game') return 'search games (e.g. skyrim, cyberpunk)...';
+          if (searchType.value === 'artist') return 'search artists (e.g. daft punk, the cure)...';
+          if (searchType.value === 'track') return 'search tracks (e.g. dance yrself clean)...';
+          if (searchType.value === 'movie') return 'search movies (e.g. blade runner, dune)...';
+          return 'search games, artists, tracks, movies...';
+        };
+
+        const getTypeBadgeClass = (type) => {
+          switch(type) {
+            case 'game': return 'text-canvas-denim bg-canvas-denim/10 border-canvas-denim/20';
+            case 'artist':
+            case 'track': return 'text-canvas-sage bg-canvas-sage/10 border-canvas-sage/20';
+            case 'movie': return 'text-[#b25900] bg-[#b25900]/10 border-[#b25900]/20';
+            default: return 'text-canvas-muted bg-canvas-sidebar border-canvas-border';
+          }
+        };
+
         const onSearchInput = () => {
           clearTimeout(searchTimeout);
           if (searchQuery.value.trim().length < 2) {
@@ -320,7 +373,11 @@
           searchTimeout = setTimeout(async () => {
             isSearching.value = true;
             try {
-              const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery.value.trim())}`);
+              let url = `/api/search?q=${encodeURIComponent(searchQuery.value.trim())}`;
+              if (searchType.value) {
+                url += `&entity_type=${encodeURIComponent(searchType.value)}`;
+              }
+              const res = await fetch(url);
               searchResults.value = await res.json();
             } catch (err) {
               console.error(err);
@@ -397,7 +454,7 @@
         const initGraph = () => {
           const elem = document.getElementById('graph-container');
           graphInstance = ForceGraph()(elem)
-            .backgroundColor('#faf3dd')
+            .backgroundColor('#fbfbfb')
             .nodeId('id')
             .nodeVal('val')
             .nodeLabel(node => `${node.label} (${node.type})`)
@@ -406,21 +463,20 @@
               const fontSize = 11 / globalScale;
               ctx.font = `600 ${fontSize}px "JetBrains Mono", monospace`;
 
-              // Colors from palette
-              let fill = '#8c827a';
+              let fill = '#a1a1aa';
               if (node.type === 'seed') fill = '#e84855';      // Coral
               else if (node.type === 'artist' || node.type === 'track') fill = '#4e937a'; // Sage
-              else if (node.type === 'movie' || node.type === 'game') fill = '#2660a4';   // Denim
-              else if (node.type === 'keyword') fill = '#a0998f'; // Warm grey
+              else if (node.type === 'movie') fill = '#b25900';   // Warm amber
+              else if (node.type === 'game') fill = '#2660a4';    // Denim
+              else if (node.type === 'keyword') fill = '#a1a1aa'; // Neutral
               else if (node.type === 'person') fill = '#182825';  // Pine
 
               const r = (node.val || 7) / 2;
               
-              // Shadow glow for seeds
               if (node.type === 'seed') {
                 ctx.beginPath();
                 ctx.arc(node.x, node.y, r + 2, 0, 2 * Math.PI, false);
-                ctx.fillStyle = 'rgba(232, 72, 85, 0.25)';
+                ctx.fillStyle = 'rgba(232, 72, 85, 0.22)';
                 ctx.fill();
               }
 
@@ -429,11 +485,10 @@
               ctx.fillStyle = fill;
               ctx.fill();
 
-              ctx.strokeStyle = '#faf3dd';
+              ctx.strokeStyle = '#ffffff';
               ctx.lineWidth = 1.2 / globalScale;
               ctx.stroke();
 
-              // Clear crisp label
               ctx.textAlign = 'center';
               ctx.textBaseline = 'top';
               ctx.fillStyle = '#182825';
@@ -441,8 +496,8 @@
             })
             .linkDirectionalParticles(2)
             .linkDirectionalParticleSpeed(0.003)
-            .linkColor(() => '#e5dec3')
-            .linkWidth(link => Math.min(link.weight || 1, 2.5));
+            .linkColor(() => '#e4e4e7')
+            .linkWidth(link => Math.min(link.weight || 1, 2));
         };
 
         const updateGraph = (graphData) => {
@@ -461,6 +516,7 @@
 
         return {
           searchQuery,
+          searchType,
           searchResults,
           isSearching,
           profileSeeds,
@@ -473,6 +529,8 @@
           removeSeed,
           clearProfile,
           computeRecommendations,
+          getSearchPlaceholder,
+          getTypeBadgeClass,
         };
       }
     }).mount('#app');

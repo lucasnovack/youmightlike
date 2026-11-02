@@ -82,8 +82,12 @@ class RecommendationResponse(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 @app.get("/api/search")
-def search_entities(q: str = Query(..., min_length=2), limit: int = 8) -> List[EntityItem]:
-    """Busca em tempo real nas 4 mídias (Músicas, Filmes, Jogos e Livros) com fast-path."""
+def search_entities(
+    q: str = Query(..., min_length=2),
+    entity_type: Optional[str] = Query(None),  # 'artist', 'track', 'movie', 'game'
+    limit: int = 10,
+) -> List[EntityItem]:
+    """Busca em tempo real com filtro opcional de tipo e matching flexível."""
     q_str = q.strip()
     if not q_str:
         return []
@@ -92,89 +96,100 @@ def search_entities(q: str = Query(..., min_length=2), limit: int = 8) -> List[E
     seen = set()
 
     with get_db() as conn:
-        # 1. Artistas (Lookup exato + prefixo)
-        variants = list(dict.fromkeys([q_str, q_str.title(), q_str.capitalize()]))
-        art_placeholders = ", ".join(["?" for _ in variants])
-        art_rows = conn.execute(
-            f"""
-            SELECT id, name, country, listeners 
-            FROM music_artists 
-            WHERE name IN ({art_placeholders}) OR name LIKE ? || '%'
-            ORDER BY listeners DESC 
-            LIMIT 3;
-            """,
-            variants + [q_str],
-        ).fetchall()
+        # 1. Artistas (se entity_type for None ou 'artist')
+        if not entity_type or entity_type == "artist":
+            variants = list(dict.fromkeys([q_str, q_str.title(), q_str.capitalize()]))
+            art_placeholders = ", ".join(["?" for _ in variants])
+            art_rows = conn.execute(
+                f"""
+                SELECT id, name, country, listeners 
+                FROM music_artists 
+                WHERE name IN ({art_placeholders}) OR name ILIKE ? || '%'
+                ORDER BY listeners DESC 
+                LIMIT 5;
+                """,
+                variants + [q_str],
+            ).fetchall()
 
-        for aid, aname, country, listeners in art_rows:
-            nid = f"artist:{aid}"
-            if nid not in seen:
-                seen.add(nid)
-                loc = f" • {country}" if country else ""
-                items.append(
-                    EntityItem(
-                        id=nid,
-                        name=aname,
-                        type="artist",
-                        subtitle=f"Artista Musical{loc}",
+            for aid, aname, country, listeners in art_rows:
+                nid = f"artist:{aid}"
+                if nid not in seen:
+                    seen.add(nid)
+                    loc = f" • {country}" if country else ""
+                    items.append(
+                        EntityItem(
+                            id=nid,
+                            name=aname,
+                            type="artist",
+                            subtitle=f"Artist{loc}",
+                        )
                     )
-                )
 
-        # 2. Filmes
-        mov_rows = conn.execute(
-            """
-            SELECT id, title, release_year, vote_average 
-            FROM movies 
-            WHERE title = ? OR title LIKE ? || '%'
-            ORDER BY vote_count DESC NULLS LAST
-            LIMIT 3;
-            """,
-            [q_str, q_str],
-        ).fetchall()
+        # 2. Jogos (se entity_type for None ou 'game')
+        if not entity_type or entity_type == "game":
+            game_rows = conn.execute(
+                """
+                SELECT id, title, release_year, positive_reviews 
+                FROM games 
+                WHERE title = ? OR title ILIKE ? || '%' OR title ILIKE '%' || ? || '%'
+                ORDER BY 
+                    CASE WHEN LOWER(title) = LOWER(?) THEN 1 
+                         WHEN LOWER(title) LIKE LOWER(?) || '%' THEN 2 
+                         ELSE 3 END,
+                    positive_reviews DESC NULLS LAST
+                LIMIT 6;
+                """,
+                [q_str, q_str, q_str, q_str, q_str],
+            ).fetchall()
 
-        for mid, mtitle, myear, mvote in mov_rows:
-            nid = f"movie:{mid}"
-            if nid not in seen:
-                seen.add(nid)
-                year_str = f" ({myear})" if myear else ""
-                score_str = f" • ⭐ {mvote}" if mvote else ""
-                items.append(
-                    EntityItem(
-                        id=nid,
-                        name=mtitle,
-                        type="movie",
-                        subtitle=f"Filme{year_str}{score_str}",
+            for gid, gtitle, gyear, grevs in game_rows:
+                nid = f"game:{gid}"
+                if nid not in seen:
+                    seen.add(nid)
+                    year_str = f" ({gyear})" if gyear else ""
+                    items.append(
+                        EntityItem(
+                            id=nid,
+                            name=gtitle,
+                            type="game",
+                            subtitle=f"Game{year_str}",
+                        )
                     )
-                )
 
-        # 3. Jogos
-        game_rows = conn.execute(
-            """
-            SELECT id, title, release_year 
-            FROM games 
-            WHERE title = ? OR title LIKE ? || '%'
-            ORDER BY positive_reviews DESC NULLS LAST
-            LIMIT 2;
-            """,
-            [q_str, q_str],
-        ).fetchall()
+        # 3. Filmes (se entity_type for None ou 'movie')
+        if not entity_type or entity_type == "movie":
+            mov_rows = conn.execute(
+                """
+                SELECT id, title, release_year, vote_average 
+                FROM movies 
+                WHERE title = ? OR title ILIKE ? || '%' OR title ILIKE '%' || ? || '%'
+                ORDER BY 
+                    CASE WHEN LOWER(title) = LOWER(?) THEN 1 
+                         WHEN LOWER(title) LIKE LOWER(?) || '%' THEN 2 
+                         ELSE 3 END,
+                    vote_count DESC NULLS LAST
+                LIMIT 6;
+                """,
+                [q_str, q_str, q_str, q_str, q_str],
+            ).fetchall()
 
-        for gid, gtitle, gyear in game_rows:
-            nid = f"game:{gid}"
-            if nid not in seen:
-                seen.add(nid)
-                year_str = f" ({gyear})" if gyear else ""
-                items.append(
-                    EntityItem(
-                        id=nid,
-                        name=gtitle,
-                        type="game",
-                        subtitle=f"Jogo{year_str}",
+            for mid, mtitle, myear, mvote in mov_rows:
+                nid = f"movie:{mid}"
+                if nid not in seen:
+                    seen.add(nid)
+                    year_str = f" ({myear})" if myear else ""
+                    score_str = f" • ⭐ {mvote}" if mvote else ""
+                    items.append(
+                        EntityItem(
+                            id=nid,
+                            name=mtitle,
+                            type="movie",
+                            subtitle=f"Movie{year_str}{score_str}",
+                        )
                     )
-                )
 
-        # 4. Músicas mais populares com esse título (Deduplicadas por título e artista)
-        if len(items) < limit:
+        # 4. Músicas mais populares com esse título (se entity_type for None ou 'track')
+        if not entity_type or entity_type == "track":
             needed = (limit - len(items)) * 3
             trk_rows = conn.execute(
                 """
@@ -182,11 +197,15 @@ def search_entities(q: str = Query(..., min_length=2), limit: int = 8) -> List[E
                 FROM music_tracks t
                 JOIN music_artists ma ON ma.id = t.artist_id
                 LEFT JOIN music_albums alb ON alb.id = t.album_id
-                WHERE t.title = ? OR t.title LIKE ? || '%'
-                ORDER BY t.popularity DESC
+                WHERE t.title = ? OR t.title ILIKE ? || '%' OR t.title ILIKE '%' || ? || '%'
+                ORDER BY 
+                    CASE WHEN LOWER(t.title) = LOWER(?) THEN 1 
+                         WHEN LOWER(t.title) LIKE LOWER(?) || '%' THEN 2 
+                         ELSE 3 END,
+                    t.popularity DESC
                 LIMIT ?;
                 """,
-                [q_str, q_str, needed],
+                [q_str, q_str, q_str, q_str, q_str, needed if needed > 5 else 10],
             ).fetchall()
 
             seen_track_keys = set()
