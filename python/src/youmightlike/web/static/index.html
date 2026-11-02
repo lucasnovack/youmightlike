@@ -29,7 +29,6 @@
               muted: '#6e6e73',
               subtle: '#8e8e93',
               accent: '#0066cc',
-              accentLight: '#eef6ff',
               seed: '#d9381e',
               music: '#0e7e38',
               movie: '#b25900',
@@ -62,16 +61,16 @@
   <div id="app" class="flex flex-col h-full">
 
     <!-- Top Minimal Header -->
-    <header class="h-13 border-b border-brand-border bg-white/90 backdrop-blur px-6 py-2.5 flex items-center justify-between z-30">
+    <header class="h-12 border-b border-brand-border bg-white/95 backdrop-blur px-5 flex items-center justify-between z-30 shrink-0">
       <div class="flex items-center gap-3">
         <span class="font-bold tracking-tight text-[13px] text-brand-text flex items-center gap-2">
           youmightlike
-          <span class="text-[10px] text-brand-muted font-normal border border-brand-border px-1.5 py-0.5 rounded">graph engine</span>
+          <span class="text-[9px] text-brand-muted font-normal border border-brand-border px-1.5 py-0.5 rounded">v0.3</span>
         </span>
       </div>
 
-      <!-- Centered Monospace Search -->
-      <div class="relative w-96">
+      <!-- Search Input -->
+      <div class="relative w-80">
         <div class="relative flex items-center">
           <span class="absolute left-3 text-brand-muted text-[11px] font-medium">$</span>
           <input 
@@ -79,21 +78,21 @@
             v-model="searchQuery" 
             @input="onSearchInput"
             placeholder="search artist, movie, game..."
-            class="w-full bg-brand-sidebar border border-brand-border hover:border-brand-borderDark focus:border-brand-text rounded-md pl-7 pr-7 py-1.5 text-xs text-brand-text placeholder-brand-muted focus:outline-none focus:bg-white transition-all"
+            class="w-full bg-brand-sidebar border border-brand-border hover:border-brand-borderDark focus:border-brand-text rounded pl-7 pr-7 py-1 text-xs text-brand-text placeholder-brand-muted focus:outline-none focus:bg-white transition-all"
           />
           <span v-if="isSearching" class="w-1.5 h-1.5 rounded-full bg-brand-accent animate-ping absolute right-3"></span>
         </div>
 
-        <!-- Search Results Dropdown -->
-        <div v-if="searchResults.length > 0" class="absolute top-10 left-0 right-0 bg-white border border-brand-border rounded-lg shadow-lg p-1.5 z-50 max-h-80 overflow-y-auto">
+        <!-- Dropdown Search -->
+        <div v-if="searchResults.length > 0" class="absolute top-9 left-0 right-0 bg-white border border-brand-border rounded shadow-lg p-1 z-50 max-h-80 overflow-y-auto">
           <div 
             v-for="item in searchResults" 
             :key="item.id"
             @click="addSeed(item)"
-            class="flex items-center justify-between px-3 py-2 hover:bg-brand-hover rounded cursor-pointer transition-colors group"
+            class="flex items-center justify-between px-2.5 py-1.5 hover:bg-brand-hover rounded cursor-pointer transition-colors group"
           >
             <div class="flex items-center gap-2 truncate">
-              <span class="text-[10px] uppercase font-bold text-brand-muted shrink-0 w-12">[{{ item.type }}]</span>
+              <span class="text-[9px] uppercase font-bold text-brand-muted shrink-0 w-12">[{{ item.type }}]</span>
               <div class="truncate">
                 <span class="text-xs font-semibold text-brand-text group-hover:text-brand-accent transition-colors">{{ item.name }}</span>
                 <span v-if="item.subtitle" class="text-[10px] text-brand-muted ml-1.5">({{ item.subtitle }})</span>
@@ -104,94 +103,30 @@
         </div>
       </div>
 
-      <!-- Stats / Right Controls -->
+      <!-- Stats / Controls -->
       <div class="flex items-center gap-4 text-xs text-brand-muted">
-        <span class="text-[11px] font-mono">61.9M nodes</span>
+        <span class="text-[10px] font-mono">61.9M nodes • 99.2M edges</span>
         <button 
           @click="clearProfile" 
           v-if="profileSeeds.length > 0"
-          class="text-[11px] text-brand-muted hover:text-red-600 transition-colors"
+          class="text-[10px] text-brand-muted hover:text-red-600 transition-colors"
         >
           [reset]
         </button>
       </div>
     </header>
 
-    <!-- Main Grid -->
+    <!-- Main Split: Feed Left (440px) + Graph Right (flex-1) -->
     <div class="flex-1 flex overflow-hidden">
 
-      <!-- LEFT: Profile Seeds (Column 1) -->
-      <aside class="w-72 border-r border-brand-border bg-brand-sidebar flex flex-col p-4 z-20">
-        <div class="flex items-center justify-between mb-3 pb-2 border-b border-brand-border">
-          <h2 class="text-[11px] font-bold uppercase tracking-wider text-brand-muted">
-            Profile ({{ profileSeeds.length }})
-          </h2>
-          <span class="text-[10px] text-brand-muted font-mono">seeds</span>
-        </div>
-
-        <!-- Empty State -->
-        <div v-if="profileSeeds.length === 0" class="flex-1 flex flex-col justify-center text-center px-2">
-          <p class="text-xs font-semibold text-brand-text mb-1">Graph is empty</p>
-          <p class="text-[11px] text-brand-muted leading-relaxed mb-5">
-            Select real entities from the catalog to form your deterministic taste profile.
-          </p>
-          <div class="flex flex-col gap-1.5 text-left">
-            <button @click="quickAdd('Daft Punk')" class="text-xs bg-white hover:bg-brand-hover px-2.5 py-1.5 rounded border border-brand-border text-brand-text transition-colors flex items-center justify-between">
-              <span>+ Daft Punk</span>
-              <span class="text-[10px] text-brand-muted">[artist]</span>
-            </button>
-            <button @click="quickAdd('Blade Runner')" class="text-xs bg-white hover:bg-brand-hover px-2.5 py-1.5 rounded border border-brand-border text-brand-text transition-colors flex items-center justify-between">
-              <span>+ Blade Runner</span>
-              <span class="text-[10px] text-brand-muted">[movie]</span>
-            </button>
-            <button @click="quickAdd('Radiohead')" class="text-xs bg-white hover:bg-brand-hover px-2.5 py-1.5 rounded border border-brand-border text-brand-text transition-colors flex items-center justify-between">
-              <span>+ Radiohead</span>
-              <span class="text-[10px] text-brand-muted">[artist]</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Profile Items List -->
-        <div v-else class="flex-1 overflow-y-auto space-y-1 pr-1">
-          <div 
-            v-for="seed in profileSeeds" 
-            :key="seed.id" 
-            class="flex items-center justify-between px-2.5 py-2 bg-white hover:bg-brand-hover rounded border border-brand-border transition-colors group"
-          >
-            <div class="truncate pr-2">
-              <span class="text-[10px] font-bold text-brand-muted uppercase mr-1">[{{ seed.type }}]</span>
-              <span class="text-xs font-medium text-brand-text">{{ seed.name }}</span>
-            </div>
-            <button 
-              @click="removeSeed(seed.id)" 
-              class="text-brand-muted hover:text-red-600 text-[11px] shrink-0 font-bold px-1"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-
-        <!-- Run Diffusion Trigger -->
-        <div class="pt-3 border-t border-brand-border mt-auto">
-          <button 
-            @click="computeRecommendations"
-            :disabled="profileSeeds.length === 0 || isLoadingRecs"
-            class="w-full bg-brand-text hover:bg-black disabled:opacity-30 disabled:pointer-events-none text-white font-medium text-xs py-2 px-3 rounded transition-colors flex items-center justify-center gap-2"
-          >
-            <span v-if="isLoadingRecs" class="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-            <span>{{ isLoadingRecs ? 'Running PPR diffusion...' : 'Run Diffusion →' }}</span>
-          </button>
-        </div>
-      </aside>
-
-      <!-- CENTER: Recommendations List (Column 2) -->
-      <main class="w-[430px] border-r border-brand-border flex flex-col bg-white z-10">
+      <!-- LEFT: Discovery Feed -->
+      <main class="w-[440px] border-r border-brand-border flex flex-col bg-white z-10 shrink-0">
         <!-- Filter Header -->
-        <div class="h-11 border-b border-brand-border px-4 flex items-center justify-between bg-brand-sidebar">
-          <span class="text-[11px] font-bold uppercase tracking-wider text-brand-muted">
+        <div class="h-10 border-b border-brand-border px-4 flex items-center justify-between bg-brand-sidebar shrink-0">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-brand-muted">
             Results ({{ recommendations.length }})
           </span>
-          <div class="flex items-center border border-brand-border rounded bg-white overflow-hidden text-[10px]">
+          <div class="flex items-center border border-brand-border rounded bg-white overflow-hidden text-[9px]">
             <button 
               @click="targetFilter = null; computeRecommendations()" 
               :class="{'bg-brand-text text-white font-semibold': targetFilter === null, 'text-brand-muted hover:text-brand-text': targetFilter !== null}"
@@ -225,15 +160,15 @@
 
         <!-- Feed List -->
         <div class="flex-1 overflow-y-auto p-3 space-y-2">
-          <div v-if="recommendations.length === 0 && !isLoadingRecs" class="text-center py-24 text-brand-muted text-xs">
-            Add entities on the left and run diffusion.
+          <div v-if="recommendations.length === 0 && !isLoadingRecs" class="text-center py-20 text-brand-muted text-xs">
+            Add items in the bottom bar and click<br><span class="text-brand-text font-bold">"Compute Discovery"</span>.
           </div>
 
           <!-- Card Item -->
           <div 
             v-for="rec in recommendations" 
             :key="rec.id"
-            class="bg-brand-surface hover:bg-brand-hover border border-brand-border p-3 rounded transition-colors group"
+            class="bg-brand-surface hover:bg-brand-hover border border-brand-border p-2.5 rounded transition-colors group"
           >
             <div class="flex items-start justify-between gap-2 mb-1">
               <div>
@@ -241,23 +176,23 @@
                 <span class="text-xs font-bold text-brand-text group-hover:text-brand-accent transition-colors">
                   {{ rec.title }}
                 </span>
-                <p class="text-[11px] text-brand-muted mt-0.5">{{ rec.subtitle }}</p>
+                <p class="text-[10px] text-brand-muted mt-0.5">{{ rec.subtitle }}</p>
               </div>
-              <span class="text-[10px] font-mono font-medium text-brand-muted bg-brand-sidebar px-1.5 py-0.5 rounded border border-brand-border shrink-0">
+              <span class="text-[10px] font-mono text-brand-muted bg-brand-sidebar px-1.5 py-0.5 rounded border border-brand-border shrink-0">
                 p:{{ rec.score }}
               </span>
             </div>
 
-            <!-- Track snippet if music artist -->
-            <div v-if="rec.top_track" class="mt-2 pt-1.5 border-t border-brand-border flex items-center justify-between text-[10px] text-brand-muted">
+            <!-- Track preview if artist -->
+            <div v-if="rec.top_track" class="mt-1.5 pt-1.5 border-t border-brand-border flex items-center justify-between text-[10px] text-brand-muted">
               <span class="truncate">♫ {{ rec.top_track.title }}</span>
               <span class="text-brand-music font-mono shrink-0">pop {{ rec.top_track.popularity }}</span>
             </div>
 
-            <div class="mt-2 flex justify-end">
+            <div class="mt-1.5 flex justify-end">
               <button 
                 @click="addSeed({ id: rec.id, name: rec.title, type: rec.type, subtitle: rec.subtitle })"
-                class="text-[10px] text-brand-accent hover:underline font-medium"
+                class="text-[9px] text-brand-accent hover:underline font-medium"
               >
                 + add to profile
               </button>
@@ -266,18 +201,18 @@
         </div>
       </main>
 
-      <!-- RIGHT: Clean Light Mode Force Graph (Column 3) -->
+      <!-- RIGHT: Interactive Graph Canvas -->
       <section class="flex-1 relative bg-brand-bg flex flex-col overflow-hidden">
-        <div class="absolute top-4 left-4 z-20 bg-white/95 border border-brand-border rounded p-3 shadow-xs max-w-xs text-[11px]">
-          <div class="font-bold text-brand-text mb-0.5">Graph Topology</div>
-          <p class="text-[10px] text-brand-muted leading-tight mb-2">
-            Deterministic PageRank random-walk paths linking profile seeds to recommendations.
+        <div class="absolute top-3 left-3 z-20 bg-white/95 border border-brand-border rounded p-2.5 shadow-xs max-w-xs text-[10px]">
+          <div class="font-bold text-brand-text mb-0.5">Topology Map</div>
+          <p class="text-brand-muted leading-tight mb-1.5">
+            Personalized PageRank paths linking seeds to discoveries.
           </p>
-          <div class="flex items-center gap-3 text-[10px] font-medium">
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-brand-seed"></span> Seed</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-brand-music"></span> Music</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-brand-movie"></span> Movie</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-brand-game"></span> Game</span>
+          <div class="flex items-center gap-2.5 font-medium">
+            <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-brand-seed"></span> Seed</span>
+            <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-brand-music"></span> Music</span>
+            <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-brand-movie"></span> Movie</span>
+            <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-brand-game"></span> Game</span>
           </div>
         </div>
 
@@ -285,6 +220,66 @@
       </section>
 
     </div>
+
+    <!-- BOTTOM HORIZONTAL TASTE PROFILE BAR -->
+    <footer class="h-20 border-t border-brand-border bg-white px-5 py-2.5 flex items-center justify-between gap-4 z-30 shrink-0 shadow-xs">
+      <div class="flex items-center gap-4 overflow-hidden flex-1">
+        <div class="shrink-0">
+          <span class="text-[10px] uppercase font-bold text-brand-muted tracking-wider block">Taste Profile</span>
+          <span class="text-xs font-bold text-brand-text">{{ profileSeeds.length }} nodes</span>
+        </div>
+
+        <div class="h-8 w-px bg-brand-border shrink-0"></div>
+
+        <!-- Horizontal Chips Slider -->
+        <div class="flex items-center gap-2 overflow-x-auto py-1 flex-1">
+          <div v-if="profileSeeds.length === 0" class="text-brand-muted text-[11px] flex items-center gap-2">
+            <span>Empty profile. Quick add:</span>
+            <button @click="quickAdd('Daft Punk')" class="text-[10px] bg-brand-sidebar hover:bg-brand-hover border border-brand-border px-2 py-0.5 rounded transition-colors text-brand-text">
+              + Daft Punk
+            </button>
+            <button @click="quickAdd('The Cure')" class="text-[10px] bg-brand-sidebar hover:bg-brand-hover border border-brand-border px-2 py-0.5 rounded transition-colors text-brand-text">
+              + The Cure
+            </button>
+            <button @click="quickAdd('LCD Soundsystem')" class="text-[10px] bg-brand-sidebar hover:bg-brand-hover border border-brand-border px-2 py-0.5 rounded transition-colors text-brand-text">
+              + LCD Soundsystem
+            </button>
+            <button @click="quickAdd('Blade Runner')" class="text-[10px] bg-brand-sidebar hover:bg-brand-hover border border-brand-border px-2 py-0.5 rounded transition-colors text-brand-text">
+              + Blade Runner
+            </button>
+          </div>
+
+          <!-- Active Chips -->
+          <div 
+            v-for="seed in profileSeeds" 
+            :key="seed.id" 
+            class="flex items-center gap-1.5 px-2.5 py-1 bg-brand-sidebar hover:bg-brand-hover rounded border border-brand-border transition-colors shrink-0 group text-[11px]"
+          >
+            <span class="text-[9px] font-bold uppercase text-brand-muted">[{{ seed.type }}]</span>
+            <span class="font-semibold text-brand-text">{{ seed.name }}</span>
+            <button 
+              @click="removeSeed(seed.id)" 
+              class="text-brand-muted hover:text-red-600 font-bold ml-1"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Execute Discovery Button -->
+      <div class="shrink-0">
+        <button 
+          @click="computeRecommendations"
+          :disabled="profileSeeds.length === 0 || isLoadingRecs"
+          class="bg-brand-text hover:bg-black disabled:opacity-30 disabled:pointer-events-none text-white font-medium text-xs py-2 px-4 rounded transition-colors flex items-center gap-2 shadow-xs"
+        >
+          <span v-if="isLoadingRecs" class="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+          <span>{{ isLoadingRecs ? 'Computing...' : 'Run Discovery →' }}</span>
+        </button>
+      </div>
+    </footer>
+
   </div>
 
   <script>
@@ -430,7 +425,6 @@
               ctx.lineWidth = 1 / globalScale;
               ctx.stroke();
 
-              // Clean monospace label
               ctx.textAlign = 'center';
               ctx.textBaseline = 'top';
               ctx.fillStyle = '#111113';

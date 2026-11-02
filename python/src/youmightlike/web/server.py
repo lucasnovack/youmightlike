@@ -259,6 +259,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
             "--limit",
             str(req.limit * 3),
             "--db-path",
+            DB_PATH,
             "--query-edges",
             "SELECT source_id, target_id, base_weight FROM graph_semantic_edges",
             "--json",
