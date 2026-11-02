@@ -105,10 +105,15 @@ def search_entities(
                 SELECT id, name, country, listeners 
                 FROM music_artists 
                 WHERE name IN ({art_placeholders}) OR name ILIKE ? || '%'
-                ORDER BY listeners DESC 
-                LIMIT 5;
+                ORDER BY 
+                    CASE WHEN LOWER(name) = LOWER(?) THEN 1
+                         WHEN name NOT LIKE '%;%' THEN 2
+                         ELSE 3 END,
+                    LENGTH(name) ASC,
+                    listeners DESC 
+                LIMIT 6;
                 """,
-                variants + [q_str],
+                variants + [q_str, q_str],
             ).fetchall()
 
             for aid, aname, country, listeners in art_rows:
@@ -336,6 +341,21 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
             if prefix == "artist":
                 row = conn.execute("SELECT name, country FROM music_artists WHERE id = ?", [nid]).fetchone()
                 if row:
+                    # Busca 1 faixa mais famosa desse artista
+                    top_trk = conn.execute(
+                        "SELECT title, popularity, tempo, valence, energy FROM music_tracks WHERE artist_id = ? ORDER BY popularity DESC LIMIT 1",
+                        [nid],
+                    ).fetchone()
+                    trk_info = None
+                    if top_trk:
+                        trk_info = {
+                            "title": top_trk[0],
+                            "popularity": top_trk[1],
+                            "tempo": top_trk[2],
+                            "valence": top_trk[3],
+                            "energy": top_trk[4],
+                        }
+
                     # Explicação auditável: arestas diretas ou tags compartilhadas com as sementes
                     explanation_parts = []
                     seed_ids_sql = ", ".join(f"'{s}'" for s in (diffusion_seeds if diffusion_seeds else req.seeds))
