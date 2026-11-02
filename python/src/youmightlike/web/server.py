@@ -247,11 +247,21 @@ def search_entities(
     return items[:limit]
 
 
+# Cache em memória para evitar recalculação redundante em cliques rápidos
+_RECOMMENDATION_CACHE: Dict[str, RecommendationResponse] = {}
+_MAX_CACHE_SIZE = 128
+
+
 @app.post("/api/recommend", response_model=RecommendationResponse)
 def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
     """Gera recomendações a partir do perfil e monta o subgrafo interativo."""
     if not req.seeds:
         return RecommendationResponse(seeds=[], results=[], graph={"nodes": [], "links": []})
+
+    # Cache key determinística ordenada
+    cache_key = f"{','.join(sorted(req.seeds))}|{req.target_type or 'all'}|{req.limit}"
+    if cache_key in _RECOMMENDATION_CACHE:
+        return _RECOMMENDATION_CACHE[cache_key]
 
     seed_set = set(req.seeds)
     seeds_resolved: List[EntityItem] = []
@@ -263,6 +273,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
             prefix, s_id = s.split(":")
             nid = int(s_id)
             if prefix == "artist":
+
                 row = conn.execute("SELECT name, country FROM music_artists WHERE id = ?", [nid]).fetchone()
                 if row:
                     seeds_resolved.append(EntityItem(id=s, name=row[0], type="artist", subtitle=row[1]))
@@ -687,11 +698,20 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
             n["tags"] = node_tags
             n["desc"] = node_desc
 
-    return RecommendationResponse(
+    resp_obj = RecommendationResponse(
         seeds=seeds_resolved,
         results=results,
         graph={"nodes": graph_nodes, "links": graph_links},
     )
+
+    if len(_RECOMMENDATION_CACHE) >= _MAX_CACHE_SIZE:
+        # Descarta a chave mais antiga
+        oldest_k = next(iter(_RECOMMENDATION_CACHE))
+        del _RECOMMENDATION_CACHE[oldest_k]
+    _RECOMMENDATION_CACHE[cache_key] = resp_obj
+
+    return resp_obj
+
 
 
 

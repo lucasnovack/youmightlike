@@ -541,29 +541,50 @@
           updateGraph({ nodes: [], links: [] });
         };
 
-        const computeRecommendations = async () => {
-          if (profileSeeds.value.length === 0) return;
-          isLoadingRecs.value = true;
-          try {
-            const payload = {
-              seeds: profileSeeds.value.map(s => s.id),
-              target_type: targetFilter.value,
-              limit: 15
-            };
-            const res = await fetch('/api/recommend', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
-            const data = await res.json();
-            recommendations.value = data.results;
-            updateGraph(data.graph);
-          } catch (err) {
-            console.error('Falha ao calcular recomendações:', err);
-          } finally {
-            isLoadingRecs.value = false;
+        let recsAbortController = null;
+        let recsDebounceTimer = null;
+
+        const computeRecommendations = () => {
+          if (profileSeeds.value.length === 0) {
+            recommendations.value = [];
+            updateGraph({ nodes: [], links: [] });
+            return;
           }
+
+          clearTimeout(recsDebounceTimer);
+          recsDebounceTimer = setTimeout(async () => {
+            // Cancela requisição anterior em andamento se o usuário alterou sementes rapidamente
+            if (recsAbortController) {
+              recsAbortController.abort();
+            }
+            recsAbortController = new AbortController();
+
+            isLoadingRecs.value = true;
+            try {
+              const payload = {
+                seeds: profileSeeds.value.map(s => s.id),
+                target_type: targetFilter.value,
+                limit: 15
+              };
+              const res = await fetch('/api/recommend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: recsAbortController.signal
+              });
+              const data = await res.json();
+              recommendations.value = data.results;
+              updateGraph(data.graph);
+            } catch (err) {
+              if (err.name !== 'AbortError') {
+                console.error('Falha ao calcular recomendações:', err);
+              }
+            } finally {
+              isLoadingRecs.value = false;
+            }
+          }, 250);
         };
+
 
         const selectedNodeIds = ref(new Set());
         let currentGraphRaw = { nodes: [], links: [] };
