@@ -536,7 +536,13 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
             SELECT source_id, target_id, relation_type, base_weight
             FROM graph_semantic_edges
             WHERE source_id IN ({nodes_sql}) AND target_id IN ({nodes_sql})
-            LIMIT 80;
+            ORDER BY 
+                CASE WHEN relation_type LIKE '%soundtrack%' THEN 1
+                     WHEN relation_type = 'similar_to' THEN 2
+                     WHEN relation_type = 'performed_by' THEN 3
+                     ELSE 4 END,
+                base_weight DESC
+            LIMIT 180;
             """
             for src, dst, rel, w in conn.execute(edge_query).fetchall():
                 graph_links.append({

@@ -231,6 +231,7 @@
 
       <!-- RIGHT: Interactive Clean Topology Map -->
       <section class="flex-1 relative bg-canvas-bg flex flex-col overflow-hidden">
+        <!-- Legend Pill -->
         <div class="absolute top-4 left-4 z-20 bg-white/95 backdrop-blur border border-canvas-border rounded-lg p-3 shadow-md max-w-xs text-[10px]">
           <div class="font-bold text-canvas-text text-[11px] mb-0.5">Topological Field</div>
           <p class="text-canvas-muted leading-tight mb-2">
@@ -241,6 +242,27 @@
             <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-canvas-sage"></span> Music</span>
             <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-canvas-denim"></span> Movie/Game</span>
             <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-[#a1a1aa]"></span> Tag</span>
+          </div>
+        </div>
+
+        <!-- Inspector Card for Selected Node(s) -->
+        <div v-if="selectedNodeIds.size > 0" class="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur border border-canvas-text/20 rounded-lg p-3 shadow-lg text-[10px] max-w-xs transition-all">
+          <div class="flex items-center justify-between gap-3 mb-1.5 border-b border-canvas-border/80 pb-1.5">
+            <span class="font-bold text-canvas-text text-[11px] flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-canvas-coral animate-pulse"></span>
+              <span>{{ selectedNodeIds.size === 1 ? 'Inspecting 1 Node' : 'Inspecting ' + selectedNodeIds.size + ' Nodes' }}</span>
+            </span>
+            <button @click="clearSelection" class="text-[9px] font-bold text-canvas-muted hover:text-canvas-coral uppercase tracking-wider">
+              [esc / clear]
+            </button>
+          </div>
+          <div class="text-[10px] text-canvas-muted leading-relaxed">
+            <span v-if="selectedNodeIds.size === 1">
+              Highlighted direct 1-hop neighborhood. Hold <span class="font-mono font-bold text-canvas-text">Shift</span> and click another node to highlight bridges between them.
+            </span>
+            <span v-else>
+              Highlighting direct links and shared bridges connecting selected nodes.
+            </span>
           </div>
         </div>
 
@@ -451,6 +473,14 @@
           }
         };
 
+        const selectedNodeIds = ref(new Set());
+        let currentGraphRaw = { nodes: [], links: [] };
+
+        const clearSelection = () => {
+          selectedNodeIds.value.clear();
+          if (graphInstance) graphInstance.refresh();
+        };
+
         const initGraph = () => {
           const elem = document.getElementById('graph-container');
           graphInstance = ForceGraph()(elem)
@@ -458,11 +488,51 @@
             .nodeId('id')
             .nodeVal('val')
             .nodeLabel(node => `${node.label} (${node.type})`)
+            .onNodeClick((node, event) => {
+              if (event.ctrlKey || event.metaKey || event.shiftKey) {
+                if (selectedNodeIds.value.has(node.id)) {
+                  selectedNodeIds.value.delete(node.id);
+                } else {
+                  selectedNodeIds.value.add(node.id);
+                }
+              } else {
+                if (selectedNodeIds.value.size === 1 && selectedNodeIds.value.has(node.id)) {
+                  selectedNodeIds.value.clear();
+                } else {
+                  selectedNodeIds.value.clear();
+                  selectedNodeIds.value.add(node.id);
+                }
+              }
+              graphInstance.refresh();
+            })
+            .onBackgroundClick(() => {
+              clearSelection();
+            })
             .nodeCanvasObject((node, ctx, globalScale) => {
               const label = node.label;
               const fontSize = 11 / globalScale;
               ctx.font = `600 ${fontSize}px "JetBrains Mono", monospace`;
 
+              const hasSelection = selectedNodeIds.value.size > 0;
+              const isSelected = selectedNodeIds.value.has(node.id);
+
+              // Determina se o nó é vizinho de algum nó selecionado
+              let isNeighbor = false;
+              if (hasSelection && !isSelected) {
+                for (const link of currentGraphRaw.links) {
+                  const sId = typeof link.source === 'object' ? link.source.id : link.source;
+                  const tId = typeof link.target === 'object' ? link.target.id : link.target;
+                  if ((selectedNodeIds.value.has(sId) && tId === node.id) || 
+                      (selectedNodeIds.value.has(tId) && sId === node.id)) {
+                    isNeighbor = true;
+                    break;
+                  }
+                }
+              }
+
+              const isHighlighted = !hasSelection || isSelected || isNeighbor;
+
+              // Cores por tipo
               let fill = '#a1a1aa';
               if (node.type === 'seed') fill = '#e84855';      // Coral
               else if (node.type === 'artist' || node.type === 'track') fill = '#4e937a'; // Sage
@@ -472,32 +542,95 @@
               else if (node.type === 'person') fill = '#182825';  // Pine
 
               const r = (node.val || 7) / 2;
-              
-              if (node.type === 'seed') {
+
+              ctx.save();
+
+              if (!isHighlighted) {
+                // Nó fora da seleção: esmaecido
+                ctx.globalAlpha = 0.12;
                 ctx.beginPath();
-                ctx.arc(node.x, node.y, r + 2, 0, 2 * Math.PI, false);
-                ctx.fillStyle = 'rgba(232, 72, 85, 0.22)';
+                ctx.arc(node.x, node.y, r * 0.85, 0, 2 * Math.PI, false);
+                ctx.fillStyle = '#d4d4d8';
+                ctx.fill();
+                ctx.restore();
+                return;
+              }
+
+              // Anel de foco para nó selecionado
+              if (isSelected) {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, r + 5 / globalScale, 0, 2 * Math.PI, false);
+                ctx.fillStyle = 'rgba(232, 72, 85, 0.28)';
+                ctx.fill();
+                ctx.strokeStyle = '#e84855';
+                ctx.lineWidth = 2.0 / globalScale;
+                ctx.stroke();
+              } else if (node.type === 'seed') {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, r + 2.5 / globalScale, 0, 2 * Math.PI, false);
+                ctx.fillStyle = 'rgba(232, 72, 85, 0.18)';
                 ctx.fill();
               }
 
+              // Círculo principal do nó
               ctx.beginPath();
               ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
               ctx.fillStyle = fill;
               ctx.fill();
 
-              ctx.strokeStyle = '#ffffff';
-              ctx.lineWidth = 1.2 / globalScale;
+              ctx.strokeStyle = isSelected ? '#182825' : '#ffffff';
+              ctx.lineWidth = (isSelected ? 2.0 : 1.2) / globalScale;
               ctx.stroke();
 
+              // Rótulo do nó
               ctx.textAlign = 'center';
               ctx.textBaseline = 'top';
-              ctx.fillStyle = '#182825';
-              ctx.fillText(label, node.x, node.y + r + 3);
+              ctx.fillStyle = isSelected ? '#e84855' : '#182825';
+              ctx.font = isSelected 
+                ? `bold ${Math.max(fontSize, 12 / globalScale)}px "JetBrains Mono", monospace`
+                : `600 ${fontSize}px "JetBrains Mono", monospace`;
+              
+              ctx.fillText(label, node.x, node.y + r + (isSelected ? 4 : 3));
+              ctx.restore();
             })
-            .linkDirectionalParticles(2)
-            .linkDirectionalParticleSpeed(0.003)
-            .linkColor(() => '#e4e4e7')
-            .linkWidth(link => Math.min(link.weight || 1, 2));
+            .linkDirectionalParticles(link => {
+              if (selectedNodeIds.value.size === 0) return 2;
+              const sId = typeof link.source === 'object' ? link.source.id : link.source;
+              const tId = typeof link.target === 'object' ? link.target.id : link.target;
+              if (selectedNodeIds.value.has(sId) || selectedNodeIds.value.has(tId)) {
+                return 4;
+              }
+              return 0;
+            })
+            .linkDirectionalParticleSpeed(0.004)
+            .linkColor(link => {
+              if (selectedNodeIds.value.size === 0) return '#e4e4e7';
+              const sId = typeof link.source === 'object' ? link.source.id : link.source;
+              const tId = typeof link.target === 'object' ? link.target.id : link.target;
+              
+              // Se o link conecta diretamente dois nós selecionados
+              if (selectedNodeIds.value.has(sId) && selectedNodeIds.value.has(tId)) {
+                return '#e84855'; // Coral vibrante
+              }
+              // Se o link conecta a um nó selecionado
+              if (selectedNodeIds.value.has(sId) || selectedNodeIds.value.has(tId)) {
+                return '#182825'; // Pine escuro contrastante
+              }
+              // Fora da seleção
+              return 'rgba(228, 228, 231, 0.12)';
+            })
+            .linkWidth(link => {
+              if (selectedNodeIds.value.size === 0) return Math.min(link.weight || 1, 2);
+              const sId = typeof link.source === 'object' ? link.source.id : link.source;
+              const tId = typeof link.target === 'object' ? link.target.id : link.target;
+              if (selectedNodeIds.value.has(sId) && selectedNodeIds.value.has(tId)) {
+                return 3.5;
+              }
+              if (selectedNodeIds.value.has(sId) || selectedNodeIds.value.has(tId)) {
+                return 2.2;
+              }
+              return 0.5;
+            });
         };
 
         const updateGraph = (graphData) => {
@@ -523,7 +656,8 @@
               }
             }
           });
-          graphInstance.graphData({ nodes: Array.from(nodeMap.values()), links: cleanLinks });
+          currentGraphRaw = { nodes: Array.from(nodeMap.values()), links: cleanLinks };
+          graphInstance.graphData(currentGraphRaw);
         };
 
         onMounted(() => {
@@ -551,6 +685,8 @@
           computeRecommendations,
           getSearchPlaceholder,
           getTypeBadgeClass,
+          selectedNodeIds,
+          clearSelection,
         };
       }
     }).mount('#app');
