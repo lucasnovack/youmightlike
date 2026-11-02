@@ -58,7 +58,7 @@ def init_db(db_path: Path | str | None = None) -> Database:
 
 if __name__ == "__main__":
     db = init_db()
-    print(f"✅ DuckDB inicializado com sucesso em: {db.db_path.resolve()}")
+    print(f"[ok] DuckDB initialized at: {db.db_path.resolve()}")
     with db.connect() as conn:
         res = conn.execute(
             "SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = 'main' ORDER BY table_type, table_name"

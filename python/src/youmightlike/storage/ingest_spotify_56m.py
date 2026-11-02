@@ -18,8 +18,8 @@ def run_56m_music_ingestion() -> None:
         raise FileNotFoundError(f"Arquivo massivo do Spotify não encontrado: {SPOTIFY_56M_PARQUET}")
 
     db = init_db()
-    console.print("\n[bold cyan]🎵 Iniciando Ingestão da Base Massiva de 56M de Músicas (Spotify)[/bold cyan]")
-    console.print(f"📦 Arquivo fonte: {SPOTIFY_56M_PARQUET} (4.1 GB Parquet)\n")
+    console.print("\n[bold cyan]Iniciando Ingestão da Base Massiva de 56M de Músicas (Spotify)[/bold cyan]")
+    console.print(f"Arquivo fonte: {SPOTIFY_56M_PARQUET} (4.1 GB Parquet)\n")
 
     start_total = time.time()
 
@@ -31,7 +31,7 @@ def run_56m_music_ingestion() -> None:
         # ---------------------------------------------------------------------
         # 1. IDENTIFICAR E INSERIR ARTISTAS INÉDITOS
         # ---------------------------------------------------------------------
-        console.print("[bold yellow]🎤 1/3 Identificando e cadastrando artistas inéditos do Spotify 56M...[/bold yellow]")
+        console.print("[bold yellow]1/3 Identificando e cadastrando artistas inéditos do Spotify 56M...[/bold yellow]")
         t0 = time.time()
 
         conn.execute(
@@ -75,7 +75,7 @@ def run_56m_music_ingestion() -> None:
         # ---------------------------------------------------------------------
         # 2. IDENTIFICAR E INSERIR ÁLBUNS INÉDITOS
         # ---------------------------------------------------------------------
-        console.print("\n[bold yellow]💿 2/3 Cadastrando novos álbuns da base 56M...[/bold yellow]")
+        console.print("\n[bold yellow]2/3 Cadastrando novos álbuns da base 56M...[/bold yellow]")
         t0 = time.time()
 
         # Cria mapeamento canônico de artistas para evitar produto cartesiano
@@ -141,7 +141,7 @@ def run_56m_music_ingestion() -> None:
         # ---------------------------------------------------------------------
         # 3. MAPEAMENTO E INSERÇÃO DAS FAIXAS COM AUDIO FEATURES
         # ---------------------------------------------------------------------
-        console.print("\n[bold magenta]🎼 3/3 Mapeando e inserindo dezenas de milhões de músicas e audio features...[/bold magenta]")
+        console.print("\n[bold magenta]3/3 Mapeando e inserindo dezenas de milhões de músicas e audio features...[/bold magenta]")
         t0 = time.time()
 
         console.print("  -> Construindo índices temporários de artistas e álbuns canônicos...")
@@ -243,7 +243,7 @@ def run_56m_music_ingestion() -> None:
         conn.execute("DROP TABLE IF EXISTS tmp_distinct_tracks;")
 
         total_time = time.time() - start_total
-        console.print(f"\n[bold green]🎉 Ingestão da base 56M concluída com sucesso em {total_time:.2f} segundos![/bold green]\n")
+        console.print(f"\n[bold green]Ingestão da base 56M concluída com sucesso em {total_time:.2f} segundos![/bold green]\n")
 
         _print_summary(conn)
 

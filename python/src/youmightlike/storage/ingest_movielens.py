@@ -20,8 +20,8 @@ def run_movielens_bulk_ingestion(min_relevance: float = 0.65) -> None:
         raise FileNotFoundError("Arquivos do MovieLens Tag Genome não encontrados em data/raw/movielens/")
 
     db = init_db()
-    console.print("\n[bold cyan]🎬 Iniciando Ingestão do MovieLens Tag Genome (Semântica de Filmes)[/bold cyan]")
-    console.print(f"⚙️ Critério de corte: Tags com relevância [bold green]>={min_relevance}[/bold green] (escala 0.0 a 1.0)")
+    console.print("\n[bold cyan]Iniciando Ingestão do MovieLens Tag Genome (Semântica de Filmes)[/bold cyan]")
+    console.print(f"️ Critério de corte: Tags com relevância [bold green]>={min_relevance}[/bold green] (escala 0.0 a 1.0)")
 
     start_total = time.time()
 
@@ -32,7 +32,7 @@ def run_movielens_bulk_ingestion(min_relevance: float = 0.65) -> None:
         # ---------------------------------------------------------------------
         # 1. MAPEAMENTO DE FILMES EXISTENTES VIA IMDB_ID
         # ---------------------------------------------------------------------
-        console.print("\n[bold yellow]🔍 1/3 Vinculando links do MovieLens aos filmes existentes no banco...[/bold yellow]")
+        console.print("\n[bold yellow]1/3 Vinculando links do MovieLens aos filmes existentes no banco...[/bold yellow]")
         t0 = time.time()
 
         conn.execute(
@@ -54,7 +54,7 @@ def run_movielens_bulk_ingestion(min_relevance: float = 0.65) -> None:
         # ---------------------------------------------------------------------
         # 2. SELEÇÃO DE TAGS RELEVANTES E INSERÇÃO EM KEYWORDS
         # ---------------------------------------------------------------------
-        console.print("\n[bold magenta]🏷️ 2/3 Filtrando tags de alta relevância e enriquecendo vocabulário...[/bold magenta]")
+        console.print("\n[bold magenta]️ 2/3 Filtrando tags de alta relevância e enriquecendo vocabulário...[/bold magenta]")
         t0 = time.time()
 
         conn.execute(
@@ -88,7 +88,7 @@ def run_movielens_bulk_ingestion(min_relevance: float = 0.65) -> None:
         # ---------------------------------------------------------------------
         # 3. VINCULAR FILMES ÀS KEYWORDS (movie_keywords / has_keyword)
         # ---------------------------------------------------------------------
-        console.print("\n[bold green]🔗 3/3 Criando arestas conceituais Filme ➔ Keyword (has_keyword)...[/bold green]")
+        console.print("\n[bold green]3/3 Criando arestas conceituais Filme Keyword (has_keyword)...[/bold green]")
         t0 = time.time()
 
         conn.execute(
@@ -107,7 +107,7 @@ def run_movielens_bulk_ingestion(min_relevance: float = 0.65) -> None:
         console.print(f"  -> {movie_kw_count:,} arestas de keywords em filmes registradas em {time.time() - t0:.2f}s!")
 
         total_time = time.time() - start_total
-        console.print(f"\n[bold green]✨ Ingestão do Tag Genome concluída com sucesso em {total_time:.2f} segundos![/bold green]\n")
+        console.print(f"\n[bold green]Ingestão do Tag Genome concluída com sucesso em {total_time:.2f} segundos![/bold green]\n")
 
         _print_summary(conn)
 

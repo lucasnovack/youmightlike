@@ -19,8 +19,8 @@ def run_lastfm_similarity_ingestion(min_common_listeners: int = 3, min_score: fl
         raise FileNotFoundError("Arquivos do Last.fm (artists.dat, user_artists.dat) não encontrados em data/raw/lastfm/")
 
     db = init_db()
-    console.print("\n[bold cyan]🎵 Iniciando Cálculo e Ingestão de Similaridades do Last.fm[/bold cyan]")
-    console.print(f"⚙️ Filtros: Mínimo de [bold green]{min_common_listeners}[/bold green] ouvintes compartilhados e score [bold green]>={min_score}[/bold green]")
+    console.print("\n[bold cyan]Iniciando Cálculo e Ingestão de Similaridades do Last.fm[/bold cyan]")
+    console.print(f"️ Filtros: Mínimo de [bold green]{min_common_listeners}[/bold green] ouvintes compartilhados e score [bold green]>={min_score}[/bold green]")
 
     start_total = time.time()
 
@@ -31,7 +31,7 @@ def run_lastfm_similarity_ingestion(min_common_listeners: int = 3, min_score: fl
         # ---------------------------------------------------------------------
         # 1. MAPEAMENTO DE ARTISTAS COM O BANCO EXISTENTE
         # ---------------------------------------------------------------------
-        console.print("\n[bold yellow]🔍 1/3 Mapeando artistas do Last.fm com o catálogo canônico...[/bold yellow]")
+        console.print("\n[bold yellow]1/3 Mapeando artistas do Last.fm com o catálogo canônico...[/bold yellow]")
         t0 = time.time()
 
         conn.execute(
@@ -53,7 +53,7 @@ def run_lastfm_similarity_ingestion(min_common_listeners: int = 3, min_score: fl
         # ---------------------------------------------------------------------
         # 2. CÁLCULO DE SIMILARIDADE DE CO-ESCUTA (COSINE COM LOG-WEIGHT)
         # ---------------------------------------------------------------------
-        console.print("\n[bold magenta]⚡ 2/3 Calculando similaridade de cosseno de co-ocorrência em CPU...[/bold magenta]")
+        console.print("\n[bold magenta]2/3 Calculando similaridade de cosseno de co-ocorrência em CPU...[/bold magenta]")
         t0 = time.time()
 
         conn.execute(
@@ -103,7 +103,7 @@ def run_lastfm_similarity_ingestion(min_common_listeners: int = 3, min_score: fl
         # ---------------------------------------------------------------------
         # 3. INSERÇÃO BIDIRECIONAL EM artist_similarities (similar_to)
         # ---------------------------------------------------------------------
-        console.print("\n[bold green]🔗 3/3 Inserindo arestas bidirecionais 'similar_to' no DuckDB...[/bold green]")
+        console.print("\n[bold green]3/3 Inserindo arestas bidirecionais 'similar_to' no DuckDB...[/bold green]")
         t0 = time.time()
 
         # Inserção A -> B
@@ -132,7 +132,7 @@ def run_lastfm_similarity_ingestion(min_common_listeners: int = 3, min_score: fl
         console.print(f"  -> Tabela 'artist_similarities' populada com {total_sims:,} arestas em {time.time() - t0:.2f}s!")
 
         total_time = time.time() - start_total
-        console.print(f"\n[bold green]✨ Ingestão de Similaridades concluída com sucesso em {total_time:.2f} segundos![/bold green]\n")
+        console.print(f"\n[bold green]Ingestão de Similaridades concluída com sucesso em {total_time:.2f} segundos![/bold green]\n")
 
         _print_summary(conn)
 

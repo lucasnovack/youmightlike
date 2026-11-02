@@ -216,7 +216,7 @@ if __name__ == "__main__":
     client = OpenLibraryClient()
 
     # 1. Enriquecer o livro de Blade Runner que já estava pré-criado no DuckDB
-    print("🔎 Pesquisando 'Do Androids Dream of Electric Sheep' no OpenLibrary...")
+    print("Pesquisando 'Do Androids Dream of Electric Sheep' no OpenLibrary...")
     blade_runner_books = client.search_books("Do Androids Dream of Electric Sheep", limit=1)
     if blade_runner_books:
         book = blade_runner_books[0]
@@ -226,10 +226,10 @@ if __name__ == "__main__":
 
         with db.connect() as conn:
             book_id = client.ingest_book(book, conn)
-            print(f"🎉 Livro enriquecido com sucesso! ID Interno: {book_id}")
+            print(f"Livro enriquecido com sucesso! ID Interno: {book_id}")
 
     # 2. Inserir um segundo livro clássico: Neuromancer de William Gibson
-    print("\n🔎 Pesquisando e ingerindo 'Neuromancer'...")
+    print("\nPesquisando e ingerindo 'Neuromancer'...")
     neuromancer_books = client.search_books("Neuromancer William Gibson", limit=1)
     if neuromancer_books:
         neuro = neuromancer_books[0]
@@ -239,15 +239,15 @@ if __name__ == "__main__":
 
         with db.connect() as conn:
             neuro_id = client.ingest_book(neuro, conn)
-            print(f"🎉 Livro inserido! ID Interno: {neuro_id}")
+            print(f"Livro inserido! ID Interno: {neuro_id}")
 
             # Estado consolidado do Grafo Transmidiático!
             nodes_count = conn.execute("SELECT COUNT(*) FROM v_graph_nodes").fetchone()[0]
             edges_count = conn.execute("SELECT COUNT(*) FROM v_graph_edges").fetchone()[0]
-            print(f"\n🕸️ Total de Nós no Grafo: {nodes_count}")
-            print(f"🕸️ Total de Arestas no Grafo: {edges_count}")
+            print(f"\n️ Total de Nós no Grafo: {nodes_count}")
+            print(f"️ Total de Arestas no Grafo: {edges_count}")
 
-            print("\n🌟 Pontes Transmidiáticas Ativas no DuckDB (Filme ⇄ Música ⇄ Livro):")
+            print("\nPontes Transmidiáticas Ativas no DuckDB (Filme ⇄ Música ⇄ Livro):")
             bridges = conn.execute(
                 """
                 SELECT source_id, relation_type, target_id, base_weight 

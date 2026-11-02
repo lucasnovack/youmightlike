@@ -18,8 +18,8 @@ def run_anime_bulk_ingestion(min_members: int = 20000) -> None:
         raise FileNotFoundError(f"Arquivo MyAnimeList não encontrado: {ANIME_CSV}")
 
     db = init_db()
-    console.print("\n[bold cyan]⛩️ Iniciando Ingestão do MyAnimeList (Animes, Estúdios e Temas)[/bold cyan]")
-    console.print(f"⚙️ Critério de corte: Obras com [bold green]>={min_members:,}[/bold green] membros na comunidade")
+    console.print("\n[bold cyan]️ Iniciando Ingestão do MyAnimeList (Animes, Estúdios e Temas)[/bold cyan]")
+    console.print(f"️ Critério de corte: Obras com [bold green]>={min_members:,}[/bold green] membros na comunidade")
 
     start_total = time.time()
 
@@ -30,7 +30,7 @@ def run_anime_bulk_ingestion(min_members: int = 20000) -> None:
         # ---------------------------------------------------------------------
         # 1. FILTRAR ANIMES QUALIFICADOS E EXTRAIR CAMPOS
         # ---------------------------------------------------------------------
-        console.print("\n[bold yellow]🎬 1/4 Filtrando animes notáveis e mapeando com filmes existentes...[/bold yellow]")
+        console.print("\n[bold yellow]1/4 Filtrando animes notáveis e mapeando com filmes existentes...[/bold yellow]")
         t0 = time.time()
 
         conn.execute(
@@ -113,7 +113,7 @@ def run_anime_bulk_ingestion(min_members: int = 20000) -> None:
         # ---------------------------------------------------------------------
         # 2. ESTÚDIOS DE ANIMAÇÃO (people & movie_credits)
         # ---------------------------------------------------------------------
-        console.print("\n[bold magenta]🎨 2/4 Mapeando estúdios de animação (produced_by)...[/bold magenta]")
+        console.print("\n[bold magenta]2/4 Mapeando estúdios de animação (produced_by)...[/bold magenta]")
         t0 = time.time()
 
         conn.execute(
@@ -163,7 +163,7 @@ def run_anime_bulk_ingestion(min_members: int = 20000) -> None:
         # ---------------------------------------------------------------------
         # 3. GÊNEROS E TEMAS ESTÉTICOS (keywords & movie_keywords)
         # ---------------------------------------------------------------------
-        console.print("\n[bold green]🏷️ 3/4 Mapeando temas, tropos e microgêneros (has_keyword)...[/bold green]")
+        console.print("\n[bold green]️ 3/4 Mapeando temas, tropos e microgêneros (has_keyword)...[/bold green]")
         t0 = time.time()
 
         conn.execute(
@@ -209,7 +209,7 @@ def run_anime_bulk_ingestion(min_members: int = 20000) -> None:
         console.print(f"  -> Total de {anime_tags_count:,} arestas de keywords em filmes/animes ({total_keywords:,} keywords globais) em {time.time() - t0:.2f}s!")
 
         total_time = time.time() - start_total
-        console.print(f"\n[bold green]✨ Ingestão do MyAnimeList concluída com sucesso em {total_time:.2f} segundos![/bold green]\n")
+        console.print(f"\n[bold green]Ingestão do MyAnimeList concluída com sucesso em {total_time:.2f} segundos![/bold green]\n")
 
         _print_summary(conn)
 

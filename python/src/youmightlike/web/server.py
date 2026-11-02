@@ -183,7 +183,7 @@ def search_entities(
                 if nid not in seen:
                     seen.add(nid)
                     year_str = f" ({myear})" if myear else ""
-                    score_str = f" • ⭐ {mvote}" if mvote else ""
+                    score_str = f" • Rating: {mvote}" if mvote else ""
                     items.append(
                         EntityItem(
                             id=nid,
@@ -422,7 +422,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                         "id": nkey,
                         "title": row[0],
                         "type": "movie",
-                        "subtitle": f"Filme ({row[1]}) • ⭐ {row[2]}",
+                        "subtitle": f"Movie ({row[1]}) • Rating: {row[2]}",
                         "score": round(score * 1000, 2),
                     })
                     graph_nodes.append({

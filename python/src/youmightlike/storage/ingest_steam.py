@@ -18,8 +18,8 @@ def run_steam_bulk_ingestion(min_reviews: int = 400) -> None:
         raise FileNotFoundError(f"Arquivo Parquet não encontrado: {PARQUET_FILE}")
 
     db = init_db()
-    console.print("\n[bold cyan]🚀 Iniciando Ingestão em Massa da Steam via DuckDB (Parquet Nativo)[/bold cyan]")
-    console.print(f"⚙️ Critério de corte: Jogos com [bold green]>={min_reviews}[/bold green] avaliações na Steam")
+    console.print("\n[bold cyan]Iniciando Ingestão em Massa da Steam via DuckDB (Parquet Nativo)[/bold cyan]")
+    console.print(f"️ Critério de corte: Jogos com [bold green]>={min_reviews}[/bold green] avaliações na Steam")
 
     start_total = time.time()
 
@@ -30,7 +30,7 @@ def run_steam_bulk_ingestion(min_reviews: int = 400) -> None:
         # ---------------------------------------------------------------------
         # 1. FILTRAR JOGOS QUALIFICADOS
         # ---------------------------------------------------------------------
-        console.print("\n[bold yellow]🎮 1/3 Filtrando jogos notáveis...[/bold yellow]")
+        console.print("\n[bold yellow]1/3 Filtrando jogos notáveis...[/bold yellow]")
         t0 = time.time()
 
         conn.execute(
@@ -75,7 +75,7 @@ def run_steam_bulk_ingestion(min_reviews: int = 400) -> None:
         # ---------------------------------------------------------------------
         # 2. DESENVOLVEDORES (game_developers & game_dev_links)
         # ---------------------------------------------------------------------
-        console.print("\n[bold magenta]🏢 2/3 Mapeando estúdios desenvolvedores...[/bold magenta]")
+        console.print("\n[bold magenta]2/3 Mapeando estúdios desenvolvedores...[/bold magenta]")
         t0 = time.time()
 
         conn.execute(
@@ -113,7 +113,7 @@ def run_steam_bulk_ingestion(min_reviews: int = 400) -> None:
         # ---------------------------------------------------------------------
         # 3. TAGS ESTÉTICAS (keywords & game_tags)
         # ---------------------------------------------------------------------
-        console.print("\n[bold blue]🏷️ 3/3 Vinculando tags estéticas e temáticas aos jogos...[/bold blue]")
+        console.print("\n[bold blue]️ 3/3 Vinculando tags estéticas e temáticas aos jogos...[/bold blue]")
         t0 = time.time()
 
         conn.execute(
@@ -152,10 +152,10 @@ def run_steam_bulk_ingestion(min_reviews: int = 400) -> None:
         console.print(f"  -> Tags estéticas vinculadas em {time.time() - t0:.2f}s!")
 
         total_elapsed = time.time() - start_total
-        console.print(f"\n[bold green]🏁 Ingestão da Steam Finalizada com Sucesso em {total_elapsed:.2f}s![/bold green]\n")
+        console.print(f"\n[bold green]Ingestão da Steam Finalizada com Sucesso em {total_elapsed:.2f}s![/bold green]\n")
 
         # Exibir Estatísticas Finais
-        stats_table = Table(title="📈 Estatísticas Atualizadas do Grafo (Com Games)", header_style="bold green")
+        stats_table = Table(title="Estatísticas Atualizadas do Grafo (Com Games)", header_style="bold green")
         stats_table.add_column("Tabela / View", style="cyan")
         stats_table.add_column("Total de Registros", justify="right", style="bold white")
 

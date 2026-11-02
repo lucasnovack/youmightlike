@@ -18,8 +18,8 @@ def run_console_games_ingestion(min_sales: float = 0.05) -> None:
         raise FileNotFoundError(f"Arquivo de jogos de console não encontrado: {CONSOLE_PARQUET}")
 
     db = init_db()
-    console.print("\n[bold cyan]🎮 Iniciando Ingestão de Clássicos de Console (Nintendo, PlayStation, Sega)[/bold cyan]")
-    console.print(f"⚙️ Critério de corte: Jogos com vendas globais notáveis (>= {min_sales * 1_000_000:,.0f} cópias)")
+    console.print("\n[bold cyan]Iniciando Ingestão de Clássicos de Console (Nintendo, PlayStation, Sega)[/bold cyan]")
+    console.print(f"️ Critério de corte: Jogos com vendas globais notáveis (>= {min_sales * 1_000_000:,.0f} cópias)")
 
     start_total = time.time()
 
@@ -30,7 +30,7 @@ def run_console_games_ingestion(min_sales: float = 0.05) -> None:
         # ---------------------------------------------------------------------
         # 1. CONSOLIDAR JOGOS POR TÍTULO E VERIFICAR DUPLICATAS COM A STEAM
         # ---------------------------------------------------------------------
-        console.print("\n[bold yellow]🔍 1/4 Consolidando títulos multiplataforma e verificando catálogo Steam...[/bold yellow]")
+        console.print("\n[bold yellow]1/4 Consolidando títulos multiplataforma e verificando catálogo Steam...[/bold yellow]")
         t0 = time.time()
 
         conn.execute(
@@ -110,7 +110,7 @@ def run_console_games_ingestion(min_sales: float = 0.05) -> None:
         # ---------------------------------------------------------------------
         # 2. ESTÚDIOS E PUBLICADORAS (game_developers & game_dev_links)
         # ---------------------------------------------------------------------
-        console.print("\n[bold magenta]🏢 2/4 Mapeando estúdios e publicadoras de console (developed_by)...[/bold magenta]")
+        console.print("\n[bold magenta]2/4 Mapeando estúdios e publicadoras de console (developed_by)...[/bold magenta]")
         t0 = time.time()
 
         conn.execute(
@@ -142,7 +142,7 @@ def run_console_games_ingestion(min_sales: float = 0.05) -> None:
         # ---------------------------------------------------------------------
         # 3. GÊNEROS E PLATAFORMAS (keywords & game_tags)
         # ---------------------------------------------------------------------
-        console.print("\n[bold green]🏷️ 3/4 Mapeando gêneros e plataformas de console (has_tag)...[/bold green]")
+        console.print("\n[bold green]️ 3/4 Mapeando gêneros e plataformas de console (has_tag)...[/bold green]")
         t0 = time.time()
 
         conn.execute(
@@ -192,7 +192,7 @@ def run_console_games_ingestion(min_sales: float = 0.05) -> None:
         console.print(f"  -> Total de {game_tags_count:,} arestas de tags em jogos ({total_keywords:,} keywords globais) em {time.time() - t0:.2f}s!")
 
         total_time = time.time() - start_total
-        console.print(f"\n[bold green]✨ Ingestão de Clássicos de Console concluída com sucesso em {total_time:.2f} segundos![/bold green]\n")
+        console.print(f"\n[bold green]Ingestão de Clássicos de Console concluída com sucesso em {total_time:.2f} segundos![/bold green]\n")
 
         _print_summary(conn)
 

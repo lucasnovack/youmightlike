@@ -18,8 +18,8 @@ def run_books_bulk_ingestion(min_ratings: int = 300) -> None:
         raise FileNotFoundError(f"Arquivo Parquet não encontrado: {PARQUET_FILE}")
 
     db = init_db()
-    console.print("\n[bold cyan]📚 Iniciando Ingestão em Massa de Livros via DuckDB (Parquet Nativo)[/bold cyan]")
-    console.print(f"⚙️ Critério de corte: Livros com [bold green]>={min_ratings}[/bold green] avaliações")
+    console.print("\n[bold cyan]Iniciando Ingestão em Massa de Livros via DuckDB (Parquet Nativo)[/bold cyan]")
+    console.print(f"️ Critério de corte: Livros com [bold green]>={min_ratings}[/bold green] avaliações")
 
     start_total = time.time()
 
@@ -30,7 +30,7 @@ def run_books_bulk_ingestion(min_ratings: int = 300) -> None:
         # ---------------------------------------------------------------------
         # 1. FILTRAR LIVROS QUALIFICADOS
         # ---------------------------------------------------------------------
-        console.print("\n[bold yellow]📖 1/4 Filtrando e inserindo livros qualificados...[/bold yellow]")
+        console.print("\n[bold yellow]1/4 Filtrando e inserindo livros qualificados...[/bold yellow]")
         t0 = time.time()
 
         conn.execute(
@@ -72,7 +72,7 @@ def run_books_bulk_ingestion(min_ratings: int = 300) -> None:
         # ---------------------------------------------------------------------
         # 2. AUTORES DE LIVROS (book_authors)
         # ---------------------------------------------------------------------
-        console.print("\n[bold magenta]✍️ 2/4 Mapeando autores de livros...[/bold magenta]")
+        console.print("\n[bold magenta]️ 2/4 Mapeando autores de livros...[/bold magenta]")
         t0 = time.time()
 
         conn.execute(
@@ -106,7 +106,7 @@ def run_books_bulk_ingestion(min_ratings: int = 300) -> None:
         # ---------------------------------------------------------------------
         # 3. RELAÇÃO LIVRO -> AUTOR (book_author_links)
         # ---------------------------------------------------------------------
-        console.print("\n[bold blue]🔗 3/4 Conectando livros aos seus autores (written_by)...[/bold blue]")
+        console.print("\n[bold blue]3/4 Conectando livros aos seus autores (written_by)...[/bold blue]")
         t0 = time.time()
 
         conn.execute(
@@ -128,7 +128,7 @@ def run_books_bulk_ingestion(min_ratings: int = 300) -> None:
         # ---------------------------------------------------------------------
         # 4. GÊNEROS E TEMAS (keywords & book_subjects)
         # ---------------------------------------------------------------------
-        console.print("\n[bold green]🏷️ 4/4 Mapeando temas e tópicos dos livros (has_subject)...[/bold green]")
+        console.print("\n[bold green]️ 4/4 Mapeando temas e tópicos dos livros (has_subject)...[/bold green]")
         t0 = time.time()
 
         conn.execute(
@@ -173,7 +173,7 @@ def run_books_bulk_ingestion(min_ratings: int = 300) -> None:
         console.print(f"  -> {subjects_count:,} conexões temáticas criadas ({total_keywords:,} keywords globais) em {time.time() - t0:.2f}s!")
 
         total_time = time.time() - start_total
-        console.print(f"\n[bold green]✨ Ingestão de Livros concluída com sucesso em {total_time:.2f} segundos![/bold green]\n")
+        console.print(f"\n[bold green]Ingestão de Livros concluída com sucesso em {total_time:.2f} segundos![/bold green]\n")
 
         # Exibir censo consolidado
         _print_summary(conn)

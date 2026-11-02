@@ -25,8 +25,8 @@ def run_imdb_bulk_ingestion(min_votes: int = 2500) -> None:
         if not p.exists():
             raise FileNotFoundError(f"Arquivo bulk não encontrado: {p}")
 
-    console.print("\n[bold cyan]🚀 Iniciando Ingestão em Massa do IMDb via DuckDB[/bold cyan]")
-    console.print(f"⚙️ Critério de corte: Filmes com [bold green]>={min_votes}[/bold green] votos no IMDb")
+    console.print("\n[bold cyan]Iniciando Ingestão em Massa do IMDb via DuckDB[/bold cyan]")
+    console.print(f"️ Critério de corte: Filmes com [bold green]>={min_votes}[/bold green] votos no IMDb")
 
     start_total = time.time()
 
@@ -38,7 +38,7 @@ def run_imdb_bulk_ingestion(min_votes: int = 2500) -> None:
         # ---------------------------------------------------------------------
         # 1. FILMES (title.basics + title.ratings)
         # ---------------------------------------------------------------------
-        console.print("\n[bold yellow]🎬 1/4 Filtrando e inserindo filmes relevantes...[/bold yellow]")
+        console.print("\n[bold yellow]1/4 Filtrando e inserindo filmes relevantes...[/bold yellow]")
         t0 = time.time()
 
         conn.execute(
@@ -82,7 +82,7 @@ def run_imdb_bulk_ingestion(min_votes: int = 2500) -> None:
         # ---------------------------------------------------------------------
         # 2. GÊNEROS (genres & movie_genres)
         # ---------------------------------------------------------------------
-        console.print("\n[bold blue]🏷️ 2/4 Mapeando gêneros cinematográficos...[/bold blue]")
+        console.print("\n[bold blue]️ 2/4 Mapeando gêneros cinematográficos...[/bold blue]")
         t0 = time.time()
 
         conn.execute(
@@ -120,7 +120,7 @@ def run_imdb_bulk_ingestion(min_votes: int = 2500) -> None:
         # ---------------------------------------------------------------------
         # 3. DIRETORES (title.crew + name.basics)
         # ---------------------------------------------------------------------
-        console.print("\n[bold magenta]🎥 3/4 Extraindo diretores e montando créditos...[/bold magenta]")
+        console.print("\n[bold magenta]3/4 Extraindo diretores e montando créditos...[/bold magenta]")
         t0 = time.time()
 
         conn.execute(
@@ -177,7 +177,7 @@ def run_imdb_bulk_ingestion(min_votes: int = 2500) -> None:
         # ---------------------------------------------------------------------
         # 4. ROTEIRISTAS (title.crew + name.basics)
         # ---------------------------------------------------------------------
-        console.print("\n[bold cyan]✍️ 4/4 Extraindo roteiristas...[/bold cyan]")
+        console.print("\n[bold cyan]️ 4/4 Extraindo roteiristas...[/bold cyan]")
         t0 = time.time()
 
         conn.execute(
@@ -229,10 +229,10 @@ def run_imdb_bulk_ingestion(min_votes: int = 2500) -> None:
         console.print(f"  -> Roteiristas processados em {time.time() - t0:.2f}s!")
 
         total_elapsed = time.time() - start_total
-        console.print(f"\n[bold green]🏁 Ingestão Bulk Finalizada com Sucesso em {total_elapsed:.2f}s![/bold green]\n")
+        console.print(f"\n[bold green]Ingestão Bulk Finalizada com Sucesso em {total_elapsed:.2f}s![/bold green]\n")
 
         # Exibir Estatísticas Finais
-        stats_table = Table(title="📈 Estatísticas Atualizadas do DuckDB", header_style="bold green")
+        stats_table = Table(title="Estatísticas Atualizadas do DuckDB", header_style="bold green")
         stats_table.add_column("Tabela / View", style="cyan")
         stats_table.add_column("Total de Registros", justify="right", style="bold white")
 

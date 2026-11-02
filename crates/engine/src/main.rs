@@ -54,27 +54,21 @@ fn main() -> Result<()> {
     let seed_keys: Vec<&str> = args.seeds.split(',').map(|s| s.trim()).collect();
 
     if !args.json {
-        println!("🦀 youmightlike-engine: Core Nativo de Difusão em Grafos");
-        println!("📂 Banco DuckDB: {}", args.db_path);
-        println!("🌱 Sementes: {:?}", seed_keys);
+        println!("[youmightlike-engine] graph diffusion core");
+        println!("  database: {}", args.db_path);
+        println!("  seeds: {:?}", seed_keys);
     }
 
     // 1. Carrega o Grafo do DuckDB para CSR em memória
     let t_load = Instant::now();
     if !args.json {
-        print!("⏳ Carregando arestas e construindo matriz esparsa CSC...");
+        print!("  [1/2] loading edges and constructing CSC sparse matrix... ");
     }
     let graph = GraphCSR::load_from_duckdb(&args.db_path, args.query_edges.as_deref())?;
     let load_duration = t_load.elapsed();
 
     if !args.json {
-        println!(" Concluído!");
-        println!(
-            "📊 Grafo carregado em {:.3}s: {} nós, {} arestas",
-            load_duration.as_secs_f32(),
-            graph.num_nodes,
-            graph.num_edges
-        );
+        println!("done ({:.3}s, {} nodes, {} edges)", load_duration.as_secs_f32(), graph.num_nodes, graph.num_edges);
     }
 
     // 2. Executa o Personalized PageRank paralelo com Rayon
@@ -90,7 +84,7 @@ fn main() -> Result<()> {
 
     if !args.json {
         println!(
-            "⚡ Difusão PPR concluída em {:.4}s!",
+            "  [2/2] ppr diffusion converged in {:.4}s",
             ppr_duration.as_secs_f32()
         );
     }
@@ -115,10 +109,10 @@ fn main() -> Result<()> {
         let json_output = serde_json::to_string_pretty(&filtered)?;
         println!("{}", json_output);
     } else {
-        println!("\n🏆 Top {} Recomendações por Difusão Estrutural:", filtered.len());
+        println!("\nTop {} recommendations (structural diffusion):", filtered.len());
         for (rank, item) in filtered.iter().enumerate() {
             println!(
-                "  {:>2}. {:<25} (Score PPR: {:.6})",
+                "  {:>2}. {:<25} (ppr score: {:.6})",
                 rank + 1,
                 item.node_key,
                 item.score

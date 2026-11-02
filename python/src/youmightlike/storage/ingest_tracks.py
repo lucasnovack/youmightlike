@@ -20,7 +20,7 @@ def run_tracks_bulk_ingestion() -> None:
         raise FileNotFoundError("Nenhum arquivo de faixas do Spotify encontrado em data/raw/music/!")
 
     db = init_db()
-    console.print("\n[bold cyan]🎵 Iniciando Ingestão de Faixas Musicais (Músicas & Audio Features)[/bold cyan]")
+    console.print("\n[bold cyan]Iniciando Ingestão de Faixas Musicais (Músicas & Audio Features)[/bold cyan]")
 
     start_total = time.time()
 
@@ -31,7 +31,7 @@ def run_tracks_bulk_ingestion() -> None:
         # ---------------------------------------------------------------------
         # 1. IDENTIFICAR E INSERIR ARTISTAS INÉDITOS DO SPOTIFY
         # ---------------------------------------------------------------------
-        console.print("\n[bold yellow]🎤 1/4 Mapeando e cadastrando artistas inéditos do Spotify...[/bold yellow]")
+        console.print("\n[bold yellow]1/4 Mapeando e cadastrando artistas inéditos do Spotify...[/bold yellow]")
         t0 = time.time()
 
         if SPOTIFY_PARQUET.exists():
@@ -127,7 +127,7 @@ def run_tracks_bulk_ingestion() -> None:
         # ---------------------------------------------------------------------
         # 2. IDENTIFICAR E INSERIR ÁLBUNS INÉDITOS DO SPOTIFY
         # ---------------------------------------------------------------------
-        console.print("\n[bold yellow]💿 2/4 Cadastrando novos álbuns no DuckDB...[/bold yellow]")
+        console.print("\n[bold yellow]2/4 Cadastrando novos álbuns no DuckDB...[/bold yellow]")
         t0 = time.time()
 
         conn.execute(
@@ -165,7 +165,7 @@ def run_tracks_bulk_ingestion() -> None:
         # ---------------------------------------------------------------------
         # 3. MAPEAMENTO E INSERÇÃO DAS FAIXAS COM AUDIO FEATURES
         # ---------------------------------------------------------------------
-        console.print("\n[bold magenta]🎼 3/4 Inserindo faixas musicais e métricas de áudio...[/bold magenta]")
+        console.print("\n[bold magenta]3/4 Inserindo faixas musicais e métricas de áudio...[/bold magenta]")
         t0 = time.time()
 
         conn.execute(
@@ -232,7 +232,7 @@ def run_tracks_bulk_ingestion() -> None:
         console.print(f"  -> Tabela 'music_tracks' populada com {total_tracks:,} faixas em {time.time() - t1:.2f}s!")
 
         total_time = time.time() - start_total
-        console.print(f"\n[bold green]✨ Ingestão de Música finalizada com sucesso em {total_time:.2f} segundos![/bold green]\n")
+        console.print(f"\n[bold green]Ingestão de Música finalizada com sucesso em {total_time:.2f} segundos![/bold green]\n")
 
         _print_summary(conn)
 

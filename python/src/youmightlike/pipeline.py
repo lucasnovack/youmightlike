@@ -71,14 +71,14 @@ def run_pipeline() -> None:
     music_service = MusicIngestionService()
     book_client = OpenLibraryClient()
 
-    console.print("\n[bold cyan]🚀 Iniciando Pipeline de Ingestão em Lote (youmightlike)[/bold cyan]")
-    console.print(f"📦 Alvos: {len(SEED_MOVIES)} filmes, {len(SEED_BOOKS)} livros, {len(SEED_MUSIC)} artistas/compositores\n")
+    console.print("\n[bold]Starting Batch Ingestion Pipeline (youmightlike)[/bold]")
+    console.print(f"Targets: {len(SEED_MOVIES)} movies, {len(SEED_BOOKS)} books, {len(SEED_MUSIC)} artists/composers\n")
 
     with db.connect() as conn:
         # =====================================================================
         # 1. FILMES (Wikidata)
         # =====================================================================
-        console.print("[bold yellow]🎬 1/3 Ingerindo Filmes e Pontes de Trilha/Adaptação (Wikidata)...[/bold yellow]")
+        console.print("[bold][1/3] Ingesting Movies and Soundtrack/Adaptation Bridges (Wikidata)...[/bold]")
         composers_to_enrich = set()
         books_to_enrich = set()
 
@@ -89,7 +89,7 @@ def run_pipeline() -> None:
             TaskProgressColumn(),
             console=console,
         ) as progress:
-            task = progress.add_task("[yellow]Processando filmes...", total=len(SEED_MOVIES))
+            task = progress.add_task("Processing movies...", total=len(SEED_MOVIES))
 
             for movie_name in SEED_MOVIES:
                 try:
@@ -104,16 +104,16 @@ def run_pipeline() -> None:
                             if details.based_on_title:
                                 books_to_enrich.add(details.based_on_title)
                 except Exception as e:
-                    console.print(f"[red]Erro ao ingerir filme '{movie_name}': {e}[/red]")
+                    console.print(f"[red]Error ingesting movie '{movie_name}': {e}[/red]")
                 finally:
                     progress.advance(task)
 
-        console.print(f"✅ Filmes processados! {len(composers_to_enrich)} compositores e {len(books_to_enrich)} livros-base detectados.\n")
+        console.print(f"[ok] Movies processed. {len(composers_to_enrich)} composers and {len(books_to_enrich)} base books detected.\n")
 
         # =====================================================================
         # 2. LIVROS (OpenLibrary)
         # =====================================================================
-        console.print("[bold blue]📚 2/3 Ingerindo Obras Literárias & Temáticas (OpenLibrary)...[/bold blue]")
+        console.print("[bold][2/3] Ingesting Literary Works & Themes (OpenLibrary)...[/bold]")
         all_book_queries = [f"{t} {a}" for t, a in SEED_BOOKS] + list(books_to_enrich)
         all_book_queries = list(dict.fromkeys(all_book_queries))  # Únicos
 
@@ -124,7 +124,7 @@ def run_pipeline() -> None:
             TaskProgressColumn(),
             console=console,
         ) as progress:
-            task = progress.add_task("[blue]Processando livros...", total=len(all_book_queries))
+            task = progress.add_task("Processing books...", total=len(all_book_queries))
 
             for b_query in all_book_queries:
                 try:
@@ -132,16 +132,16 @@ def run_pipeline() -> None:
                     if books_found:
                         book_client.ingest_book(books_found[0], conn)
                 except Exception as e:
-                    console.print(f"[red]Erro ao ingerir livro '{b_query}': {e}[/red]")
+                    console.print(f"[red]Error ingesting book '{b_query}': {e}[/red]")
                 finally:
                     progress.advance(task)
 
-        console.print("✅ Livros e autores processados!\n")
+        console.print("[ok] Books and authors processed.\n")
 
         # =====================================================================
         # 3. MÚSICA (MusicBrainz)
         # =====================================================================
-        console.print("[bold magenta]🎵 3/3 Ingerindo Artistas, Álbuns & Microgêneros (MusicBrainz)...[/bold magenta]")
+        console.print("[bold][3/3] Ingesting Artists, Albums & Genres (MusicBrainz)...[/bold]")
         all_artists = list(dict.fromkeys(SEED_MUSIC + list(composers_to_enrich)))
 
         with Progress(
@@ -151,7 +151,7 @@ def run_pipeline() -> None:
             TaskProgressColumn(),
             console=console,
         ) as progress:
-            task = progress.add_task("[magenta]Processando artistas...", total=len(all_artists))
+            task = progress.add_task("Processing artists...", total=len(all_artists))
 
             for artist_name in all_artists:
                 try:
@@ -160,18 +160,18 @@ def run_pipeline() -> None:
                         mbid = search_res[0]["mbid"]
                         music_service.ingest_artist_by_mbid(mbid, conn)
                 except Exception as e:
-                    console.print(f"[red]Erro ao ingerir artista '{artist_name}': {e}[/red]")
+                    console.print(f"[red]Error ingesting artist '{artist_name}': {e}[/red]")
                 finally:
                     progress.advance(task)
 
-        console.print("✅ Artistas e álbuns processados!\n")
+        console.print("[ok] Artists and albums processed.\n")
 
         # =====================================================================
         # RESUMO FINAL
         # =====================================================================
-        console.print("[bold green]🎉 Pipeline concluído com sucesso![/bold green]\n")
+        console.print("[bold green]Pipeline finished successfully.[/bold green]\n")
 
-        summary_table = Table(title="📊 Censo do Grafo no DuckDB", header_style="bold green")
+        summary_table = Table(title="Graph Census in DuckDB", header_style="bold")
         summary_table.add_column("Tabela / View", style="cyan")
         summary_table.add_column("Registros", justify="right", style="bold white")
 

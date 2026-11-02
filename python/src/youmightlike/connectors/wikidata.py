@@ -290,14 +290,14 @@ if __name__ == "__main__":
     db = init_db()
     client = WikidataClient()
 
-    print("🔎 Buscando filme 'Blade Runner' no Wikidata...")
+    print("Buscando filme 'Blade Runner' no Wikidata...")
     search_results = client.search_movies("Blade Runner", limit=3)
     for res in search_results:
         print(f" -> {res['wikidata_id']}: {res['title']} ({res['description']})")
 
     if search_results:
         target_qid = search_results[0]["wikidata_id"]
-        print(f"\n📥 Extraindo teia do filme {target_qid}...")
+        print(f"\nExtraindo teia do filme {target_qid}...")
         details = client.get_movie_details(target_qid)
         if details:
             print(f"Título: {details.title} ({details.year})")
@@ -311,10 +311,10 @@ if __name__ == "__main__":
 
             with db.connect() as conn:
                 movie_id = client.ingest_movie(details, conn)
-                print(f"\n🎉 Filme inserido no DuckDB com ID interno: {movie_id}!")
+                print(f"\nFilme inserido no DuckDB com ID interno: {movie_id}!")
 
                 # Inspecionar as views de grafo geradas
-                print("\n🕸️ Estado das Views do Grafo no DuckDB:")
+                print("\n️ Estado das Views do Grafo no DuckDB:")
                 nodes_count = conn.execute("SELECT COUNT(*) FROM v_graph_nodes").fetchone()[0]
                 edges_count = conn.execute("SELECT COUNT(*) FROM v_graph_edges").fetchone()[0]
                 print(f"Nós no grafo (v_graph_nodes): {nodes_count}")

@@ -21,8 +21,8 @@ def run_music_bulk_ingestion(min_tags: int = 2) -> None:
         raise FileNotFoundError(f"Arquivo Spotify CSV não encontrado: {SPOTIFY_CSV}")
 
     db = init_db()
-    console.print("\n[bold cyan]🎵 Iniciando Ingestão em Massa de Música via DuckDB (MusicBrainz + Spotify)[/bold cyan]")
-    console.print(f"⚙️ Critério de corte: Artistas MusicBrainz com [bold green]>={min_tags}[/bold green] tags estéticas")
+    console.print("\n[bold cyan]Iniciando Ingestão em Massa de Música via DuckDB (MusicBrainz + Spotify)[/bold cyan]")
+    console.print(f"️ Critério de corte: Artistas MusicBrainz com [bold green]>={min_tags}[/bold green] tags estéticas")
 
     start_total = time.time()
 
@@ -33,7 +33,7 @@ def run_music_bulk_ingestion(min_tags: int = 2) -> None:
         # ---------------------------------------------------------------------
         # 1. FILTRAR E INGERIR ARTISTAS DO MUSICBRAINZ
         # ---------------------------------------------------------------------
-        console.print("\n[bold yellow]🎤 1/4 Mapeando artistas qualificados do MusicBrainz...[/bold yellow]")
+        console.print("\n[bold yellow]1/4 Mapeando artistas qualificados do MusicBrainz...[/bold yellow]")
         t0 = time.time()
 
         conn.execute(
@@ -72,7 +72,7 @@ def run_music_bulk_ingestion(min_tags: int = 2) -> None:
         # ---------------------------------------------------------------------
         # 2. ARTISTAS DO SPOTIFY (COMPLEMENTARES)
         # ---------------------------------------------------------------------
-        console.print("\n[bold magenta]🎧 2/4 Complementando com artistas do Spotify...[/bold magenta]")
+        console.print("\n[bold magenta]2/4 Complementando com artistas do Spotify...[/bold magenta]")
         t0 = time.time()
 
         conn.execute(
@@ -109,7 +109,7 @@ def run_music_bulk_ingestion(min_tags: int = 2) -> None:
         # ---------------------------------------------------------------------
         # 3. TAGS ESTÉTICAS & GÊNEROS (keywords & artist_tags)
         # ---------------------------------------------------------------------
-        console.print("\n[bold green]🏷️ 3/4 Mapeando tags estéticas e de gênero (has_tag)...[/bold green]")
+        console.print("\n[bold green]️ 3/4 Mapeando tags estéticas e de gênero (has_tag)...[/bold green]")
         t0 = time.time()
 
         # Desaninhando tags do MusicBrainz
@@ -196,7 +196,7 @@ def run_music_bulk_ingestion(min_tags: int = 2) -> None:
         # ---------------------------------------------------------------------
         # 4. ÁLBUNS MUSICAIS (music_albums)
         # ---------------------------------------------------------------------
-        console.print("\n[bold blue]💿 4/4 Mapeando álbuns musicais (released)...[/bold blue]")
+        console.print("\n[bold blue]4/4 Mapeando álbuns musicais (released)...[/bold blue]")
         t0 = time.time()
 
         conn.execute(
@@ -232,7 +232,7 @@ def run_music_bulk_ingestion(min_tags: int = 2) -> None:
         console.print(f"  -> {albums_count:,} álbuns cadastrados e conectados aos artistas em {time.time() - t0:.2f}s!")
 
         total_time = time.time() - start_total
-        console.print(f"\n[bold green]✨ Ingestão de Música concluída com sucesso em {total_time:.2f} segundos![/bold green]\n")
+        console.print(f"\n[bold green]Ingestão de Música concluída com sucesso em {total_time:.2f} segundos![/bold green]\n")
 
         _print_summary(conn)
 

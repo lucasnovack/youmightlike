@@ -31,10 +31,10 @@ class ResolvedEntity:
             if self.energy is not None:
                 vibe.append(f"Energia: {int(self.energy * 100)}%")
             vibe_str = f" [{', '.join(vibe)}]" if vibe else ""
-            return f"🎵 {self.title} — [bold cyan]{self.artist_name}[/bold cyan] (Pop: {self.popularity}){vibe_str}"
+            return f"[track] {self.title} — [bold cyan]{self.artist_name}[/bold cyan] (Pop: {self.popularity}){vibe_str}"
         else:
             loc = f" ({self.country})" if self.country else ""
-            return f"🎤 [bold green][Artista][/bold green] {self.title}{loc}"
+            return f"[artist] [bold green]{self.title}[/bold green]{loc}"
 
 
 class MusicResolver:

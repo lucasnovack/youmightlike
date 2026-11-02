@@ -335,26 +335,26 @@ if __name__ == "__main__":
     db = init_db()
     service = MusicIngestionService()
 
-    print("🔎 Pesquisando 'Vangelis' no MusicBrainz...")
+    print("Pesquisando 'Vangelis' no MusicBrainz...")
     results = service.mb_client.search_artists("Vangelis", limit=3)
     for r in results:
         print(f" -> {r['mbid']}: {r['name']} ({r.get('type')}, {r.get('country')})")
 
     if results:
         vangelis_mbid = results[0]["mbid"]
-        print(f"\n📥 Ingerindo '{results[0]['name']}' ({vangelis_mbid}) no DuckDB...")
+        print(f"\nIngerindo '{results[0]['name']}' ({vangelis_mbid}) no DuckDB...")
         with db.connect() as conn:
             artist_id = service.ingest_artist_by_mbid(vangelis_mbid, conn)
-            print(f"🎉 Artista inserido com sucesso! ID Interno: {artist_id}")
+            print(f"Artista inserido com sucesso! ID Interno: {artist_id}")
 
             # Consultar nós e arestas no Grafo
             nodes_count = conn.execute("SELECT COUNT(*) FROM v_graph_nodes").fetchone()[0]
             edges_count = conn.execute("SELECT COUNT(*) FROM v_graph_edges").fetchone()[0]
-            print(f"\n🕸️ Total de Nós no Grafo: {nodes_count}")
-            print(f"🕸️ Total de Arestas no Grafo: {edges_count}")
+            print(f"\n️ Total de Nós no Grafo: {nodes_count}")
+            print(f"️ Total de Arestas no Grafo: {edges_count}")
 
             # Mostrar a ponte transmidiática ao vivo!
-            print("\n🌟 Pontes Transmidiáticas Criadas (Filme ⇄ Música):")
+            print("\nPontes Transmidiáticas Criadas (Filme ⇄ Música):")
             bridges = conn.execute(
                 """
                 SELECT source_id, relation_type, target_id, base_weight 

@@ -16,44 +16,44 @@ console = Console()
 def render_banner() -> None:
     console.print(
         Panel(
-            "[bold cyan]youmightlike[/bold cyan] — [italic green]Motor Determinístico de Recomendação Cultural[/italic green]\n"
-            "[dim]40.4M Músicas • 3.2M Artistas • 18M Álbuns • Zero LLMs • 100% Local (DuckDB)[/dim]",
-            border_style="cyan",
-            title="🎧 Piloto Musical Transmidiático",
-            subtitle="v0.2.0",
+            "[bold white]youmightlike[/bold white] — [dim]Deterministic Cultural Graph Discovery[/dim]\n"
+            "[dim]40.4M Tracks • 3.2M Artists • 18M Albums • Zero LLMs • Local DuckDB + Rust Core[/dim]",
+            border_style="dim",
+            title="youmightlike",
+            subtitle="v0.3.0",
         )
     )
 
 
 def interactive_seed_selection(resolver: MusicResolver) -> List[ResolvedEntity]:
     seeds: List[ResolvedEntity] = []
-    console.print("\n[bold yellow]🔍 Passo 1: Escolha de 1 a 4 músicas ou artistas que você curte.[/bold yellow]")
-    console.print("[dim](Pressione [Enter] em branco quando terminar de adicionar)[/dim]\n")
+    console.print("\n[bold]Select 1 to 4 tracks or artists as diffusion seeds.[/bold]")
+    console.print("[dim](Press Enter on an empty line when finished)[/dim]\n")
 
     while len(seeds) < 4:
         count_label = f"[{len(seeds) + 1}/4]"
-        query = Prompt.ask(f"[bold cyan]Digite uma música ou artista[/bold cyan] {count_label} (ou Enter para concluir)")
+        query = Prompt.ask(f"[bold]Search entity[/bold] {count_label} (or Enter to finish)")
         query = query.strip()
         if not query:
             if seeds:
                 break
-            console.print("[red]Por favor, adicione pelo menos uma semente para recomendarmos![/red]")
+            console.print("[red]Please add at least one seed node.[/red]")
             continue
 
-        console.print(f"[dim]Buscando no catálogo de 40M de faixas por '{query}'...[/dim]")
+        console.print(f"[dim]Querying catalog for '{query}'...[/dim]")
         candidates = resolver.resolve(query, limit=5)
 
         if not candidates:
-            console.print(f"[yellow]Nenhum candidato encontrado para '{query}'. Tente outro termo.[/yellow]\n")
+            console.print(f"[yellow]No entities found for '{query}'. Try another query.[/yellow]\n")
             continue
 
         # Exibe os candidatos
-        console.print(f"\n[bold green]Encontrados {len(candidates)} candidatos:[/bold green]")
+        console.print(f"\n[bold]Found {len(candidates)} matches:[/bold]")
         for idx, c in enumerate(candidates, 1):
             console.print(f"  [bold white]{idx}[/bold white]. {c.display_label()}")
 
         choice_str = Prompt.ask(
-            "Selecione o número correspondente (ou 0 para descartar)",
+            "Select number (or 0 to discard)",
             choices=[str(i) for i in range(len(candidates) + 1)],
             default="1",
         )
@@ -61,9 +61,9 @@ def interactive_seed_selection(resolver: MusicResolver) -> List[ResolvedEntity]:
         if choice > 0:
             selected = candidates[choice - 1]
             seeds.append(selected)
-            console.print(f"[bold green]✔ Adicionado:[/bold green] {selected.display_label()}\n")
+            console.print(f"[green][ok][/green] Added seed: {selected.display_label()}\n")
         else:
-            console.print("[dim]Busca descartada.[/dim]\n")
+            console.print("[dim]Discarded.[/dim]\n")
 
     return seeds
 
@@ -79,42 +79,42 @@ def run_cli() -> None:
     # Se o usuário passou argumentos na linha de comando, resolve direto
     if len(sys.argv) > 1:
         raw_queries = sys.argv[1:]
-        console.print(f"\n[bold yellow]🔍 Resolvendo sementes passadas por argumento: {raw_queries}[/bold yellow]")
+        console.print(f"\n[bold]Resolving CLI seed arguments: {raw_queries}[/bold]")
         for q in raw_queries:
             found = resolver.resolve(q, limit=1)
             if found:
                 seeds.append(found[0])
-                console.print(f"  [green]✔ Reconhecido:[/green] {found[0].display_label()}")
+                console.print(f"  [green][ok][/green] Resolved: {found[0].display_label()}")
             else:
-                console.print(f"  [red]✖ Não encontrado:[/red] '{q}'")
+                console.print(f"  [red][error][/red] Not found: '{q}'")
     else:
         seeds = interactive_seed_selection(resolver)
 
     if not seeds:
-        console.print("[bold red]Nenhuma semente válida selecionada. Encerrando.[/bold red]")
+        console.print("[bold red]No valid seeds selected. Exiting.[/bold red]")
         return
 
-    console.print(f"\n[bold cyan]🧠 Difundindo afinidade pelo Grafo de Gosto (Last.fm + Tags + Audio Features)...[/bold cyan]")
-    with console.status("[bold green]Executando Random Walk ponderado e alinhamento acústico...", spinner="dots"):
+    console.print(f"\n[bold]Propagating affinity via Graph PPR (DuckDB + Audio Alignment)...[/bold]")
+    with console.status("[dim]Computing Personalized PageRank and path alignments...", spinner="dots"):
         recommendations = engine.recommend(seeds, limit=10, min_popularity=35)
 
     if not recommendations:
-        console.print("[yellow]Não encontramos recomendações suficientes com os critérios atuais.[/yellow]")
+        console.print("[yellow]No sufficient recommendations found with current criteria.[/yellow]")
         return
 
     # Tabela com resultados
     table = Table(
-        title="✨ Recomendações Personalizadas — youmightlike",
+        title="Recommendations — youmightlike",
         show_header=True,
-        header_style="bold magenta",
-        border_style="cyan",
+        header_style="bold",
+        border_style="dim",
     )
     table.add_column("#", justify="center", style="bold white", width=3)
-    table.add_column("Música", style="bold white", min_width=24)
-    table.add_column("Artista", style="cyan", min_width=18)
-    table.add_column("Afinidade", justify="right", style="bold green", width=11)
-    table.add_column("Áudio Vibe", style="yellow", min_width=22)
-    table.add_column("Por que você pode curtir? (Justificativa)", style="dim white", min_width=40)
+    table.add_column("Track", style="bold white", min_width=24)
+    table.add_column("Artist", style="cyan", min_width=18)
+    table.add_column("Affinity", justify="right", style="bold green", width=11)
+    table.add_column("Audio Profile", style="yellow", min_width=22)
+    table.add_column("Structural Path / Rationale", style="dim white", min_width=40)
 
     for rank, rec in enumerate(recommendations, 1):
         score_color = "bold green" if rec.affinity_score >= 80 else "bold yellow"
@@ -137,8 +137,7 @@ def run_cli() -> None:
     console.print()
     console.print(table)
     console.print(
-        f"\n[bold green]✅ 10 recomendações calculadas com sucesso![/bold green] "
-        f"[dim]Todas as sugestões possuem trilha de conexão estrutural auditável.[/dim]\n"
+        f"\n[dim]Computed {len(recommendations)} recommendations with verifiable graph paths.[/dim]\n"
     )
 
 
