@@ -29,3 +29,9 @@ data/processed/*
 .env
 .env.*
 !.env.example
+
+# Rust / Cargo
+target/
+**/*.rs.bk
+Cargo.lock
+
