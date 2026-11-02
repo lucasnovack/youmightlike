@@ -75,3 +75,15 @@ O grafo inteiro é mantido como views dinâmicas sobre as tabelas:
 * **`v_graph_nodes`:** Projeção unificada com ID composto no formato `<tipo>:<id>` (ex: `movie:183`, `artist:5490`, `book:12401`), nome da entidade, tipo do nó e domínio cultural (`movie`, `game`, `book`, `music`, `concept`).
 * **`v_graph_edges`:** União de todas as relações orientadas do sistema (`has_director`, `has_composer`, `is_artist`, `released`, `written_by`, `has_subject`, `has_tag`, `has_keyword`, `developed_by`).
 * **`v_weighted_graph_edges`:** Calcula dinamicamente o grau de cada nó e expõe `(source_id, target_id, effective_weight)` pronta para ser carregada diretamente em estruturas matriciais esparsas (CSR / CSC).
+
+---
+
+## 5. Escala Atual do Grafo e Atualizações Recentes
+
+Para o detalhamento completo das melhorias recentes no motor de difusão bidirecional em Rust, resolução transmidiática (âncoras estruturais de estúdio/diretor), links de trilhas sonoras e sistema de highlight interativo no ForceGraph, consulte [Atualizações do Sistema (Novembro 2026)](./system_evolution_2026.md).
+
+* **Arestas Semânticas:** 3.587.306 arestas ativas no DuckDB (`graph_semantic_edges`).
+* **Catálogo:** >34k filmes, >20k jogos, >38k livros, >3.25M artistas e >40.4M faixas.
+* **Motor:** `youmightlike-engine` em Rust (Personalized PageRank bidirecional sobre matriz CSR paralelizada com Rayon).
+
+

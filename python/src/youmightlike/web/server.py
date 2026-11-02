@@ -355,6 +355,55 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                         "weight": 2.5,
                     })
 
+            # Garante nós âncora estruturais para cada semente (ex: Developer para games, Tags para artistas)
+            seed_pfx = seed_item.id.split(":")[0]
+            anchor_rows = conn.execute(
+                """
+                SELECT target_id, relation_type, base_weight
+                FROM graph_semantic_edges
+                WHERE source_id = ?
+                ORDER BY 
+                    CASE WHEN relation_type = 'developed_by' THEN 1
+                         WHEN relation_type = 'has_director' THEN 2
+                         WHEN relation_type = 'has_tag' THEN 3
+                         ELSE 4 END,
+                    base_weight DESC
+                LIMIT 2;
+                """,
+                [seed_item.id],
+            ).fetchall()
+
+            for target_id, rel, w in anchor_rows:
+                t_pfx, t_raw = target_id.split(":")
+                t_nid = int(t_raw)
+                t_label = ""
+                if t_pfx == "developer":
+                    drow = conn.execute("SELECT name FROM game_developers WHERE id = ?", [t_nid]).fetchone()
+                    if drow:
+                        t_label = drow[0]
+                elif t_pfx == "keyword":
+                    krow = conn.execute("SELECT name FROM keywords WHERE id = ?", [t_nid]).fetchone()
+                    if krow:
+                        t_label = f"#{krow[0]}"
+                elif t_pfx == "person":
+                    prow = conn.execute("SELECT name FROM people WHERE id = ?", [t_nid]).fetchone()
+                    if prow:
+                        t_label = prow[0]
+
+                if t_label and not any(n["id"] == target_id for n in graph_nodes):
+                    graph_nodes.append({
+                        "id": target_id,
+                        "label": t_label,
+                        "type": t_pfx,
+                        "val": 9.0,
+                    })
+                    graph_links.append({
+                        "source": seed_item.id,
+                        "target": target_id,
+                        "label": rel,
+                        "weight": w,
+                    })
+
         # Adiciona explicitamente as tags ou atributos compartilhados diretamente entre as sementes
         if len(diffusion_seeds) > 1:
             seeds_in_sql = ", ".join(f"'{s}'" for s in diffusion_seeds)
@@ -379,7 +428,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                     graph_nodes.append({
                         "id": b_id,
                         "label": f"#{b_name}",
-                        "type": "tag",
+                        "type": "keyword",
                         "val": 9.0,
                     })
 
@@ -507,7 +556,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                     })
                     recs_count += 1
 
-            elif prefix in ("keyword", "person") and bridge_count < 8:
+            elif prefix in ("keyword", "person", "developer", "author") and bridge_count < 12:
                 # Nós ponte explicativos no grafo
                 label = ""
                 if prefix == "keyword":
@@ -518,13 +567,21 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                     prow = conn.execute("SELECT name FROM people WHERE id = ?", [nid]).fetchone()
                     if prow:
                         label = prow[0]
+                elif prefix == "developer":
+                    drow = conn.execute("SELECT name FROM game_developers WHERE id = ?", [nid]).fetchone()
+                    if drow:
+                        label = drow[0]
+                elif prefix == "author":
+                    arow = conn.execute("SELECT name FROM book_authors WHERE id = ?", [nid]).fetchone()
+                    if arow:
+                        label = arow[0]
 
                 if label and not any(n["id"] == nkey for n in graph_nodes):
                     graph_nodes.append({
                         "id": nkey,
                         "label": label,
                         "type": prefix,
-                        "val": 7.0,
+                        "val": 8.0,
                     })
                     bridge_count += 1
 

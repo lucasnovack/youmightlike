@@ -237,11 +237,13 @@
           <p class="text-canvas-muted leading-tight mb-2">
             Personalized PageRank paths linking your profile nodes to recommendations.
           </p>
-          <div class="flex flex-wrap items-center gap-2.5 font-bold">
-            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-canvas-coral"></span> Seed</span>
-            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-canvas-sage"></span> Music</span>
-            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-canvas-denim"></span> Movie/Game</span>
-            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-[#a1a1aa]"></span> Tag</span>
+          <div class="flex flex-wrap items-center gap-2 font-bold text-[9px]">
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-coral"></span> Seed</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-sage"></span> Music</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-denim"></span> Game</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#1d4ed8]"></span> Studio</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#b25900]"></span> Movie</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#a1a1aa]"></span> Tag</span>
           </div>
         </div>
 
@@ -538,6 +540,8 @@
               else if (node.type === 'artist' || node.type === 'track') fill = '#4e937a'; // Sage
               else if (node.type === 'movie') fill = '#b25900';   // Warm amber
               else if (node.type === 'game') fill = '#2660a4';    // Denim
+              else if (node.type === 'developer') fill = '#1d4ed8'; // Studio / Developer
+              else if (node.type === 'author') fill = '#7c3aed';    // Author
               else if (node.type === 'keyword' || node.type === 'tag') fill = '#a1a1aa'; // Neutral
               else if (node.type === 'person') fill = '#182825';  // Pine
 
