@@ -25,7 +25,7 @@ Em vez de silos isolados (Spotify só recomenda música, Steam só recomenda jog
                            ▼
           ┌──────────────────────────────────┐
           │   DuckDB Feature Store Local     │
-          │  492k nós │ 1.72M arestas ativas │
+          │  61.9M nós │ 99.2M arestas    │
           └─────────────────┬────────────────┘
                             │
                Zero-Copy / Views Ponderadas (IDF)
@@ -66,14 +66,14 @@ Todo o grafo roda localmente em um arquivo único (`data/processed/taste_graph.d
 | **Livros** (`books`) | **38.203** | Goodreads 100k (CC0 Parquet) |
 | **Autores de Livros** (`book_authors`) | **29.742** | Autores e co-autores |
 | **Temas Literários** (`book_subjects`) | **400.285** | Tópicos e categorias |
-| **Artistas Musicais** (`music_artists`) | **126.791** | MusicBrainz (CC0) + Spotify |
-| **Álbuns Musicais** (`music_albums`) | **63.289** | Discografias |
-| **Faixas / Músicas** (`music_tracks`) | **85.889** | Spotify Tracks com Audio Features (BPM, Valência, Energia) |
-| **Tags de Música** (`artist_tags`) | **475.786** | Microgêneros e folksonomia |
+| **Artistas Musicais** (`music_artists`) | **3.257.918** | MusicBrainz + Spotify Massivo (56M) |
+| **Álbuns Musicais** (`music_albums`) | **18.034.542** | Discografias completas e singles mundiais |
+| **Faixas / Músicas** (`music_tracks`) | **40.418.286** | Spotify Tracks com Audio Features (BPM, Valência, Energia) |
+| **Tags de Música** (`artist_tags`) | **485.064** | Microgêneros e folksonomia |
 | **Similaridades Musicais** (`artist_similarities`) | **61.680** | Last.fm Co-listening Graph (HetRec) |
-| **Keywords Globais** (`keywords`) | **47.890** | Vocabulário temático unificado |
-| **Total de Nós (`v_graph_nodes`)** | **492.804** | Consulta analítica em ~0.01s |
-| **Total de Arestas (`v_graph_edges`)** | **1.726.926** | Ponderação e consulta em ~1.0s |
+| **Keywords Globais** (`keywords`) | **48.263** | Vocabulário temático unificado |
+| **Total de Nós (`v_graph_nodes`)** | **61.927.954** | Consulta analítica no DuckDB |
+| **Total de Arestas (`v_graph_edges`)** | **99.278.228** | Quase 100M de arestas ativas ponderadas |
 
 ---
 
