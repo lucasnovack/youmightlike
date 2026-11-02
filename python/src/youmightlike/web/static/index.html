@@ -468,7 +468,7 @@
               else if (node.type === 'artist' || node.type === 'track') fill = '#4e937a'; // Sage
               else if (node.type === 'movie') fill = '#b25900';   // Warm amber
               else if (node.type === 'game') fill = '#2660a4';    // Denim
-              else if (node.type === 'keyword') fill = '#a1a1aa'; // Neutral
+              else if (node.type === 'keyword' || node.type === 'tag') fill = '#a1a1aa'; // Neutral
               else if (node.type === 'person') fill = '#182825';  // Pine
 
               const r = (node.val || 7) / 2;
@@ -501,9 +501,29 @@
         };
 
         const updateGraph = (graphData) => {
-          if (graphInstance && graphData) {
-            graphInstance.graphData(graphData);
-          }
+          if (!graphInstance || !graphData || !graphData.nodes) return;
+          const nodeMap = new Map();
+          graphData.nodes.forEach(n => nodeMap.set(n.id, n));
+          
+          const seenLinks = new Set();
+          const cleanLinks = [];
+          (graphData.links || []).forEach(l => {
+            const sId = typeof l.source === 'object' ? l.source.id : l.source;
+            const tId = typeof l.target === 'object' ? l.target.id : l.target;
+            if (sId && tId && sId !== tId && nodeMap.has(sId) && nodeMap.has(tId)) {
+              const linkKey = [sId, tId].sort().join('__');
+              if (!seenLinks.has(linkKey)) {
+                seenLinks.add(linkKey);
+                cleanLinks.push({
+                  source: sId,
+                  target: tId,
+                  label: l.label,
+                  weight: l.weight || 1
+                });
+              }
+            }
+          });
+          graphInstance.graphData({ nodes: Array.from(nodeMap.values()), links: cleanLinks });
         };
 
         onMounted(() => {

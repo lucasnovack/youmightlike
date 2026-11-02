@@ -335,6 +335,25 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                 "type": "seed",
                 "val": 18.0,
             })
+            # Se for faixa, adiciona o artista correspondente e a aresta direta
+            if seed_item.type == "track":
+                t_id = int(seed_item.id.split(":")[1])
+                t_art = conn.execute("SELECT ma.id, ma.name FROM music_tracks t JOIN music_artists ma ON ma.id = t.artist_id WHERE t.id = ?", [t_id]).fetchone()
+                if t_art:
+                    art_key = f"artist:{t_art[0]}"
+                    if not any(n["id"] == art_key for n in graph_nodes):
+                        graph_nodes.append({
+                            "id": art_key,
+                            "label": t_art[1],
+                            "type": "artist",
+                            "val": 14.0,
+                        })
+                    graph_links.append({
+                        "source": seed_item.id,
+                        "target": art_key,
+                        "label": "performed_by",
+                        "weight": 2.5,
+                    })
 
         # Adiciona explicitamente as tags ou atributos compartilhados diretamente entre as sementes
         if len(diffusion_seeds) > 1:
