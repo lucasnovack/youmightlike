@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import json
 import math
+import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional
 import duckdb
 
 from youmightlike.resolution.resolver import ResolvedEntity
+
+RUST_ENGINE_BIN = Path("target/release/youmightlike-engine")
 
 
 @dataclass
@@ -44,6 +49,30 @@ class MusicRecommenderEngine:
         conn.execute("PRAGMA threads=8;")
         return conn
 
+    def _diffuse_with_rust(
+        self,
+        seed_keys: List[str],
+        limit: int = 25,
+    ) -> Optional[List[dict]]:
+        """Invoca o binário nativo em Rust (youmightlike-engine) para difusão via Rayon."""
+        if not RUST_ENGINE_BIN.exists():
+            return None
+
+        try:
+            cmd = [
+                str(RUST_ENGINE_BIN),
+                "--seeds", ",".join(seed_keys),
+                "--target-prefix", "artist:",
+                "--limit", str(limit),
+                "--db-path", self.db_path,
+                "--query-edges", "SELECT source_id, target_id, base_weight FROM v_graph_edges WHERE relation_type IN ('similar_to', 'has_tag')",
+                "--json",
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            return json.loads(res.stdout)
+        except Exception:
+            return None
+
     def recommend(
         self,
         seeds: List[ResolvedEntity],
@@ -51,7 +80,7 @@ class MusicRecommenderEngine:
         min_popularity: int = 30,
         audio_weight: float = 0.4,
     ) -> List[RecommendationResult]:
-        """Gera recomendações musicais a partir de uma ou mais sementes com justificativa de rota."""
+        """Gera recomendações musicais a partir de sementes usando o motor Rust nativo ou SQL."""
         if not seeds:
             return []
 
@@ -63,13 +92,11 @@ class MusicRecommenderEngine:
         with self._get_connection() as conn:
             for s in seeds:
                 if s.entity_type == "artist":
-                    # Extrai ID numérico do nó 'artist:123'
                     a_id = int(s.node_id.split(":")[1])
                     seed_artist_ids.add(a_id)
                 elif s.entity_type == "track":
                     t_id = int(s.node_id.split(":")[1])
                     seed_track_ids.add(t_id)
-                    # Busca artist_id da faixa se não tiver
                     art_row = conn.execute(
                         "SELECT artist_id, tempo, valence, energy, danceability FROM music_tracks WHERE id = ?",
                         [t_id],
@@ -97,80 +124,140 @@ class MusicRecommenderEngine:
                     "danceability": sum(f["danceability"] for f in seed_audio_features) / len(seed_audio_features),
                 }
 
-            artist_list_sql = ", ".join(str(i) for i in seed_artist_ids)
+            seed_keys = [f"artist:{aid}" for aid in seed_artist_ids]
+            rust_results = self._diffuse_with_rust(seed_keys, limit=25)
 
-            # -----------------------------------------------------------------
-            # 2. DIFUSÃO NO GRAFO ESTRUTURAL (Last.fm Co-listening + Tags Adamic-Adar)
-            # -----------------------------------------------------------------
-            sql_diffusion = f"""
-            WITH direct_similars AS (
-                -- Relações diretas Last.fm (co-listening ponderado)
-                SELECT 
-                    s.target_artist_id AS artist_id,
-                    s.match_score * 4.0 AS score,
-                    'Co-escuta com ' || ma_src.name || ' (' || CAST(ROUND(s.match_score * 100) AS INT) || '% Last.fm)' AS reason
-                FROM artist_similarities s
-                JOIN music_artists ma_src ON ma_src.id = s.source_artist_id
-                WHERE s.source_artist_id IN ({artist_list_sql})
-                  AND s.target_artist_id NOT IN ({artist_list_sql})
-            ),
-            shared_tags AS (
-                -- Microgêneros e tags estéticas compartilhadas com IDF/Adamic-Adar
-                SELECT 
-                    t2.artist_id,
-                    SUM((t1.weight * t2.weight) / ln(1.0 + COALESCE(k_deg.deg, 10.0))) * 1.5 AS score,
-                    'Microgêneros com ' || ma_src.name || ': ' || STRING_AGG(k.name, ', ') AS reason
-                FROM artist_tags t1
-                JOIN music_artists ma_src ON ma_src.id = t1.artist_id
-                JOIN keywords k ON k.id = t1.keyword_id
-                LEFT JOIN (
-                    SELECT keyword_id, COUNT(*) AS deg FROM artist_tags GROUP BY keyword_id
-                ) k_deg ON k_deg.keyword_id = k.id
-                JOIN artist_tags t2 ON t2.keyword_id = k.id AND t2.artist_id NOT IN ({artist_list_sql})
-                WHERE t1.artist_id IN ({artist_list_sql})
-                GROUP BY t2.artist_id, ma_src.name
-                HAVING COUNT(k.id) >= 2
-                ORDER BY score DESC
-                LIMIT 50
-            ),
-            all_candidate_artists AS (
-                SELECT artist_id, score, reason FROM direct_similars
-                UNION ALL
-                SELECT artist_id, score, reason FROM shared_tags
-            ),
-            aggregated_artists AS (
-                SELECT 
-                    artist_id,
-                    SUM(score) AS total_graph_score,
-                    STRING_AGG(reason, ' • ') AS full_explanation
-                FROM all_candidate_artists
-                GROUP BY artist_id
-                ORDER BY total_graph_score DESC
-                LIMIT 25
-            )
-            -- Busca as faixas mais aclamadas dos artistas selecionados pelo grafo
-            SELECT 
-                t.id AS track_id,
-                t.title,
-                ma.name AS artist_name,
-                alb.title AS album_name,
-                t.popularity,
-                t.tempo,
-                t.valence,
-                t.energy,
-                t.danceability,
-                aa.total_graph_score,
-                aa.full_explanation
-            FROM aggregated_artists aa
-            JOIN music_artists ma ON ma.id = aa.artist_id
-            JOIN music_tracks t ON t.artist_id = aa.artist_id
-            LEFT JOIN music_albums alb ON alb.id = t.album_id
-            WHERE t.popularity >= {min_popularity}
-            ORDER BY (aa.total_graph_score * 5.0 + t.popularity) DESC
-            LIMIT 150;
-            """
+            candidates = []
+            if rust_results:
+                # Usa os resultados do algoritmo PPR em Rust!
+                scored_map = {int(r["node_key"].split(":")[1]): r["score"] for r in rust_results if ":" in r["node_key"]}
+                art_ids_str = ", ".join(str(aid) for aid in scored_map.keys())
 
-            candidates = conn.execute(sql_diffusion).fetchall()
+                if art_ids_str:
+                    sql_candidates = f"""
+                    WITH target_artists AS (
+                        SELECT id, name FROM music_artists WHERE id IN ({art_ids_str})
+                    ),
+                    artist_reasons AS (
+                        SELECT 
+                            s.target_artist_id AS artist_id,
+                            'Co-escuta Last.fm com ' || ma_src.name || ' (' || CAST(ROUND(s.match_score * 100) AS INT) || '%)' AS reason
+                        FROM artist_similarities s
+                        JOIN music_artists ma_src ON ma_src.id = s.source_artist_id
+                        WHERE s.source_artist_id IN ({", ".join(str(i) for i in seed_artist_ids)})
+                          AND s.target_artist_id IN ({art_ids_str})
+                        UNION ALL
+                        SELECT 
+                            t2.artist_id,
+                            'Microgêneros com ' || ma_src.name || ': ' || STRING_AGG(k.name, ', ') AS reason
+                        FROM artist_tags t1
+                        JOIN music_artists ma_src ON ma_src.id = t1.artist_id
+                        JOIN keywords k ON k.id = t1.keyword_id
+                        JOIN artist_tags t2 ON t2.keyword_id = k.id AND t2.artist_id IN ({art_ids_str})
+                        WHERE t1.artist_id IN ({", ".join(str(i) for i in seed_artist_ids)})
+                        GROUP BY t2.artist_id, ma_src.name
+                    ),
+                    aggregated_reasons AS (
+                        SELECT artist_id, STRING_AGG(reason, ' • ') AS full_explanation
+                        FROM artist_reasons
+                        GROUP BY artist_id
+                    )
+                    SELECT 
+                        t.id AS track_id,
+                        t.title,
+                        ta.name AS artist_name,
+                        alb.title AS album_name,
+                        t.popularity,
+                        t.tempo,
+                        t.valence,
+                        t.energy,
+                        t.danceability,
+                        t.artist_id,
+                        COALESCE(ar.full_explanation, 'Conectado pela topologia estocástica do grafo cultural') AS explanation
+                    FROM target_artists ta
+                    JOIN music_tracks t ON t.artist_id = ta.id
+                    LEFT JOIN music_albums alb ON alb.id = t.album_id
+                    LEFT JOIN aggregated_reasons ar ON ar.artist_id = ta.id
+                    WHERE t.popularity >= {min_popularity}
+                    ORDER BY t.popularity DESC
+                    LIMIT 150;
+                    """
+                    raw_candidates = conn.execute(sql_candidates).fetchall()
+                    for rc in raw_candidates:
+                        aid = rc[9]
+                        rust_score = scored_map.get(aid, 0.001)
+                        # Formato: (track_id, title, artist_name, album_name, popularity, tempo, valence, energy, danceability, score, explanation)
+                        candidates.append((rc[0], rc[1], rc[2], rc[3], rc[4], rc[5], rc[6], rc[7], rc[8], rust_score, rc[10]))
+            
+            if not candidates:
+                # Fallback puro para SQL se o binário Rust não for encontrado
+                artist_list_sql = ", ".join(str(i) for i in seed_artist_ids)
+                sql_diffusion = f"""
+                WITH direct_similars AS (
+                    SELECT 
+                        s.target_artist_id AS artist_id,
+                        s.match_score * 4.0 AS score,
+                        'Co-escuta com ' || ma_src.name || ' (' || CAST(ROUND(s.match_score * 100) AS INT) || '% Last.fm)' AS reason
+                    FROM artist_similarities s
+                    JOIN music_artists ma_src ON ma_src.id = s.source_artist_id
+                    WHERE s.source_artist_id IN ({artist_list_sql})
+                      AND s.target_artist_id NOT IN ({artist_list_sql})
+                ),
+                shared_tags AS (
+                    SELECT 
+                        t2.artist_id,
+                        SUM((t1.weight * t2.weight) / ln(1.0 + COALESCE(k_deg.deg, 10.0))) * 1.5 AS score,
+                        'Microgêneros com ' || ma_src.name || ': ' || STRING_AGG(k.name, ', ') AS reason
+                    FROM artist_tags t1
+                    JOIN music_artists ma_src ON ma_src.id = t1.artist_id
+                    JOIN keywords k ON k.id = t1.keyword_id
+                    LEFT JOIN (
+                        SELECT keyword_id, COUNT(*) AS deg FROM artist_tags GROUP BY keyword_id
+                    ) k_deg ON k_deg.keyword_id = k.id
+                    JOIN artist_tags t2 ON t2.keyword_id = k.id AND t2.artist_id NOT IN ({artist_list_sql})
+                    WHERE t1.artist_id IN ({artist_list_sql})
+                    GROUP BY t2.artist_id, ma_src.name
+                    HAVING COUNT(k.id) >= 2
+                    ORDER BY score DESC
+                    LIMIT 50
+                ),
+                all_candidate_artists AS (
+                    SELECT artist_id, score, reason FROM direct_similars
+                    UNION ALL
+                    SELECT artist_id, score, reason FROM shared_tags
+                ),
+                aggregated_artists AS (
+                    SELECT 
+                        artist_id,
+                        SUM(score) AS total_graph_score,
+                        STRING_AGG(reason, ' • ') AS full_explanation
+                    FROM all_candidate_artists
+                    GROUP BY artist_id
+                    ORDER BY total_graph_score DESC
+                    LIMIT 25
+                )
+                SELECT 
+                    t.id AS track_id,
+                    t.title,
+                    ma.name AS artist_name,
+                    alb.title AS album_name,
+                    t.popularity,
+                    t.tempo,
+                    t.valence,
+                    t.energy,
+                    t.danceability,
+                    aa.total_graph_score,
+                    aa.full_explanation
+                FROM aggregated_artists aa
+                JOIN music_artists ma ON ma.id = aa.artist_id
+                JOIN music_tracks t ON t.artist_id = aa.artist_id
+                LEFT JOIN music_albums alb ON alb.id = t.album_id
+                WHERE t.popularity >= {min_popularity}
+                ORDER BY (aa.total_graph_score * 5.0 + t.popularity) DESC
+                LIMIT 150;
+                """
+                candidates = conn.execute(sql_diffusion).fetchall()
+
             if not candidates:
                 return []
 
@@ -203,7 +290,7 @@ class MusicRecommenderEngine:
                 graph_norm = min(1.0, c[9] / max_graph_score)
 
                 # Cálculo de distância acústica
-                audio_affinity = 0.8  # Padrão se não houver atributos
+                audio_affinity = 0.8  # Padrão
                 if avg_audio and c[5] is not None and c[6] is not None and c[7] is not None:
                     c_tempo = c[5]
                     c_valence = c[6]
