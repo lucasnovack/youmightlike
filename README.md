@@ -140,7 +140,22 @@ python python/src/youmightlike/storage/ingest_tracks.py
 python python/src/youmightlike/storage/ingest_lastfm_similars.py
 ```
 
-### 4. Consultar o Grafo
+### 4. Iniciar a Interface Web Interativa (Force-Graph UI)
+Para rodar a aplicação web com o visualizador de grafos topológicos, busca instantânea e recomendações bilingues:
+```bash
+# Iniciar o servidor FastAPI com live-reload na porta 8000
+python -m youmightlike.web
+
+# Ou diretamente via uvicorn
+uvicorn youmightlike.web.server:app --reload --port 8000
+```
+Abra o navegador em `http://localhost:8000`:
+- **Barra de perfil inferior:** Adicione sementes favoritas (músicas, jogos, filmes ou artistas).
+- **Campo Topológico:** Explore as arestas semânticas interativas renderizadas com Force-Graph.
+- **Seletor [ PT | EN ]:** Alterne entre português e inglês instantaneamente.
+- **Shift + Click:** Inspecione e realce caminhos de conexão direta e pontes mútuas entre múltiplos nós.
+
+### 5. Consultar o Grafo via Python / CLI
 Você pode inspecionar o grafo direto no terminal ou conectando o DBeaver em modo `read_only`:
 ```python
 import duckdb
