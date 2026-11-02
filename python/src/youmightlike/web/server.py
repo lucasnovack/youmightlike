@@ -445,6 +445,8 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
 
         recs_count = 0
         bridge_count = 0
+        seed_ids_sql = ", ".join(f"'{s}'" for s in (diffusion_seeds if diffusion_seeds else req.seeds))
+
         for item in diffusion_results:
             nkey = item["node_key"]
             score = item["score"]
@@ -453,6 +455,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
 
             prefix, raw_id = nkey.split(":")
             nid = int(raw_id)
+
 
             if prefix == "artist" and recs_count < req.limit:
                 row = conn.execute("SELECT name, country FROM music_artists WHERE id = ?", [nid]).fetchone()
@@ -534,12 +537,50 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
             elif prefix == "movie" and recs_count < req.limit:
                 row = conn.execute("SELECT title, release_year, vote_average FROM movies WHERE id = ?", [nid]).fetchone()
                 if row:
+                    movie_explanation = []
+                    # 1. Diretor ou estúdio compartilhado
+                    shared_person = conn.execute(
+                        f"""
+                        SELECT p.name, e1.relation_type
+                        FROM graph_semantic_edges e1
+                        JOIN graph_semantic_edges e2 ON e1.target_id = e2.target_id
+                        JOIN people p ON 'person:' || p.id = e1.target_id
+                        WHERE e1.source_id IN ({seed_ids_sql})
+                          AND e2.source_id = '{nkey}'
+                          AND e1.relation_type IN ('has_director', 'has_composer')
+                        LIMIT 1;
+                        """
+                    ).fetchone()
+                    if shared_person:
+                        movie_explanation.append(f"Mesmo realizador/compositor ({shared_person[0]})")
+
+                    # 2. Tags estéticas compartilhadas
+                    shared_movie_tags = conn.execute(
+                        f"""
+                        SELECT k.name
+                        FROM graph_semantic_edges e1
+                        JOIN graph_semantic_edges e2 ON e1.target_id = e2.target_id
+                        JOIN keywords k ON 'keyword:' || k.id = e1.target_id
+                        WHERE e1.source_id IN ({seed_ids_sql})
+                          AND e2.source_id = '{nkey}'
+                          AND e1.relation_type = 'has_tag'
+                          AND e2.relation_type = 'has_tag'
+                        LIMIT 3;
+                        """
+                    ).fetchall()
+                    if shared_movie_tags:
+                        tag_str = ", ".join(f"#{t[0]}" for t in shared_movie_tags)
+                        movie_explanation.append(f"Tags em comum: {tag_str}")
+
+                    full_movie_reason = " • ".join(movie_explanation) if movie_explanation else "Afinidade de difusão de gênero e estilo"
+
                     results.append({
                         "id": nkey,
                         "title": row[0],
                         "type": "movie",
-                        "subtitle": f"Movie ({row[1]}) • Rating: {row[2]}",
+                        "subtitle": f"Filme ({row[1] or 'N/A'}) • Nota {row[2] or 'N/A'}",
                         "score": round(score * 1000, 2),
+                        "reason": full_movie_reason,
                     })
                     graph_nodes.append({
                         "id": nkey,
@@ -552,12 +593,67 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
             elif prefix == "game" and recs_count < req.limit:
                 row = conn.execute("SELECT title, release_year FROM games WHERE id = ?", [nid]).fetchone()
                 if row:
+                    game_explanation = []
+                    # 1. Desenvolvedor ou estúdio compartilhado com a semente
+                    shared_dev = conn.execute(
+                        f"""
+                        SELECT d.name
+                        FROM graph_semantic_edges e1
+                        JOIN graph_semantic_edges e2 ON e1.target_id = e2.target_id
+                        JOIN game_developers d ON 'developer:' || d.id = e1.target_id
+                        WHERE e1.source_id IN ({seed_ids_sql})
+                          AND e2.source_id = '{nkey}'
+                          AND e1.relation_type = 'developed_by'
+                        LIMIT 1;
+                        """
+                    ).fetchone()
+                    if shared_dev:
+                        game_explanation.append(f"Mesmo estúdio ({shared_dev[0]})")
+
+                    # 2. Tags estéticas e mecânicas compartilhadas (excluindo ruídos genéricos)
+                    shared_game_tags = conn.execute(
+                        f"""
+                        SELECT k.name
+                        FROM graph_semantic_edges e1
+                        JOIN graph_semantic_edges e2 ON e1.target_id = e2.target_id
+                        JOIN keywords k ON 'keyword:' || k.id = e1.target_id
+                        WHERE e1.source_id IN ({seed_ids_sql})
+                          AND e2.source_id = '{nkey}'
+                          AND e1.relation_type = 'has_tag'
+                          AND e2.relation_type = 'has_tag'
+                          AND k.name NOT IN ('single-player', 'multiplayer', 'steam cloud', 'steam achievements', 'family sharing', 'steam trading cards')
+                        LIMIT 3;
+                        """
+                    ).fetchall()
+                    if shared_game_tags:
+                        tag_str = ", ".join(f"#{t[0]}" for t in shared_game_tags)
+                        game_explanation.append(f"Tags em comum: {tag_str}")
+                    else:
+                        # Fallback se só tiver tags amplas
+                        any_tags = conn.execute(
+                            f"""
+                            SELECT k.name
+                            FROM graph_semantic_edges e1
+                            JOIN graph_semantic_edges e2 ON e1.target_id = e2.target_id
+                            JOIN keywords k ON 'keyword:' || k.id = e1.target_id
+                            WHERE e1.source_id IN ({seed_ids_sql})
+                              AND e2.source_id = '{nkey}'
+                              AND e1.relation_type = 'has_tag'
+                            LIMIT 2;
+                            """
+                        ).fetchall()
+                        if any_tags:
+                            game_explanation.append(f"Tags: {', '.join(f'#{t[0]}' for t in any_tags)}")
+
+                    full_game_reason = " • ".join(game_explanation) if game_explanation else "Afinidade de jogabilidade e universo temático"
+
                     results.append({
                         "id": nkey,
                         "title": row[0],
                         "type": "game",
-                        "subtitle": f"Jogo ({row[1]})",
+                        "subtitle": f"Jogo ({row[1] or 'N/A'})",
                         "score": round(score * 1000, 2),
+                        "reason": full_game_reason,
                     })
                     graph_nodes.append({
                         "id": nkey,
@@ -566,6 +662,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                         "val": 12.0,
                     })
                     recs_count += 1
+
 
             elif prefix in ("keyword", "person", "developer", "author") and bridge_count < 12:
                 # Nós ponte explicativos no grafo
