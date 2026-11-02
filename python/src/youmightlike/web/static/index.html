@@ -175,11 +175,58 @@
           </div>
         </div>
 
+        <!-- Contextual Focus Banner for Selected Node -->
+        <div v-if="inspectedNodes.length > 0" class="bg-canvas-sidebar border-b border-canvas-border p-3 shrink-0">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <div class="flex items-center gap-1.5 truncate">
+              <span class="w-2 h-2 rounded-full bg-canvas-coral animate-pulse shrink-0"></span>
+              <span class="text-[10px] font-bold text-canvas-text uppercase tracking-wide truncate">
+                Foco: {{ inspectedNodes[0].label }}
+              </span>
+              <span class="text-[9px] text-canvas-muted shrink-0">({{ inspectedNodes[0].type }})</span>
+            </div>
+            <button @click="clearSelection" class="text-[8px] font-bold text-canvas-muted hover:text-canvas-coral uppercase tracking-wider shrink-0">
+              [ver todos]
+            </button>
+          </div>
+
+          <!-- Tags rápidas do nó focado -->
+          <div v-if="inspectedNodes[0].tags && inspectedNodes[0].tags.length > 0" class="flex flex-wrap gap-1 mb-2.5">
+            <span v-for="t in inspectedNodes[0].tags.slice(0, 6)" :key="t" class="px-1.5 py-0.5 bg-white border border-canvas-border rounded text-[9px] text-canvas-text font-mono">
+              {{ t }}
+            </span>
+          </div>
+
+          <!-- Sugestões recomendadas para este nó específico -->
+          <div v-if="focusedNodeSuggestions.length > 0" class="space-y-1.5">
+            <span class="text-[9px] uppercase font-bold text-canvas-muted tracking-wider block">
+              Sugestões relacionadas para adicionar ao perfil:
+            </span>
+            <div 
+              v-for="sug in focusedNodeSuggestions.slice(0, 3)" 
+              :key="sug.id"
+              class="bg-white border border-canvas-border/80 hover:border-canvas-coral p-2 rounded flex items-center justify-between gap-2 shadow-2xs transition-all"
+            >
+              <div class="truncate">
+                <span class="text-[10px] font-bold text-canvas-text block truncate">{{ sug.title }}</span>
+                <span class="text-[8px] text-canvas-sage block truncate">{{ sug.reason }}</span>
+              </div>
+              <button 
+                @click="addSeed({ id: sug.id, name: sug.title, type: sug.type, subtitle: sug.subtitle })"
+                class="px-2 py-1 bg-canvas-coral text-white rounded text-[9px] font-bold shrink-0 hover:opacity-90 transition-opacity"
+              >
+                + Adicionar
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Feed List -->
         <div class="flex-1 overflow-y-auto p-3 space-y-2.5">
           <div v-if="recommendations.length === 0 && !isLoadingRecs" class="text-center py-24 text-canvas-muted text-xs">
             Add entities in the bottom bar and click<br><span class="text-canvas-text font-bold">"Run Diffusion"</span>.
           </div>
+
 
           <!-- Card Item with Mathematical Explanation Details -->
           <div 
@@ -534,10 +581,10 @@
                 const tId = typeof l.target === 'object' ? l.target.id : l.target;
                 if (sId === nid) {
                   const targetNode = currentGraphRaw.nodes.find(n => n.id === tId);
-                  if (targetNode) neighbors.push({ label: targetNode.label, rel: l.label, type: targetNode.type });
+                  if (targetNode) neighbors.push({ id: targetNode.id, label: targetNode.label, rel: l.label, type: targetNode.type, weight: l.weight });
                 } else if (tId === nid) {
                   const sourceNode = currentGraphRaw.nodes.find(n => n.id === sId);
-                  if (sourceNode) neighbors.push({ label: sourceNode.label, rel: l.label, type: sourceNode.type });
+                  if (sourceNode) neighbors.push({ id: sourceNode.id, label: sourceNode.label, rel: l.label, type: sourceNode.type, weight: l.weight });
                 }
               }
               list.push({
@@ -549,10 +596,74 @@
           return list;
         });
 
+        // Sugestões inteligentes de expansão de perfil para o nó selecionado
+        const focusedNodeSuggestions = computed(() => {
+          if (inspectedNodes.value.length === 0) return [];
+          const primary = inspectedNodes.value[0];
+          const profileIds = new Set(profileSeeds.value.map(s => s.id));
+          const suggestions = [];
+
+          // 1. Sugestões a partir de recomendações que compartilham rota ou tags com este nó
+          recommendations.value.forEach(rec => {
+            if (!profileIds.has(rec.id) && rec.id !== primary.id) {
+              let affinityScore = 0;
+              // Se há link direto no grafo
+              const hasDirectLink = currentGraphRaw.links.some(l => {
+                const sId = typeof l.source === 'object' ? l.source.id : l.source;
+                const tId = typeof l.target === 'object' ? l.target.id : l.target;
+                return (sId === primary.id && tId === rec.id) || (sId === rec.id && tId === primary.id);
+              });
+              if (hasDirectLink) affinityScore += 50;
+
+              // Se compartilha vizinho comum (ponte/tag)
+              primary.neighbors.forEach(nbr => {
+                const sharesNeighbor = currentGraphRaw.links.some(l => {
+                  const sId = typeof l.source === 'object' ? l.source.id : l.source;
+                  const tId = typeof l.target === 'object' ? l.target.id : l.target;
+                  return (sId === nbr.id && tId === rec.id) || (sId === rec.id && tId === nbr.id);
+                });
+                if (sharesNeighbor) affinityScore += 25;
+              });
+
+              if (affinityScore > 0 || rec.score > 0) {
+                suggestions.push({
+                  id: rec.id,
+                  title: rec.title,
+                  type: rec.type,
+                  subtitle: rec.subtitle,
+                  score: rec.score,
+                  affinityScore: affinityScore + Math.round(rec.score || 0),
+                  reason: hasDirectLink ? `Ligação direta com ${primary.label}` : `Conectado via vizinhos e tags de ${primary.label}`,
+                });
+              }
+            }
+          });
+
+          // 2. Vizinhos do próprio nó que não sejam apenas keywords e não estejam no perfil
+          primary.neighbors.forEach(nbr => {
+            if (!profileIds.has(nbr.id) && nbr.id !== primary.id && nbr.type !== 'keyword' && nbr.type !== 'tag') {
+              if (!suggestions.some(s => s.id === nbr.id)) {
+                suggestions.push({
+                  id: nbr.id,
+                  title: nbr.label,
+                  type: nbr.type,
+                  subtitle: `Vizinho direto (${nbr.rel})`,
+                  score: Math.round((nbr.weight || 1) * 10),
+                  affinityScore: 90,
+                  reason: `Aresta direta '${nbr.rel}' com ${primary.label}`,
+                });
+              }
+            }
+          });
+
+          return suggestions.sort((a, b) => b.affinityScore - a.affinityScore).slice(0, 10);
+        });
+
         const clearSelection = () => {
           selectedNodeIds.value.clear();
           if (graphInstance) graphInstance.refresh();
         };
+
 
 
         const initGraph = () => {
@@ -763,6 +874,7 @@
           getTypeBadgeClass,
           selectedNodeIds,
           inspectedNodes,
+          focusedNodeSuggestions,
           clearSelection,
         };
       }
