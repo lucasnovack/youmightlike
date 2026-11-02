@@ -717,9 +717,10 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                 CASE WHEN relation_type LIKE '%soundtrack%' THEN 1
                      WHEN relation_type = 'similar_to' THEN 2
                      WHEN relation_type = 'performed_by' THEN 3
-                     ELSE 4 END,
-                base_weight DESC
-            LIMIT 180;
+                     WHEN relation_type = 'has_director' THEN 4
+                     WHEN relation_type = 'developed_by' THEN 5
+                     ELSE 6 END,
+                base_weight DESC;
             """
             for src, dst, rel, w in conn.execute(edge_query).fetchall():
                 graph_links.append({
@@ -728,6 +729,18 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                     "label": rel,
                     "weight": w,
                 })
+
+            # Higienização topológica: elimina nós ponte que ficaram com grau 0 (sem arestas no subgrafo exibido)
+            connected_node_ids = set()
+            for l in graph_links:
+                connected_node_ids.add(l["source"])
+                connected_node_ids.add(l["target"])
+
+            # Mantém seeds e recomendações sempre, mas se for nó ponte intermediário (keyword/person/author) sem conexão, remove
+            graph_nodes = [
+                n for n in graph_nodes
+                if n["id"] in connected_node_ids or n["type"] == "seed" or any(r["id"] == n["id"] for r in results)
+            ]
 
         # 5. Enriquece cada nó do grafo com suas tags e metadados descritivos
         is_pt = (req.lang == "pt")
