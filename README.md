@@ -1,52 +1,50 @@
 # youmightlike
 
-Motor de recomendação cultural cruzada entre **Filmes, Músicas, Livros e Jogos**. 
+Sistema de recomendação transmidiática que conecta **Cinema, Música, Literatura e Games** em um grafo unificado de afinidade estética.
 
-Em vez de silos isolados (Spotify só recomenda música, Steam só recomenda jogo, Letterboxd só recomenda filme), o `youmightlike` conecta essas mídias em um grafo de afinidade estética e difunde o gosto do usuário usando algoritmos clássicos de grafos.
-
-**Zero LLMs, zero APIs pagas, 100% local e determinístico.**
+Em vez de silos isolados por mídia, o `youmightlike` projeta relações culturais (direção, trilhas sonoras, literatura de base, estúdios, microgêneros e tags conceituais) sobre um grafo semântico no DuckDB, calculando recomendações por difusão estatística (Personalized PageRank) via motor nativo em Rust.
 
 ---
 
-## Por que não usar LLM?
+## Princípios Técnicos
 
-1. **Custo e Dependência:** Fazer chamadas de API proprietária para cada consulta de recomendação é caro, lento e quebra offline.
-2. **Explicabilidade:** LLMs alucinam conexões e sofrem de esquecimento/bias por popularidade na web. No grafo, cada sugestão tem uma rota clara e auditável (*"Recomendado porque você marcou o Filme X e o Artista Y, conectados pelo Compositor Z e pela estética Cyberpunk"*).
-3. **Desempenho:** Personalized PageRank e álgebra linear esparsa em CPU rodam em milissegundos sobre centenas de milhares de nós sem queimar GPU ou gastar um centavo.
+* **Explicabilidade:** Cada recomendação mantém uma rota rastreável no grafo (*ex.: Filme A conectado ao Artista B pelo Compositor C e pela estética Cyberpunk*).
+* **Eficiência Computacional:** Álgebra linear esparsa em CPU via matriz CSR paralelizada com Rayon, executando em sub-segundo sem dependência de serviços externos.
+* **Privacidade e Autonomia:** Armazenamento colunar local no DuckDB com zero chamadas remotas de inferência ou telemetria em runtime.
 
 ---
 
-## Como Funciona
+## Arquitetura
 
 ```
-[ Datasets Abertos (IMDb, Steam, Goodreads, MusicBrainz) ]
-                           │
-                 Ingestão Nativa (Parquet/TSV)
-                           ▼
-          ┌──────────────────────────────────┐
-          │   DuckDB Feature Store Local     │
-          │  61.9M nós │ 99.2M arestas    │
-          └─────────────────┬────────────────┘
-                            │
-               Zero-Copy / Views Ponderadas (IDF)
-                            ▼
-          ┌──────────────────────────────────┐
-          │   Motor de Difusão Estatística   │
-          │  (Personalized PageRank na CPU)  │
-          └─────────────────┬────────────────┘
-                            │
-                            ▼
-           Recomendações com Caminho Explicado
+[ Datasets Abertos (IMDb, Steam, Goodreads, MusicBrainz, Spotify) ]
+                               │
+                      Ingestão Colunar (Parquet/TSV)
+                               ▼
+              ┌──────────────────────────────────┐
+              │   DuckDB Feature Store Local     │
+              │  3.58M arestas semânticas ativas │
+              └─────────────────┬────────────────┘
+                                │
+                    Zero-Copy / Views Ponderadas
+                                ▼
+              ┌──────────────────────────────────┐
+              │   Motor de Difusão em Rust       │
+              │  (Bidirectional PPR / CSR Graph) │
+              └─────────────────┬────────────────┘
+                                │
+                                ▼
+               Subgrafo Explicativo & Recomendações
 ```
 
 ### Ponderação de Arestas (Adamic-Adar / IDF)
-Tags e categorias genéricas (como *"Ação"*, *"Rock"*, *"Ficção"*) saturam grafos e atuam como sumidouros de probabilidade, gerando apenas sugestões óbvias. 
 
-Para resolver isso de forma determinística, as arestas passam por uma view no DuckDB (`v_weighted_graph_edges`) que atenua o peso da conexão pelo inverso do logaritmo do grau do nó de destino:
+Para evitar que categorias amplas (*Ação*, *Rock*, *Ficção*) atuem como sumidouros de probabilidade e saturem o cálculo com sugestões óbvias, a view `v_weighted_graph_edges` atenua o peso de cada aresta com base no inverso do logaritmo do grau do nó de destino:
 
-$$\text{peso}(u, v) = \frac{\text{base\_weight}(u, v)}{\ln(1 + \text{grau}(v))}$$
+$$\text{peso}(u, v) = \frac{w_{\text{base}}(u, v)}{\ln(1 + \text{grau}(v))}$$
 
-Conexões específicas (uma tag de nicho, um compositor de trilha ou um autor cult) transferem muito mais energia no grafo do que categorias amplas.
+Conexões específicas e raras (um subgênero de nicho, compositor ou estúdio autoral) retêm alta transferência de energia, enquanto nós de vocabulário massivo sofrem penalização proporcional.
+
 
 ---
 

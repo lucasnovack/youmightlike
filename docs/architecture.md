@@ -61,7 +61,7 @@ Se todas as conexões tivessem o mesmo peso, tags ultragenéricas (como *"Action
 
 Para resolver isso de forma determinística, a view `v_weighted_graph_edges` aplica atenuação pelo inverso do logaritmo do grau do nó de destino:
 
-$$\text{effective\_weight}(u, v) = \frac{\text{base\_weight}(u, v)}{\ln(1 + \text{degree}(v))}$$
+$$w_{\text{efetivo}}(u, v) = \frac{w_{\text{base}}(u, v)}{\ln(1 + \text{grau}(v))}$$
 
 * Conexões específicas e raras (ex: tag de nicho *"post-cyberpunk"*, autor cult, compositor específico) mantêm alta transferência de probabilidade.
 * Conexões amplas e massivas (ex: *"drama"*, *"music"*) têm seu fluxo atenuado proporcionalmente à sua saturação no grafo.
