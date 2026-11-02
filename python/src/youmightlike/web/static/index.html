@@ -248,25 +248,68 @@
         </div>
 
         <!-- Inspector Card for Selected Node(s) -->
-        <div v-if="selectedNodeIds.size > 0" class="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur border border-canvas-text/20 rounded-lg p-3 shadow-lg text-[10px] max-w-xs transition-all">
-          <div class="flex items-center justify-between gap-3 mb-1.5 border-b border-canvas-border/80 pb-1.5">
+        <div v-if="selectedNodeIds.size > 0" class="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur border border-canvas-text/20 rounded-lg p-3.5 shadow-xl text-[10px] w-80 max-h-[85vh] overflow-y-auto transition-all font-mono">
+          <div class="flex items-center justify-between gap-3 mb-2 border-b border-canvas-border/80 pb-2">
             <span class="font-bold text-canvas-text text-[11px] flex items-center gap-1.5">
               <span class="w-2 h-2 rounded-full bg-canvas-coral animate-pulse"></span>
-              <span>{{ selectedNodeIds.size === 1 ? 'Inspecting 1 Node' : 'Inspecting ' + selectedNodeIds.size + ' Nodes' }}</span>
+              <span>{{ selectedNodeIds.size === 1 ? 'Nó Selecionado' : selectedNodeIds.size + ' Nós Selecionados' }}</span>
             </span>
-            <button @click="clearSelection" class="text-[9px] font-bold text-canvas-muted hover:text-canvas-coral uppercase tracking-wider">
-              [esc / clear]
+            <button @click="clearSelection" class="text-[9px] font-bold text-canvas-muted hover:text-canvas-coral uppercase tracking-wider transition-colors">
+              [esc / fechar]
             </button>
           </div>
-          <div class="text-[10px] text-canvas-muted leading-relaxed">
+
+          <!-- Lista de nós inspecionados -->
+          <div class="space-y-3">
+            <div v-for="node in inspectedNodes" :key="node.id" class="p-2.5 rounded bg-canvas-border/20 border border-canvas-border/60">
+              <div class="flex items-start justify-between gap-2 mb-1">
+                <div>
+                  <h4 class="font-bold text-canvas-text text-xs leading-tight">{{ node.label }}</h4>
+                  <p v-if="node.desc" class="text-[9px] text-canvas-muted mt-0.5">{{ node.desc }}</p>
+                </div>
+                <span class="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold"
+                      :class="node.type === 'seed' ? 'bg-canvas-coral text-white' : 'bg-canvas-text text-white'">
+                  {{ node.type }}
+                </span>
+              </div>
+
+              <!-- Tags do Nó -->
+              <div v-if="node.tags && node.tags.length > 0" class="mt-2 pt-2 border-t border-canvas-border/40">
+                <span class="text-[8px] uppercase font-bold text-canvas-muted tracking-wider block mb-1">
+                  Tags & Atributos ({{ node.tags.length }})
+                </span>
+                <div class="flex flex-wrap gap-1">
+                  <span v-for="t in node.tags" :key="t" class="px-1.5 py-0.5 bg-canvas-border/50 text-canvas-text rounded text-[9px]">
+                    {{ t }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Conexões diretas no subgrafo -->
+              <div v-if="node.neighbors && node.neighbors.length > 0" class="mt-2 pt-2 border-t border-canvas-border/40">
+                <span class="text-[8px] uppercase font-bold text-canvas-muted tracking-wider block mb-1">
+                  Conexões no Grafo ({{ node.neighbors.length }})
+                </span>
+                <div class="space-y-1 max-h-24 overflow-y-auto pr-1">
+                  <div v-for="(nbr, idx) in node.neighbors" :key="idx" class="flex items-center justify-between text-[9px] text-canvas-muted">
+                    <span class="text-canvas-text truncate font-semibold">{{ nbr.label }}</span>
+                    <span class="text-[8px] text-canvas-muted shrink-0 ml-2">({{ nbr.rel }})</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-2.5 pt-2 border-t border-canvas-border/60 text-[9px] text-canvas-muted leading-tight">
             <span v-if="selectedNodeIds.size === 1">
-              Highlighted direct 1-hop neighborhood. Hold <span class="font-mono font-bold text-canvas-text">Shift</span> and click another node to highlight bridges between them.
+              Segure <span class="font-bold text-canvas-text">Shift</span> e clique em outro nó para destacar o caminho entre eles.
             </span>
             <span v-else>
-              Highlighting direct links and shared bridges connecting selected nodes.
+              Arestas diretas e pontes mútuas estão realçadas em coral no grafo.
             </span>
           </div>
         </div>
+
 
         <div id="graph-container" class="flex-1 w-full h-full"></div>
       </section>
@@ -478,10 +521,39 @@
         const selectedNodeIds = ref(new Set());
         let currentGraphRaw = { nodes: [], links: [] };
 
+        const inspectedNodes = computed(() => {
+          if (selectedNodeIds.value.size === 0) return [];
+          const list = [];
+          for (const nid of selectedNodeIds.value) {
+            const node = currentGraphRaw.nodes.find(n => n.id === nid);
+            if (node) {
+              // Descobre conexões diretas desse nó dentro do grafo atual
+              const neighbors = [];
+              for (const l of currentGraphRaw.links) {
+                const sId = typeof l.source === 'object' ? l.source.id : l.source;
+                const tId = typeof l.target === 'object' ? l.target.id : l.target;
+                if (sId === nid) {
+                  const targetNode = currentGraphRaw.nodes.find(n => n.id === tId);
+                  if (targetNode) neighbors.push({ label: targetNode.label, rel: l.label, type: targetNode.type });
+                } else if (tId === nid) {
+                  const sourceNode = currentGraphRaw.nodes.find(n => n.id === sId);
+                  if (sourceNode) neighbors.push({ label: sourceNode.label, rel: l.label, type: sourceNode.type });
+                }
+              }
+              list.push({
+                ...node,
+                neighbors
+              });
+            }
+          }
+          return list;
+        });
+
         const clearSelection = () => {
           selectedNodeIds.value.clear();
           if (graphInstance) graphInstance.refresh();
         };
+
 
         const initGraph = () => {
           const elem = document.getElementById('graph-container');
@@ -690,6 +762,7 @@
           getSearchPlaceholder,
           getTypeBadgeClass,
           selectedNodeIds,
+          inspectedNodes,
           clearSelection,
         };
       }

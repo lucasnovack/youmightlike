@@ -609,11 +609,90 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                     "weight": w,
                 })
 
+        # 5. Enriquece cada nó do grafo com suas tags e metadados descritivos
+        for n in graph_nodes:
+            n_id = n["id"]
+            if ":" not in n_id:
+                continue
+            pfx, raw_id = n_id.split(":", 1)
+            try:
+                nid = int(raw_id)
+            except ValueError:
+                continue
+
+            node_tags: List[str] = []
+            node_desc = ""
+
+            if pfx == "artist":
+                trows = conn.execute(
+                    "SELECT k.name FROM artist_tags t JOIN keywords k ON k.id = t.keyword_id WHERE t.artist_id = ? ORDER BY t.weight DESC LIMIT 12",
+                    [nid],
+                ).fetchall()
+                node_tags = [f"#{r[0]}" for r in trows]
+                node_desc = "Artista musical"
+
+            elif pfx == "track":
+                # Tags diretas da faixa ou do artista
+                trows = conn.execute(
+                    "SELECT k.name FROM graph_semantic_edges e JOIN keywords k ON 'keyword:' || k.id = e.target_id WHERE e.source_id = ? AND e.relation_type = 'has_tag' ORDER BY e.base_weight DESC LIMIT 12",
+                    [n_id],
+                ).fetchall()
+                if not trows:
+                    trows = conn.execute(
+                        "SELECT k.name FROM artist_tags t JOIN keywords k ON k.id = t.keyword_id WHERE t.artist_id = (SELECT artist_id FROM music_tracks WHERE id = ?) ORDER BY t.weight DESC LIMIT 12",
+                        [nid],
+                    ).fetchall()
+                node_tags = [f"#{r[0]}" for r in trows]
+                t_info = conn.execute("SELECT a.name, t.tempo, t.energy FROM music_tracks t JOIN music_artists a ON a.id = t.artist_id WHERE t.id = ?", [nid]).fetchone()
+                if t_info:
+                    node_desc = f"Faixa de {t_info[0]} • {round(t_info[1] or 0)} BPM"
+
+            elif pfx == "game":
+                trows = conn.execute(
+                    "SELECT k.name FROM game_tags t JOIN keywords k ON k.id = t.keyword_id WHERE t.game_id = ? LIMIT 12",
+                    [nid],
+                ).fetchall()
+                node_tags = [f"#{r[0]}" for r in trows]
+                grow = conn.execute("SELECT release_year FROM games WHERE id = ?", [nid]).fetchone()
+                if grow and grow[0]:
+                    node_desc = f"Jogo ({grow[0]})"
+
+            elif pfx == "movie":
+                trows = conn.execute(
+                    "SELECT k.name FROM movie_keywords mk JOIN keywords k ON k.id = mk.keyword_id WHERE mk.movie_id = ? LIMIT 12",
+                    [nid],
+                ).fetchall()
+                node_tags = [f"#{r[0]}" for r in trows]
+                mrow = conn.execute("SELECT release_year, rating FROM movies WHERE id = ?", [nid]).fetchone()
+                if mrow:
+                    node_desc = f"Filme ({mrow[0] or 'N/A'}) • Nota {mrow[1] or 'N/A'}"
+
+            elif pfx == "book":
+                trows = conn.execute(
+                    "SELECT k.name FROM book_subjects bs JOIN keywords k ON k.id = bs.keyword_id WHERE bs.book_id = ? LIMIT 12",
+                    [nid],
+                ).fetchall()
+                node_tags = [f"#{r[0]}" for r in trows]
+                node_desc = "Livro"
+
+            elif pfx == "developer":
+                node_desc = "Estúdio de Desenvolvimento"
+
+            elif pfx == "keyword":
+                node_desc = "Tag Conceitual"
+
+            elif pfx == "person":
+                node_desc = "Diretor / Compositor / Roteirista"
+
+            n["tags"] = node_tags
+            n["desc"] = node_desc
+
     return RecommendationResponse(
         seeds=seeds_resolved,
         results=results,
         graph={"nodes": graph_nodes, "links": graph_links},
     )
+
 
 
 # Serve a SPA estática
