@@ -259,9 +259,8 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
             "--limit",
             str(req.limit * 3),
             "--db-path",
-            DB_PATH,
             "--query-edges",
-            "SELECT source_id, target_id, base_weight FROM v_graph_edges WHERE relation_type NOT IN ('has_track', 'contains_track', 'released')",
+            "SELECT source_id, target_id, base_weight FROM graph_semantic_edges",
             "--json",
         ]
         if target_prefix:
@@ -396,7 +395,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
             nodes_sql = ", ".join(f"'{nid}'" for nid in all_graph_node_ids)
             edge_query = f"""
             SELECT source_id, target_id, relation_type, base_weight
-            FROM v_graph_edges
+            FROM graph_semantic_edges
             WHERE source_id IN ({nodes_sql}) AND target_id IN ({nodes_sql})
             LIMIT 80;
             """
