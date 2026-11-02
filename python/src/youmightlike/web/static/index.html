@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR" class="dark">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,30 +9,31 @@
   <script src="https://unpkg.com/force-graph"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <script>
     tailwind.config = {
-      darkMode: 'class',
       theme: {
         extend: {
           fontFamily: {
-            sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"Inter"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace', 'ui-monospace'],
           },
           colors: {
-            apple: {
-              bg: '#000000',
-              sidebar: '#0a0a0c',
-              panel: '#121215',
-              surface: '#1c1c1e',
-              surfaceHover: '#2c2c2e',
-              border: '#2c2c2e',
-              subtle: '#3a3a3c',
-              secondary: '#8e8e93',
-              tertiary: '#636366',
-              accent: '#2997ff',
-              emerald: '#30d158',
-              orange: '#ff9f0a',
-              pink: '#ff375f',
+            brand: {
+              bg: '#fcfcfc',
+              sidebar: '#f7f7f8',
+              surface: '#ffffff',
+              hover: '#f1f1f3',
+              border: '#e5e5e7',
+              borderDark: '#d1d1d6',
+              text: '#111113',
+              muted: '#6e6e73',
+              subtle: '#8e8e93',
+              accent: '#0066cc',
+              accentLight: '#eef6ff',
+              seed: '#d9381e',
+              music: '#0e7e38',
+              movie: '#b25900',
+              game: '#0055b3',
             }
           }
         }
@@ -40,256 +41,243 @@
     }
   </script>
   <style>
+    * { font-feature-settings: "zero" 1; }
     body {
-      background-color: #000000;
-      color: #f5f5f7;
+      background-color: #fcfcfc;
+      color: #111113;
+      font-family: 'JetBrains Mono', monospace;
       -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
     }
     ::selection {
-      background: rgba(41, 151, 255, 0.25);
+      background: #111113;
       color: #ffffff;
     }
-    /* Apple glassmorphism blur */
-    .glass {
-      background: rgba(18, 18, 21, 0.72);
-      backdrop-filter: blur(20px) saturate(190%);
-      -webkit-backdrop-filter: blur(20px) saturate(190%);
-    }
-    .glass-input {
-      background: rgba(28, 28, 30, 0.6);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-    }
-    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #2c2c2e; border-radius: 9999px; }
-    ::-webkit-scrollbar-thumb:hover { background: #3a3a3c; }
+    ::-webkit-scrollbar-thumb { background: #d1d1d6; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: #8e8e93; }
   </style>
 </head>
-<body class="h-screen overflow-hidden flex flex-col font-sans select-none text-[13px] tracking-[-0.01em]">
+<body class="h-screen overflow-hidden flex flex-col font-mono text-[12px] leading-relaxed antialiased">
   <div id="app" class="flex flex-col h-full">
 
-    <!-- Apple Top Navigation Bar -->
-    <header class="h-12 border-b border-apple-border glass px-6 flex items-center justify-between z-30">
+    <!-- Top Minimal Header -->
+    <header class="h-13 border-b border-brand-border bg-white/90 backdrop-blur px-6 py-2.5 flex items-center justify-between z-30">
       <div class="flex items-center gap-3">
-        <span class="text-sm font-semibold tracking-tight text-white flex items-center gap-2">
+        <span class="font-bold tracking-tight text-[13px] text-brand-text flex items-center gap-2">
           youmightlike
-          <span class="text-[10px] text-apple-secondary font-medium tracking-normal">taste graph</span>
+          <span class="text-[10px] text-brand-muted font-normal border border-brand-border px-1.5 py-0.5 rounded">graph engine</span>
         </span>
       </div>
 
-      <!-- Spotlight Search Input -->
-      <div class="relative w-80">
+      <!-- Centered Monospace Search -->
+      <div class="relative w-96">
         <div class="relative flex items-center">
-          <svg class="w-3.5 h-3.5 absolute left-3 text-apple-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-          </svg>
+          <span class="absolute left-3 text-brand-muted text-[11px] font-medium">$</span>
           <input 
             type="text" 
             v-model="searchQuery" 
             @input="onSearchInput"
-            placeholder="Search artists, movies, games..."
-            class="w-full glass-input border border-apple-border rounded-full pl-8 pr-8 py-1.5 text-xs text-white placeholder-apple-tertiary focus:outline-none focus:border-apple-accent focus:ring-1 focus:ring-apple-accent/30 transition-all duration-200"
+            placeholder="search artist, movie, game..."
+            class="w-full bg-brand-sidebar border border-brand-border hover:border-brand-borderDark focus:border-brand-text rounded-md pl-7 pr-7 py-1.5 text-xs text-brand-text placeholder-brand-muted focus:outline-none focus:bg-white transition-all"
           />
-          <span v-if="isSearching" class="w-2 h-2 rounded-full bg-apple-accent animate-ping absolute right-3"></span>
+          <span v-if="isSearching" class="w-1.5 h-1.5 rounded-full bg-brand-accent animate-ping absolute right-3"></span>
         </div>
 
-        <!-- Spotlight Dropdown Results -->
-        <div v-if="searchResults.length > 0" class="absolute top-10 left-0 right-0 glass border border-apple-border rounded-2xl shadow-2xl p-1.5 z-50 max-h-80 overflow-y-auto">
+        <!-- Search Results Dropdown -->
+        <div v-if="searchResults.length > 0" class="absolute top-10 left-0 right-0 bg-white border border-brand-border rounded-lg shadow-lg p-1.5 z-50 max-h-80 overflow-y-auto">
           <div 
             v-for="item in searchResults" 
             :key="item.id"
             @click="addSeed(item)"
-            class="flex items-center justify-between px-3 py-2 hover:bg-white/5 rounded-xl cursor-pointer transition-colors group"
+            class="flex items-center justify-between px-3 py-2 hover:bg-brand-hover rounded cursor-pointer transition-colors group"
           >
-            <div class="flex items-center gap-2.5 truncate">
-              <span class="text-xs text-apple-secondary shrink-0 font-medium">{{ getTypeBadge(item.type) }}</span>
+            <div class="flex items-center gap-2 truncate">
+              <span class="text-[10px] uppercase font-bold text-brand-muted shrink-0 w-12">[{{ item.type }}]</span>
               <div class="truncate">
-                <p class="text-xs font-medium text-white truncate group-hover:text-apple-accent transition-colors">{{ item.name }}</p>
-                <p class="text-[10px] text-apple-secondary truncate">{{ item.subtitle }}</p>
+                <span class="text-xs font-semibold text-brand-text group-hover:text-brand-accent transition-colors">{{ item.name }}</span>
+                <span v-if="item.subtitle" class="text-[10px] text-brand-muted ml-1.5">({{ item.subtitle }})</span>
               </div>
             </div>
-            <span class="text-[11px] text-apple-accent opacity-0 group-hover:opacity-100 transition-opacity">Add</span>
+            <span class="text-[10px] font-semibold text-brand-accent opacity-0 group-hover:opacity-100 transition-opacity shrink-0">+add</span>
           </div>
         </div>
       </div>
 
-      <!-- Header Metrics / Clear -->
-      <div class="flex items-center gap-4 text-xs text-apple-secondary">
-        <span class="text-[11px]">61.9M nodes</span>
+      <!-- Stats / Right Controls -->
+      <div class="flex items-center gap-4 text-xs text-brand-muted">
+        <span class="text-[11px] font-mono">61.9M nodes</span>
         <button 
           @click="clearProfile" 
           v-if="profileSeeds.length > 0"
-          class="text-[11px] text-apple-secondary hover:text-white transition-colors"
+          class="text-[11px] text-brand-muted hover:text-red-600 transition-colors"
         >
-          Reset
+          [reset]
         </button>
       </div>
     </header>
 
-    <!-- Workspace -->
+    <!-- Main Grid -->
     <div class="flex-1 flex overflow-hidden">
 
-      <!-- LEFT SIDEBAR: Taste Profile (Minimalist Chips) -->
-      <aside class="w-72 border-r border-apple-border bg-apple-sidebar flex flex-col p-5 z-20">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-[11px] font-semibold uppercase tracking-wider text-apple-secondary">
-            Your Profile
+      <!-- LEFT: Profile Seeds (Column 1) -->
+      <aside class="w-72 border-r border-brand-border bg-brand-sidebar flex flex-col p-4 z-20">
+        <div class="flex items-center justify-between mb-3 pb-2 border-b border-brand-border">
+          <h2 class="text-[11px] font-bold uppercase tracking-wider text-brand-muted">
+            Profile ({{ profileSeeds.length }})
           </h2>
-          <span class="text-[10px] font-mono text-apple-tertiary">{{ profileSeeds.length }} saved</span>
+          <span class="text-[10px] text-brand-muted font-mono">seeds</span>
         </div>
 
         <!-- Empty State -->
-        <div v-if="profileSeeds.length === 0" class="flex-1 flex flex-col justify-center text-center px-4">
-          <p class="text-xs font-medium text-white mb-1">Build your taste profile</p>
-          <p class="text-[11px] text-apple-secondary leading-relaxed mb-6">
-            Search for your favorite bands, cinema or games above to anchor your personal graph.
+        <div v-if="profileSeeds.length === 0" class="flex-1 flex flex-col justify-center text-center px-2">
+          <p class="text-xs font-semibold text-brand-text mb-1">Graph is empty</p>
+          <p class="text-[11px] text-brand-muted leading-relaxed mb-5">
+            Select real entities from the catalog to form your deterministic taste profile.
           </p>
-          <div class="flex flex-col gap-1.5">
-            <button @click="quickAdd('Daft Punk')" class="text-left text-xs bg-apple-surface hover:bg-apple-surfaceHover px-3 py-2 rounded-xl border border-apple-border text-white transition-colors flex items-center justify-between">
-              <span>Daft Punk</span>
-              <span class="text-[10px] text-apple-secondary">Music</span>
+          <div class="flex flex-col gap-1.5 text-left">
+            <button @click="quickAdd('Daft Punk')" class="text-xs bg-white hover:bg-brand-hover px-2.5 py-1.5 rounded border border-brand-border text-brand-text transition-colors flex items-center justify-between">
+              <span>+ Daft Punk</span>
+              <span class="text-[10px] text-brand-muted">[artist]</span>
             </button>
-            <button @click="quickAdd('Blade Runner')" class="text-left text-xs bg-apple-surface hover:bg-apple-surfaceHover px-3 py-2 rounded-xl border border-apple-border text-white transition-colors flex items-center justify-between">
-              <span>Blade Runner</span>
-              <span class="text-[10px] text-apple-secondary">Movie</span>
+            <button @click="quickAdd('Blade Runner')" class="text-xs bg-white hover:bg-brand-hover px-2.5 py-1.5 rounded border border-brand-border text-brand-text transition-colors flex items-center justify-between">
+              <span>+ Blade Runner</span>
+              <span class="text-[10px] text-brand-muted">[movie]</span>
             </button>
-            <button @click="quickAdd('Radiohead')" class="text-left text-xs bg-apple-surface hover:bg-apple-surfaceHover px-3 py-2 rounded-xl border border-apple-border text-white transition-colors flex items-center justify-between">
-              <span>Radiohead</span>
-              <span class="text-[10px] text-apple-secondary">Music</span>
+            <button @click="quickAdd('Radiohead')" class="text-xs bg-white hover:bg-brand-hover px-2.5 py-1.5 rounded border border-brand-border text-brand-text transition-colors flex items-center justify-between">
+              <span>+ Radiohead</span>
+              <span class="text-[10px] text-brand-muted">[artist]</span>
             </button>
           </div>
         </div>
 
-        <!-- Saved Seeds List -->
-        <div v-else class="flex-1 overflow-y-auto space-y-1.5 pr-1">
+        <!-- Profile Items List -->
+        <div v-else class="flex-1 overflow-y-auto space-y-1 pr-1">
           <div 
             v-for="seed in profileSeeds" 
             :key="seed.id" 
-            class="flex items-center justify-between px-3 py-2.5 bg-apple-surface hover:bg-apple-surfaceHover rounded-xl border border-apple-border transition-colors group"
+            class="flex items-center justify-between px-2.5 py-2 bg-white hover:bg-brand-hover rounded border border-brand-border transition-colors group"
           >
             <div class="truncate pr-2">
-              <p class="text-xs font-medium text-white truncate">{{ seed.name }}</p>
-              <p class="text-[10px] text-apple-secondary truncate">{{ getTypeBadge(seed.type) }} {{ seed.subtitle ? '• ' + seed.subtitle : '' }}</p>
+              <span class="text-[10px] font-bold text-brand-muted uppercase mr-1">[{{ seed.type }}]</span>
+              <span class="text-xs font-medium text-brand-text">{{ seed.name }}</span>
             </div>
             <button 
               @click="removeSeed(seed.id)" 
-              class="text-apple-tertiary hover:text-white p-1 transition-colors text-xs shrink-0"
+              class="text-brand-muted hover:text-red-600 text-[11px] shrink-0 font-bold px-1"
             >
-              ✕
+              ×
             </button>
           </div>
         </div>
 
-        <!-- Action Button -->
-        <div class="pt-4 mt-auto">
+        <!-- Run Diffusion Trigger -->
+        <div class="pt-3 border-t border-brand-border mt-auto">
           <button 
             @click="computeRecommendations"
             :disabled="profileSeeds.length === 0 || isLoadingRecs"
-            class="w-full bg-apple-accent hover:bg-[#3ca0ff] disabled:opacity-40 disabled:pointer-events-none text-white font-medium text-xs py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all duration-150 shadow-sm"
+            class="w-full bg-brand-text hover:bg-black disabled:opacity-30 disabled:pointer-events-none text-white font-medium text-xs py-2 px-3 rounded transition-colors flex items-center justify-center gap-2"
           >
-            <span v-if="isLoadingRecs" class="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
-            <span>{{ isLoadingRecs ? 'Computing PPR...' : 'Compute Discovery' }}</span>
+            <span v-if="isLoadingRecs" class="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+            <span>{{ isLoadingRecs ? 'Running PPR diffusion...' : 'Run Diffusion →' }}</span>
           </button>
         </div>
       </aside>
 
-      <!-- CENTER: Recommendations Feed -->
-      <main class="w-[420px] border-r border-apple-border flex flex-col bg-apple-panel z-10">
-        <!-- Filter Tabs -->
-        <div class="h-12 border-b border-apple-border px-5 flex items-center justify-between">
-          <span class="text-[11px] font-semibold uppercase tracking-wider text-apple-secondary">
-            Recommendations
+      <!-- CENTER: Recommendations List (Column 2) -->
+      <main class="w-[430px] border-r border-brand-border flex flex-col bg-white z-10">
+        <!-- Filter Header -->
+        <div class="h-11 border-b border-brand-border px-4 flex items-center justify-between bg-brand-sidebar">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-brand-muted">
+            Results ({{ recommendations.length }})
           </span>
-          <div class="flex items-center bg-apple-surface p-0.5 rounded-lg border border-apple-border">
+          <div class="flex items-center border border-brand-border rounded bg-white overflow-hidden text-[10px]">
             <button 
               @click="targetFilter = null; computeRecommendations()" 
-              :class="{'bg-apple-surfaceHover text-white shadow-xs': targetFilter === null, 'text-apple-secondary hover:text-white': targetFilter !== null}"
-              class="text-[11px] px-2.5 py-1 rounded-md transition-all font-medium"
+              :class="{'bg-brand-text text-white font-semibold': targetFilter === null, 'text-brand-muted hover:text-brand-text': targetFilter !== null}"
+              class="px-2 py-0.5 transition-colors"
             >
-              All
+              ALL
             </button>
             <button 
               @click="targetFilter = 'music'; computeRecommendations()" 
-              :class="{'bg-apple-surfaceHover text-white shadow-xs': targetFilter === 'music', 'text-apple-secondary hover:text-white': targetFilter !== 'music'}"
-              class="text-[11px] px-2.5 py-1 rounded-md transition-all font-medium"
+              :class="{'bg-brand-text text-white font-semibold': targetFilter === 'music', 'text-brand-muted hover:text-brand-text': targetFilter !== 'music'}"
+              class="px-2 py-0.5 border-l border-brand-border transition-colors"
             >
-              Music
+              MUSIC
             </button>
             <button 
               @click="targetFilter = 'movie'; computeRecommendations()" 
-              :class="{'bg-apple-surfaceHover text-white shadow-xs': targetFilter === 'movie', 'text-apple-secondary hover:text-white': targetFilter !== 'movie'}"
-              class="text-[11px] px-2.5 py-1 rounded-md transition-all font-medium"
+              :class="{'bg-brand-text text-white font-semibold': targetFilter === 'movie', 'text-brand-muted hover:text-brand-text': targetFilter !== 'movie'}"
+              class="px-2 py-0.5 border-l border-brand-border transition-colors"
             >
-              Movies
+              FILMS
             </button>
             <button 
               @click="targetFilter = 'game'; computeRecommendations()" 
-              :class="{'bg-apple-surfaceHover text-white shadow-xs': targetFilter === 'game', 'text-apple-secondary hover:text-white': targetFilter !== 'game'}"
-              class="text-[11px] px-2.5 py-1 rounded-md transition-all font-medium"
+              :class="{'bg-brand-text text-white font-semibold': targetFilter === 'game', 'text-brand-muted hover:text-brand-text': targetFilter !== 'game'}"
+              class="px-2 py-0.5 border-l border-brand-border transition-colors"
             >
-              Games
+              GAMES
             </button>
           </div>
         </div>
 
         <!-- Feed List -->
-        <div class="flex-1 overflow-y-auto p-4 space-y-2">
-          <div v-if="recommendations.length === 0 && !isLoadingRecs" class="text-center py-24 text-apple-secondary text-xs">
-            Add items to your profile and click<br><span class="text-white">"Compute Discovery"</span>.
+        <div class="flex-1 overflow-y-auto p-3 space-y-2">
+          <div v-if="recommendations.length === 0 && !isLoadingRecs" class="text-center py-24 text-brand-muted text-xs">
+            Add entities on the left and run diffusion.
           </div>
 
-          <!-- Recommendation Item Card -->
+          <!-- Card Item -->
           <div 
             v-for="rec in recommendations" 
             :key="rec.id"
-            class="bg-apple-surface hover:bg-apple-surfaceHover border border-apple-border p-3.5 rounded-2xl transition-all duration-200 group"
+            class="bg-brand-surface hover:bg-brand-hover border border-brand-border p-3 rounded transition-colors group"
           >
-            <div class="flex items-start justify-between gap-3 mb-1">
+            <div class="flex items-start justify-between gap-2 mb-1">
               <div>
-                <span class="text-[10px] font-medium text-apple-secondary uppercase tracking-wider">{{ getTypeBadge(rec.type) }}</span>
-                <h3 class="text-sm font-semibold text-white tracking-tight group-hover:text-apple-accent transition-colors">
+                <span class="text-[9px] uppercase font-bold text-brand-muted tracking-wide mr-1">[{{ rec.type }}]</span>
+                <span class="text-xs font-bold text-brand-text group-hover:text-brand-accent transition-colors">
                   {{ rec.title }}
-                </h3>
-                <p class="text-[11px] text-apple-secondary mt-0.5">{{ rec.subtitle }}</p>
+                </span>
+                <p class="text-[11px] text-brand-muted mt-0.5">{{ rec.subtitle }}</p>
               </div>
-              <span class="text-[10px] font-mono text-apple-secondary bg-black/40 px-2 py-0.5 rounded-full border border-apple-border shrink-0">
-                {{ rec.score }}
+              <span class="text-[10px] font-mono font-medium text-brand-muted bg-brand-sidebar px-1.5 py-0.5 rounded border border-brand-border shrink-0">
+                p:{{ rec.score }}
               </span>
             </div>
 
-            <!-- Top Track Audio Details if Artist -->
-            <div v-if="rec.top_track" class="mt-2.5 pt-2 border-t border-apple-border/50 flex items-center justify-between text-[11px] text-apple-secondary">
+            <!-- Track snippet if music artist -->
+            <div v-if="rec.top_track" class="mt-2 pt-1.5 border-t border-brand-border flex items-center justify-between text-[10px] text-brand-muted">
               <span class="truncate">♫ {{ rec.top_track.title }}</span>
-              <span class="text-[10px] text-apple-emerald font-mono shrink-0">Popularity {{ rec.top_track.popularity }}</span>
+              <span class="text-brand-music font-mono shrink-0">pop {{ rec.top_track.popularity }}</span>
             </div>
 
-            <!-- Add to Profile button -->
             <div class="mt-2 flex justify-end">
               <button 
                 @click="addSeed({ id: rec.id, name: rec.title, type: rec.type, subtitle: rec.subtitle })"
-                class="text-[11px] text-apple-accent hover:underline font-medium"
+                class="text-[10px] text-brand-accent hover:underline font-medium"
               >
-                + Add to profile
+                + add to profile
               </button>
             </div>
           </div>
         </div>
       </main>
 
-      <!-- RIGHT: Interactive Minimal Graph Visualizer -->
-      <section class="flex-1 relative bg-black flex flex-col overflow-hidden">
-        <div class="absolute top-5 left-5 z-20 glass border border-apple-border rounded-2xl p-4 max-w-xs shadow-xl">
-          <h4 class="text-xs font-semibold text-white tracking-tight mb-1">Taste Graph Topology</h4>
-          <p class="text-[11px] text-apple-secondary leading-relaxed">
-            Stochastic diffusion traces connecting your profile nodes to recommendations.
+      <!-- RIGHT: Clean Light Mode Force Graph (Column 3) -->
+      <section class="flex-1 relative bg-brand-bg flex flex-col overflow-hidden">
+        <div class="absolute top-4 left-4 z-20 bg-white/95 border border-brand-border rounded p-3 shadow-xs max-w-xs text-[11px]">
+          <div class="font-bold text-brand-text mb-0.5">Graph Topology</div>
+          <p class="text-[10px] text-brand-muted leading-tight mb-2">
+            Deterministic PageRank random-walk paths linking profile seeds to recommendations.
           </p>
-          <div class="mt-3 flex items-center gap-3 text-[10px] text-apple-secondary font-medium">
-            <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-apple-pink"></span> Seeds</span>
-            <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-apple-emerald"></span> Music</span>
-            <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-apple-orange"></span> Movies</span>
-            <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-apple-accent"></span> Games</span>
+          <div class="flex items-center gap-3 text-[10px] font-medium">
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-brand-seed"></span> Seed</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-brand-music"></span> Music</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-brand-movie"></span> Movie</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-brand-game"></span> Game</span>
           </div>
         </div>
 
@@ -327,19 +315,6 @@
 
         const saveProfile = () => {
           localStorage.setItem('ym_taste_profile', JSON.stringify(profileSeeds.value));
-        };
-
-        const getTypeBadge = (type) => {
-          switch(type) {
-            case 'artist': return 'Artist';
-            case 'track': return 'Track';
-            case 'movie': return 'Movie';
-            case 'game': return 'Game';
-            case 'book': return 'Book';
-            case 'person': return 'Person';
-            case 'keyword': return 'Tag';
-            default: return 'Entity';
-          }
         };
 
         const onSearchInput = () => {
@@ -428,22 +403,22 @@
         const initGraph = () => {
           const elem = document.getElementById('graph-container');
           graphInstance = ForceGraph()(elem)
-            .backgroundColor('#000000')
+            .backgroundColor('#fcfcfc')
             .nodeId('id')
             .nodeVal('val')
             .nodeLabel(node => `${node.label} (${node.type})`)
             .nodeCanvasObject((node, ctx, globalScale) => {
               const label = node.label;
               const fontSize = 11 / globalScale;
-              ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif`;
+              ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
 
               let fill = '#8e8e93';
-              if (node.type === 'seed') fill = '#ff375f';
-              else if (node.type === 'artist' || node.type === 'track') fill = '#30d158';
-              else if (node.type === 'movie') fill = '#ff9f0a';
-              else if (node.type === 'game') fill = '#2997ff';
-              else if (node.type === 'keyword') fill = '#48484a';
-              else if (node.type === 'person') fill = '#bf5af2';
+              if (node.type === 'seed') fill = '#d9381e';
+              else if (node.type === 'artist' || node.type === 'track') fill = '#0e7e38';
+              else if (node.type === 'movie') fill = '#b25900';
+              else if (node.type === 'game') fill = '#0055b3';
+              else if (node.type === 'keyword') fill = '#8e8e93';
+              else if (node.type === 'person') fill = '#5856d6';
 
               const r = (node.val || 6) / 2;
               ctx.beginPath();
@@ -451,22 +426,20 @@
               ctx.fillStyle = fill;
               ctx.fill();
 
-              // Subtle glow for seeds
-              if (node.type === 'seed') {
-                ctx.strokeStyle = 'rgba(255, 55, 95, 0.4)';
-                ctx.lineWidth = 3 / globalScale;
-                ctx.stroke();
-              }
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 1 / globalScale;
+              ctx.stroke();
 
+              // Clean monospace label
               ctx.textAlign = 'center';
               ctx.textBaseline = 'top';
-              ctx.fillStyle = '#f5f5f7';
-              ctx.fillText(label, node.x, node.y + r + 3);
+              ctx.fillStyle = '#111113';
+              ctx.fillText(label, node.x, node.y + r + 2);
             })
             .linkDirectionalParticles(1)
             .linkDirectionalParticleSpeed(0.003)
-            .linkColor(() => '#1c1c1e')
-            .linkWidth(link => Math.min(link.weight || 0.8, 2));
+            .linkColor(() => '#e5e5e7')
+            .linkWidth(link => Math.min(link.weight || 1, 2));
         };
 
         const updateGraph = (graphData) => {
@@ -497,7 +470,6 @@
           removeSeed,
           clearProfile,
           computeRecommendations,
-          getTypeBadge,
         };
       }
     }).mount('#app');
