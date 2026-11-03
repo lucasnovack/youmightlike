@@ -140,14 +140,17 @@ python python/src/youmightlike/storage/ingest_tracks.py
 python python/src/youmightlike/storage/ingest_lastfm_similars.py
 ```
 
-### 4. Iniciar a Interface Web Interativa (Force-Graph UI)
-Para rodar a aplicação web com o visualizador de grafos topológicos, busca instantânea e recomendações bilingues:
+### 4. Iniciar a Interface Web Interativa (Force-Graph UI em Rust)
+O serviço web HTTP e o motor de difusão CSR rodam 100% em Rust (`youmightlike-server` via Axum/Tokio), mantendo o grafo semântico persistente em RAM para recomendações em milissegundos:
 ```bash
-# Iniciar o servidor FastAPI com live-reload na porta 8000
-python -m youmightlike.web
+# Compilar os binários em modo release (engine + server)
+cargo build --release
 
-# Ou diretamente via uvicorn
-uvicorn youmightlike.web.server:app --reload --port 8000
+# Iniciar o servidor Rust diretamente na porta 8000
+./target/release/youmightlike-server --port 8000
+
+# Ou via wrapper do módulo Python (executa o binário Rust nativo)
+python -m youmightlike.web
 ```
 Abra o navegador em `http://localhost:8000`:
 - **Barra de perfil inferior:** Adicione sementes favoritas (músicas, jogos, filmes ou artistas).

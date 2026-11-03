@@ -1,13 +1,13 @@
 use anyhow::Result;
 use clap::Parser;
 use std::time::Instant;
-use youmightlike_engine::{run_personalized_pagerank, GraphCSR};
+use youmightlike_engine::{run_personalized_pagerank_filtered, GraphCSR};
 
 #[derive(Parser, Debug)]
 #[command(
     name = "youmightlike-engine",
     author = "Lucas Novack",
-    version = "0.1.0",
+    version = "0.3.0",
     about = "Core de difusão de grafos em alta performance para o youmightlike"
 )]
 struct Args {
@@ -68,17 +68,29 @@ fn main() -> Result<()> {
     let load_duration = t_load.elapsed();
 
     if !args.json {
-        println!("done ({:.3}s, {} nodes, {} edges)", load_duration.as_secs_f32(), graph.num_nodes, graph.num_edges);
+        println!(
+            "done ({:.3}s, {} nodes, {} edges)",
+            load_duration.as_secs_f32(),
+            graph.num_nodes,
+            graph.num_edges
+        );
     }
 
-    // 2. Executa o Personalized PageRank paralelo com Rayon
+    // 2. Executa o Personalized PageRank paralelo com Rayon e seleção top-K parcial
     let t_ppr = Instant::now();
-    let scored_nodes = run_personalized_pagerank(
+    let target_pfx = if args.target_prefix.is_empty() {
+        None
+    } else {
+        Some(args.target_prefix.as_str())
+    };
+    let filtered = run_personalized_pagerank_filtered(
         &graph,
         &seed_keys,
         args.alpha,
         args.max_iter,
         args.tol,
+        target_pfx,
+        Some(args.limit),
     )?;
     let ppr_duration = t_ppr.elapsed();
 
@@ -89,27 +101,14 @@ fn main() -> Result<()> {
         );
     }
 
-    // 3. Filtra nós-semente e aplica target_prefix se especificado
-    let seed_set: std::collections::HashSet<&str> = seed_keys.iter().copied().collect();
-    let filtered: Vec<_> = scored_nodes
-        .into_iter()
-        .filter(|node| {
-            if seed_set.contains(node.node_key.as_str()) {
-                return false;
-            }
-            if !args.target_prefix.is_empty() && !node.node_key.starts_with(&args.target_prefix) {
-                return false;
-            }
-            true
-        })
-        .take(args.limit)
-        .collect();
-
     if args.json {
         let json_output = serde_json::to_string_pretty(&filtered)?;
         println!("{}", json_output);
     } else {
-        println!("\nTop {} recommendations (structural diffusion):", filtered.len());
+        println!(
+            "\nTop {} recommendations (structural diffusion):",
+            filtered.len()
+        );
         for (rank, item) in filtered.iter().enumerate() {
             println!(
                 "  {:>2}. {:<25} (ppr score: {:.6})",

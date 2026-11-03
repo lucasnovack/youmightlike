@@ -1,10 +1,11 @@
-//! youmightlike-engine: Core determinístico de difusão em grafos heterogêneos.
+//! youmightlike-engine: Core determinístico de difusão em grafos heterogêneos e serviço HTTP.
 
 pub mod graph;
 pub mod ppr;
+pub mod service;
 
-pub use graph::GraphCSR;
-pub use ppr::{run_personalized_pagerank, ScoredNode};
+pub use graph::{DirectedEdge, GraphCSR};
+pub use ppr::{run_personalized_pagerank, run_personalized_pagerank_filtered, ScoredNode};
 
 /// Representação básica de um nó de recomendação
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

@@ -1,6 +1,7 @@
 use crate::graph::GraphCSR;
 use anyhow::Result;
 use rayon::prelude::*;
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ScoredNode {
@@ -17,12 +18,28 @@ pub fn run_personalized_pagerank(
     max_iter: usize,
     tol: f32,
 ) -> Result<Vec<ScoredNode>> {
+    run_personalized_pagerank_filtered(graph, seed_keys, alpha, max_iter, tol, None, None)
+}
+
+/// Executa o Personalized PageRank com filtragem in-place por prefixo e seleção top-K parcial (O(N)),
+/// evitando alocações desnecessárias de `String` para centenas de milhares de nós descartados.
+pub fn run_personalized_pagerank_filtered(
+    graph: &GraphCSR,
+    seed_keys: &[&str],
+    alpha: f32,
+    max_iter: usize,
+    tol: f32,
+    target_prefix: Option<&str>,
+    limit: Option<usize>,
+) -> Result<Vec<ScoredNode>> {
     let n = graph.num_nodes;
     let mut seed_indices: Vec<u32> = Vec::new();
+    let mut seed_id_set: HashSet<u32> = HashSet::new();
 
     for &key in seed_keys {
         if let Some(id) = graph.get_node_id(key) {
             seed_indices.push(id);
+            seed_id_set.insert(id);
         }
     }
 
@@ -71,18 +88,46 @@ pub fn run_personalized_pagerank(
         }
     }
 
-    // Coleta e ordena os nós pelo score final de afinidade
-    let mut scored: Vec<ScoredNode> = p
+    let pfx = target_prefix.unwrap_or("");
+    let filter_seeds = limit.is_some();
+
+    let mut candidates: Vec<(usize, f32)> = p
         .into_iter()
         .enumerate()
-        .filter(|&(_, score)| score > 1e-7)
+        .filter(|&(id, score)| {
+            if score <= 1e-7 {
+                return false;
+            }
+            if filter_seeds && seed_id_set.contains(&(id as u32)) {
+                return false;
+            }
+            if !pfx.is_empty() && !graph.id_to_node[id].starts_with(pfx) {
+                return false;
+            }
+            true
+        })
+        .collect();
+
+    let cmp = |a: &(usize, f32), b: &(usize, f32)| {
+        b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
+    };
+
+    if let Some(k) = limit {
+        if candidates.len() > k {
+            candidates.select_nth_unstable_by(k, cmp);
+            candidates.truncate(k);
+        }
+    }
+
+    candidates.sort_unstable_by(cmp);
+
+    let scored: Vec<ScoredNode> = candidates
+        .into_iter()
         .map(|(id, score)| ScoredNode {
             node_key: graph.id_to_node[id].clone(),
             score,
         })
         .collect();
-
-    scored.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
 
     Ok(scored)
 }
