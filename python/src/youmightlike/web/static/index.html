@@ -245,7 +245,7 @@
             >
               <div class="truncate">
                 <span class="text-[10px] font-bold text-canvas-text block truncate">{{ sug.title }}</span>
-                <span class="text-[8px] text-canvas-sage block truncate">{{ sug.reason }}</span>
+                <span class="text-[8px] text-canvas-sage block truncate" :title="sug.reason">{{ sug.reason }}</span>
               </div>
               <button 
                 @click="addSeed({ id: sug.id, name: sug.title, type: sug.type, subtitle: sug.subtitle })"
@@ -302,9 +302,9 @@
             </div>
 
             <!-- Mathematical / Graph Explanation (Why this is here) -->
-            <div v-if="rec.reason" class="mt-2 text-[10px] text-canvas-sage bg-canvas-sage/10 px-2.5 py-1 rounded border border-canvas-sage/20 flex items-center gap-1.5">
-              <span class="font-bold shrink-0">↳ {{ t('path') }}</span>
-              <span class="truncate font-medium">{{ rec.reason }}</span>
+            <div v-if="rec.reason" class="mt-2 text-[10px] text-canvas-sage bg-canvas-sage/10 px-2.5 py-1.5 rounded border border-canvas-sage/20 flex items-start gap-1.5 leading-relaxed">
+              <span class="font-bold shrink-0 mt-0.5">↳ {{ t('path') }}</span>
+              <span class="font-medium break-words">{{ rec.reason }}</span>
             </div>
 
             <!-- Popular Track Preview -->
