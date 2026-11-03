@@ -13,7 +13,7 @@ use axum::{extract::State, http::StatusCode, Json};
 use duckdb::params;
 use serde_json::{json, Value};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     sync::Arc,
 };
 
@@ -507,10 +507,8 @@ pub fn compute_recommendations_sync(
                     continue;
                 };
 
-                // In-memory path explanation via directed CSR edges
-                let mut explanation_parts: Vec<String> = Vec::new();
-                let mut direct_co_listening = false;
-                let mut shared_tags: Vec<String> = Vec::new();
+                // Track connecting bridge to seeds or shared tags to avoid isolated nodes
+                let mut best_artist_bridge: Option<(String, String, String, f32)> = None;
 
                 for e in state.graph.out_edges_by_key(nkey) {
                     if (e.relation_type == "soundtrack_composer" || e.relation_type == "soundtrack_for")
@@ -523,6 +521,14 @@ pub fn compute_recommendations_sync(
                                 } else {
                                     format!("Soundtrack composer for {}", g.title)
                                 });
+                                if best_artist_bridge.is_none() {
+                                    best_artist_bridge = Some((
+                                        e.target_key.to_string(),
+                                        g.title.clone(),
+                                        "game".to_string(),
+                                        e.base_weight,
+                                    ));
+                                }
                             }
                         }
                     } else if e.relation_type == "similar_to"
@@ -541,6 +547,14 @@ pub fn compute_recommendations_sync(
                                     format!("Direct similarity with {}", sname)
                                 });
                                 direct_co_listening = true;
+                                if best_artist_bridge.is_none() {
+                                    best_artist_bridge = Some((
+                                        e.target_key.to_string(),
+                                        sname,
+                                        "artist".to_string(),
+                                        e.base_weight,
+                                    ));
+                                }
                             }
                         }
                     } else if is_tag_relation(e.relation_type) && e.target_key.starts_with("keyword:")
@@ -551,6 +565,14 @@ pub fn compute_recommendations_sync(
                                     let tfmt = format!("#{}", kname);
                                     if !shared_tags.contains(&tfmt) {
                                         shared_tags.push(tfmt);
+                                    }
+                                    if best_artist_bridge.is_none() && !steam_noise_tags.contains(kname.as_str()) {
+                                        best_artist_bridge = Some((
+                                            e.target_key.to_string(),
+                                            format!("#{}", kname),
+                                            "keyword".to_string(),
+                                            e.base_weight,
+                                        ));
                                     }
                                 }
                             }
@@ -631,6 +653,27 @@ pub fn compute_recommendations_sync(
                         tags: Vec::new(),
                         desc: String::new(),
                     });
+
+                    // If artist has a connecting bridge, inject it into graph_nodes and graph_links
+                    if let Some((b_key, b_label, b_type, b_weight)) = best_artist_bridge {
+                        if !graph_nodes.iter().any(|n| n.id == b_key) {
+                            graph_nodes.push(GraphNodePayload {
+                                id: b_key.clone(),
+                                label: b_label,
+                                node_type: b_type,
+                                val: 9.0,
+                                tags: Vec::new(),
+                                desc: String::new(),
+                            });
+                        }
+                        graph_links.push(GraphLinkPayload {
+                            source: nkey.clone(),
+                            target: b_key,
+                            label: if is_pt { "conectado_a".to_string() } else { "connected_to".to_string() },
+                            weight: b_weight,
+                        });
+                    }
+
                     artist_recs_added += 1;
                 }
             }
@@ -1655,22 +1698,49 @@ pub fn compute_recommendations_sync(
 
         graph_links.extend(extracted_edges);
 
-        let mut connected_node_ids: HashSet<String> = HashSet::new();
+        // Build adjacency map to find all nodes reachable from seeds (eliminate disjoint island components)
+        let mut adj: HashMap<&str, Vec<&str>> = HashMap::new();
         for l in &graph_links {
-            connected_node_ids.insert(l.source.clone());
-            connected_node_ids.insert(l.target.clone());
+            adj.entry(&l.source).or_default().push(&l.target);
+            adj.entry(&l.target).or_default().push(&l.source);
         }
 
-        let rec_ids: HashSet<String> = results
-            .iter()
-            .filter_map(|r| r.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()))
-            .collect();
+        let mut reachable_from_seeds: HashSet<String> = HashSet::new();
+        let mut queue: VecDeque<&str> = VecDeque::new();
+        for s in &diffusion_seeds {
+            if adj.contains_key(s.as_str()) {
+                reachable_from_seeds.insert(s.clone());
+                queue.push_back(s.as_str());
+            }
+        }
+        for n in &graph_nodes {
+            if n.node_type == "seed" && reachable_from_seeds.insert(n.id.clone()) {
+                queue.push_back(&n.id);
+            }
+        }
 
-        graph_nodes.retain(|n| {
-            connected_node_ids.contains(&n.id)
-                || n.node_type == "seed"
-                || rec_ids.contains(&n.id)
-        });
+        while let Some(curr) = queue.pop_front() {
+            if let Some(neighbors) = adj.get(curr) {
+                for &nxt in neighbors {
+                    if reachable_from_seeds.insert(nxt.to_string()) {
+                        queue.push_back(nxt);
+                    }
+                }
+            }
+        }
+
+        // If there are reachable nodes from seeds, retain only the connected component
+        if !reachable_from_seeds.is_empty() {
+            graph_nodes.retain(|n| reachable_from_seeds.contains(&n.id));
+            graph_links.retain(|l| reachable_from_seeds.contains(&l.source) && reachable_from_seeds.contains(&l.target));
+        } else {
+            let mut connected_node_ids: HashSet<String> = HashSet::new();
+            for l in &graph_links {
+                connected_node_ids.insert(l.source.clone());
+                connected_node_ids.insert(l.target.clone());
+            }
+            graph_nodes.retain(|n| connected_node_ids.contains(&n.id) || n.node_type == "seed");
+        }
     }
 
     // 5. Enrich each graph node with descriptive tags and metadata
