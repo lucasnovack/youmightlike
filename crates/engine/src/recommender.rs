@@ -853,7 +853,7 @@ pub fn compute_recommendations_sync(
         // C. RECOMMENDED MOVIES (`movie:*`)
         // -------------------------------------------------------------------
         if movie_quota > 0 {
-            let raw_movies = top_k_from_scores(&state.graph, &p, &exclude_ids, "movie:", Some(35));
+            let raw_movies = top_k_from_scores(&state.graph, &p, &exclude_ids, "movie:", Some(movie_quota * 8 + 30));
 
             let mut ranked_movies: Vec<(ScoredNode, Vec<(String, String)>)> = Vec::new();
             for m_item in raw_movies {
@@ -913,6 +913,7 @@ pub fn compute_recommendations_sync(
                 };
 
                 let mut movie_explanation: Vec<String> = Vec::new();
+                let mut best_movie_bridge: Option<(String, String, String, f32)> = None;
 
                 if !ost_artists.is_empty() {
                     let names: Vec<&str> = ost_artists
@@ -937,6 +938,14 @@ pub fn compute_recommendations_sync(
                                 desc: String::new(),
                             });
                         }
+                        if best_movie_bridge.is_none() {
+                            best_movie_bridge = Some((
+                                art_key.clone(),
+                                art_name.clone(),
+                                "artist".to_string(),
+                                3.0,
+                            ));
+                        }
                     }
                 }
 
@@ -948,6 +957,16 @@ pub fn compute_recommendations_sync(
                         if tpfx == "person" && found_person.is_none() && seed_people.contains(&tid)
                         {
                             found_person = state.catalog.people.get(&tid).cloned();
+                            if best_movie_bridge.is_none() {
+                                if let Some(ref pname) = found_person {
+                                    best_movie_bridge = Some((
+                                        e.target_key.to_string(),
+                                        pname.clone(),
+                                        "person".to_string(),
+                                        e.base_weight,
+                                    ));
+                                }
+                            }
                         } else if tpfx == "keyword"
                             && is_tag_relation(e.relation_type)
                             && seed_tag_counts.contains_key(&tid)
@@ -957,6 +976,14 @@ pub fn compute_recommendations_sync(
                                 let tfmt = format!("#{}", kname);
                                 if !shared_movie_tags.contains(&tfmt) {
                                     shared_movie_tags.push(tfmt);
+                                }
+                                if best_movie_bridge.is_none() && !steam_noise_tags.contains(kname.as_str()) {
+                                    best_movie_bridge = Some((
+                                        e.target_key.to_string(),
+                                        format!("#{}", kname),
+                                        "keyword".to_string(),
+                                        e.base_weight,
+                                    ));
                                 }
                             }
                         }
@@ -1020,6 +1047,26 @@ pub fn compute_recommendations_sync(
                     tags: Vec::new(),
                     desc: String::new(),
                 });
+
+                if let Some((b_key, b_label, b_type, b_weight)) = best_movie_bridge {
+                    if !graph_nodes.iter().any(|n| n.id == b_key) {
+                        graph_nodes.push(GraphNodePayload {
+                            id: b_key.clone(),
+                            label: b_label,
+                            node_type: b_type,
+                            val: 9.0,
+                            tags: Vec::new(),
+                            desc: String::new(),
+                        });
+                    }
+                    graph_links.push(GraphLinkPayload {
+                        source: nkey.clone(),
+                        target: b_key,
+                        label: if is_pt { "conectado_a".to_string() } else { "connected_to".to_string() },
+                        weight: b_weight,
+                    });
+                }
+
                 movie_recs_added += 1;
             }
         }
@@ -1029,7 +1076,7 @@ pub fn compute_recommendations_sync(
         // -------------------------------------------------------------------
         if series_quota > 0 {
             let raw_series =
-                top_k_from_scores(&state.graph, &p, &exclude_ids, "series:", Some(35));
+                top_k_from_scores(&state.graph, &p, &exclude_ids, "series:", Some(series_quota * 8 + 30));
 
             let mut ranked_series: Vec<(ScoredNode, Vec<(String, String)>)> = Vec::new();
             for s_item in raw_series {
@@ -1089,6 +1136,7 @@ pub fn compute_recommendations_sync(
                 };
 
                 let mut series_explanation: Vec<String> = Vec::new();
+                let mut best_series_bridge: Option<(String, String, String, f32)> = None;
 
                 if !ost_artists.is_empty() {
                     let names: Vec<&str> = ost_artists
@@ -1113,6 +1161,14 @@ pub fn compute_recommendations_sync(
                                 desc: String::new(),
                             });
                         }
+                        if best_series_bridge.is_none() {
+                            best_series_bridge = Some((
+                                art_key.clone(),
+                                art_name.clone(),
+                                "artist".to_string(),
+                                3.0,
+                            ));
+                        }
                     }
                 }
 
@@ -1124,6 +1180,16 @@ pub fn compute_recommendations_sync(
                         if tpfx == "person" && found_person.is_none() && seed_people.contains(&tid)
                         {
                             found_person = state.catalog.people.get(&tid).cloned();
+                            if best_series_bridge.is_none() {
+                                if let Some(ref pname) = found_person {
+                                    best_series_bridge = Some((
+                                        e.target_key.to_string(),
+                                        pname.clone(),
+                                        "person".to_string(),
+                                        e.base_weight,
+                                    ));
+                                }
+                            }
                         } else if tpfx == "keyword"
                             && is_tag_relation(e.relation_type)
                             && seed_tag_counts.contains_key(&tid)
@@ -1133,6 +1199,14 @@ pub fn compute_recommendations_sync(
                                 let tfmt = format!("#{}", kname);
                                 if !shared_series_tags.contains(&tfmt) {
                                     shared_series_tags.push(tfmt);
+                                }
+                                if best_series_bridge.is_none() && !steam_noise_tags.contains(kname.as_str()) {
+                                    best_series_bridge = Some((
+                                        e.target_key.to_string(),
+                                        format!("#{}", kname),
+                                        "keyword".to_string(),
+                                        e.base_weight,
+                                    ));
                                 }
                             }
                         }
@@ -1210,6 +1284,26 @@ pub fn compute_recommendations_sync(
                     tags: Vec::new(),
                     desc: String::new(),
                 });
+
+                if let Some((b_key, b_label, b_type, b_weight)) = best_series_bridge {
+                    if !graph_nodes.iter().any(|n| n.id == b_key) {
+                        graph_nodes.push(GraphNodePayload {
+                            id: b_key.clone(),
+                            label: b_label,
+                            node_type: b_type,
+                            val: 9.0,
+                            tags: Vec::new(),
+                            desc: String::new(),
+                        });
+                    }
+                    graph_links.push(GraphLinkPayload {
+                        source: nkey.clone(),
+                        target: b_key,
+                        label: if is_pt { "conectado_a".to_string() } else { "connected_to".to_string() },
+                        weight: b_weight,
+                    });
+                }
+
                 series_recs_added += 1;
             }
         }
@@ -1393,12 +1487,23 @@ pub fn compute_recommendations_sync(
                 let mut book_explanation: Vec<String> = Vec::new();
                 let mut found_author: Option<String> = None;
                 let mut shared_book_tags: Vec<String> = Vec::new();
+                let mut best_book_bridge: Option<(String, String, String, f32)> = None;
 
                 for e in state.graph.out_edges_by_key(nkey) {
                     if let Some((tpfx, tid)) = parse_node_key(e.target_key) {
                         if tpfx == "author" && found_author.is_none() && seed_authors.contains(&tid)
                         {
                             found_author = state.catalog.authors.get(&tid).cloned();
+                            if best_book_bridge.is_none() {
+                                if let Some(ref aname) = found_author {
+                                    best_book_bridge = Some((
+                                        e.target_key.to_string(),
+                                        aname.clone(),
+                                        "author".to_string(),
+                                        e.base_weight,
+                                    ));
+                                }
+                            }
                         } else if tpfx == "keyword"
                             && is_tag_relation(e.relation_type)
                             && seed_tag_counts.contains_key(&tid)
@@ -1408,6 +1513,14 @@ pub fn compute_recommendations_sync(
                                 let tfmt = format!("#{}", kname);
                                 if !shared_book_tags.contains(&tfmt) {
                                     shared_book_tags.push(tfmt);
+                                }
+                                if best_book_bridge.is_none() && !steam_noise_tags.contains(kname.as_str()) {
+                                    best_book_bridge = Some((
+                                        e.target_key.to_string(),
+                                        format!("#{}", kname),
+                                        "keyword".to_string(),
+                                        e.base_weight,
+                                    ));
                                 }
                             }
                         }
@@ -1467,13 +1580,33 @@ pub fn compute_recommendations_sync(
                     tags: Vec::new(),
                     desc: String::new(),
                 });
+
+                if let Some((b_key, b_label, b_type, b_weight)) = best_book_bridge {
+                    if !graph_nodes.iter().any(|n| n.id == b_key) {
+                        graph_nodes.push(GraphNodePayload {
+                            id: b_key.clone(),
+                            label: b_label,
+                            node_type: b_type,
+                            val: 9.0,
+                            tags: Vec::new(),
+                            desc: String::new(),
+                        });
+                    }
+                    graph_links.push(GraphLinkPayload {
+                        source: nkey.clone(),
+                        target: b_key,
+                        label: if is_pt { "conectado_a".to_string() } else { "connected_to".to_string() },
+                        weight: b_weight,
+                    });
+                }
+
                 book_recs_added += 1;
             }
         }
 
         // -------------------------------------------------------------------
         // G. REVERSION / BACKFILL: Fill remaining quota slots with best
-        // candidates from any domain scoring above MIN_REC_SCORE
+        // candidates scoring above MIN_REC_SCORE (strictly respecting target_type if set)
         // -------------------------------------------------------------------
         if results.len() < req.limit {
             let needed = req.limit - results.len();
@@ -1485,7 +1618,16 @@ pub fn compute_recommendations_sync(
                 already_chosen.insert(s.clone());
             }
 
-            let best_remaining = top_k_from_scores(&state.graph, &p, &exclude_ids, "", Some(needed * 5));
+            let filter_prefix = match req.target_type.as_deref() {
+                Some("movie") => "movie:",
+                Some("series") => "series:",
+                Some("game") => "game:",
+                Some("book") => "book:",
+                Some("music") => "artist:",
+                _ => "",
+            };
+
+            let best_remaining = top_k_from_scores(&state.graph, &p, &exclude_ids, filter_prefix, Some(needed * 10));
             for item in best_remaining {
                 if results.len() >= req.limit {
                     break;
