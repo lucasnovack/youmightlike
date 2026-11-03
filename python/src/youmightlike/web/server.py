@@ -203,6 +203,39 @@ def search_entities(
                         )
                     )
 
+        # 3.1 Séries de TV (se entity_type for None ou 'series')
+        if not entity_type or entity_type == "series":
+            series_rows = conn.execute(
+                """
+                SELECT id, title, start_year, end_year, vote_average, series_type
+                FROM tv_series 
+                WHERE title = ? OR title ILIKE ? || '%' OR title ILIKE '%' || ? || '%'
+                ORDER BY 
+                    CASE WHEN LOWER(title) = LOWER(?) THEN 1 
+                         WHEN LOWER(title) LIKE LOWER(?) || '%' THEN 2 
+                         ELSE 3 END,
+                    vote_count DESC NULLS LAST
+                LIMIT 6;
+                """,
+                [q_str, q_str, q_str, q_str, q_str],
+            ).fetchall()
+
+            for sid, stitle, sstart, send, svote, stype in series_rows:
+                nid = f"series:{sid}"
+                if nid not in seen:
+                    seen.add(nid)
+                    years_str = f" ({sstart}-{send})" if (sstart and send and sstart != send) else (f" ({sstart})" if sstart else "")
+                    type_label = "Minissérie" if stype == "tvMiniSeries" else "Série"
+                    score_str = f" • Rating: {svote:.1f}" if svote else ""
+                    items.append(
+                        EntityItem(
+                            id=nid,
+                            name=stitle,
+                            type="series",
+                            subtitle=f"{type_label}{years_str}{score_str}",
+                        )
+                    )
+
         # 4. Músicas mais populares com esse título (se entity_type for None ou 'track')
         if not entity_type or entity_type == "track":
             needed = (limit - len(items)) * 3
@@ -286,6 +319,11 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                 if row:
                     seeds_resolved.append(EntityItem(id=s, name=row[0], type="movie", subtitle=str(row[1])))
                     diffusion_seeds.append(s)
+            elif prefix == "series":
+                row = conn.execute("SELECT title, start_year FROM tv_series WHERE id = ?", [nid]).fetchone()
+                if row:
+                    seeds_resolved.append(EntityItem(id=s, name=row[0], type="series", subtitle=str(row[1])))
+                    diffusion_seeds.append(s)
             elif prefix == "game":
                 row = conn.execute("SELECT title, release_year FROM games WHERE id = ?", [nid]).fetchone()
                 if row:
@@ -309,6 +347,8 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
             target_prefix = "artist:"
         elif req.target_type == "movie":
             target_prefix = "movie:"
+        elif req.target_type == "series":
+            target_prefix = "series:"
         elif req.target_type == "game":
             target_prefix = "game:"
         elif req.target_type == "book":

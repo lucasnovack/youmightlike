@@ -65,6 +65,48 @@ CREATE TABLE IF NOT EXISTS movie_genres (
 );
 
 -- ----------------------------------------------------------------------------
+-- 1.1 DOMÍNIO: Séries de TV & Minisséries (IMDb)
+-- ----------------------------------------------------------------------------
+CREATE SEQUENCE IF NOT EXISTS seq_tv_series START 1;
+CREATE TABLE IF NOT EXISTS tv_series (
+    id BIGINT PRIMARY KEY DEFAULT nextval('seq_tv_series'),
+    imdb_id VARCHAR UNIQUE,              -- Ex: 'tt0903747' (Breaking Bad)
+    wikidata_id VARCHAR UNIQUE,
+    title VARCHAR NOT NULL,
+    original_title VARCHAR,
+    series_type VARCHAR,                 -- 'tvSeries', 'tvMiniSeries'
+    start_year INTEGER,
+    end_year INTEGER,
+    runtime INTEGER,
+    vote_average DOUBLE,
+    vote_count BIGINT,
+    based_on_title VARCHAR,
+    based_on_wikidata_id VARCHAR,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE SEQUENCE IF NOT EXISTS seq_series_credits START 1;
+CREATE TABLE IF NOT EXISTS series_credits (
+    id BIGINT PRIMARY KEY DEFAULT nextval('seq_series_credits'),
+    series_id BIGINT NOT NULL REFERENCES tv_series(id),
+    person_id BIGINT NOT NULL REFERENCES people(id),
+    job VARCHAR NOT NULL,               -- 'Director', 'Writer', 'Creator', 'Original Music Composer'
+    department VARCHAR NOT NULL         -- 'Directing', 'Writing', 'Sound'
+);
+
+CREATE TABLE IF NOT EXISTS series_genres (
+    series_id BIGINT NOT NULL REFERENCES tv_series(id),
+    genre_id BIGINT NOT NULL REFERENCES genres(id),
+    PRIMARY KEY (series_id, genre_id)
+);
+
+CREATE TABLE IF NOT EXISTS series_keywords (
+    series_id BIGINT NOT NULL REFERENCES tv_series(id),
+    keyword_id BIGINT NOT NULL REFERENCES keywords(id),
+    PRIMARY KEY (series_id, keyword_id)
+);
+
+-- ----------------------------------------------------------------------------
 -- 2. DOMÍNIO: Músicas (MusicBrainz & Last.fm)
 -- ----------------------------------------------------------------------------
 CREATE SEQUENCE IF NOT EXISTS seq_artists START 1;
@@ -277,7 +319,16 @@ SELECT
     NULL,
     NULL,
     NULL
-FROM game_developers;
+FROM game_developers
+UNION ALL
+SELECT 
+    'series:' || CAST(id AS VARCHAR),
+    title,
+    'series',
+    'series',
+    start_year,
+    COALESCE(wikidata_id, imdb_id)
+FROM tv_series;
 
 -- View unificada de todas as Arestas do Grafo (com pesos base)
 CREATE OR REPLACE VIEW v_graph_edges AS
@@ -420,7 +471,49 @@ SELECT
     'keyword:' || CAST(keyword_id AS VARCHAR) AS target_id,
     'has_tag' AS relation_type,
     1.2 AS base_weight
-FROM game_tags;
+FROM game_tags
+UNION ALL
+-- Série ➔ Diretor (has_director)
+SELECT 
+    'series:' || CAST(series_id AS VARCHAR) AS source_id,
+    'person:' || CAST(person_id AS VARCHAR) AS target_id,
+    'has_director' AS relation_type,
+    2.0 AS base_weight
+FROM series_credits WHERE job = 'Director'
+UNION ALL
+-- Série ➔ Roteirista / Criador (has_writer)
+SELECT 
+    'series:' || CAST(series_id AS VARCHAR) AS source_id,
+    'person:' || CAST(person_id AS VARCHAR) AS target_id,
+    'has_writer' AS relation_type,
+    1.8 AS base_weight
+FROM series_credits WHERE job IN ('Writer', 'Creator', 'Screenplay')
+UNION ALL
+-- Série ➔ Compositor de Trilha Sonora (has_composer)
+SELECT 
+    'series:' || CAST(series_id AS VARCHAR) AS source_id,
+    'person:' || CAST(person_id AS VARCHAR) AS target_id,
+    'has_composer' AS relation_type,
+    2.5 AS base_weight
+FROM series_credits WHERE job = 'Original Music Composer'
+UNION ALL
+-- Série ➔ Keyword / Tema (has_keyword)
+SELECT 
+    'series:' || CAST(series_id AS VARCHAR) AS source_id,
+    'keyword:' || CAST(keyword_id AS VARCHAR) AS target_id,
+    'has_keyword' AS relation_type,
+    1.0 AS base_weight
+FROM series_keywords
+UNION ALL
+-- Série ➔ Livro Original / Adaptação (based_on)
+SELECT 
+    'series:' || CAST(s.id AS VARCHAR) AS source_id,
+    'book:' || CAST(b.id AS VARCHAR) AS target_id,
+    'based_on' AS relation_type,
+    3.0 AS base_weight
+FROM tv_series s
+JOIN books b ON (s.based_on_wikidata_id IS NOT NULL AND s.based_on_wikidata_id = b.wikidata_id)
+             OR (LOWER(TRIM(s.based_on_title)) = LOWER(TRIM(b.title)));
 
 -- View com Mitigação de Super-Nós: Ponderação Adamic-Adar / IDF
 CREATE OR REPLACE VIEW v_weighted_graph_edges AS

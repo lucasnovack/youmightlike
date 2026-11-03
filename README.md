@@ -1,6 +1,6 @@
 # youmightlike
 
-Sistema de recomendação transmidiática que conecta **Cinema, Música, Literatura e Games** em um grafo unificado de afinidade estética.
+Sistema de recomendação transmidiática que conecta **Cinema, Séries de TV, Música, Literatura e Games** em um grafo unificado de afinidade estética.
 
 Em vez de silos isolados por mídia, o `youmightlike` projeta relações culturais (direção, trilhas sonoras, literatura de base, estúdios, microgêneros e tags conceituais) sobre um grafo semântico no DuckDB, calculando recomendações por difusão estatística (Personalized PageRank) via motor nativo em Rust.
 
@@ -55,6 +55,7 @@ Todo o grafo roda localmente em um arquivo único (`data/processed/taste_graph.d
 | Domínio / Tabela | Registros | Fonte / Licença |
 | :--- | :---: | :--- |
 | **Filmes & Animes** (`movies`) | **34.188** | IMDb Datasets + MyAnimeList Top Anime |
+| **Séries & Minisséries** (`tv_series`) | **7.647** | IMDb Datasets (`tvSeries`, `tvMiniSeries`) |
 | **Pessoas & Estúdios** (`people`) | **37.498** | Diretores, roteiristas e estúdios de animação |
 | **Créditos & Produção** (`movie_credits`) | **106.423** | Direção, roteiro e estúdios (`produced_by`) |
 | **Keywords de Filmes/Animes** (`movie_keywords`) | **239.528** | MovieLens Tag Genome + MyAnimeList |

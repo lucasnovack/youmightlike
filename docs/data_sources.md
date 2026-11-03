@@ -21,6 +21,17 @@ Toda a malha de dados é alimentada por datasets abertos (CC0 / Domínio Públic
 
 ---
 
+## 1.1 Séries de TV e Minisséries (IMDb Non-Commercial Datasets)
+
+* **Origem:** [IMDb Datasets oficiais](https://developer.imdb.com/non-commercial-datasets/)
+* **Licença:** Gratuito para uso pessoal / não-comercial
+* **Formato:** TSV compactado (`.tsv.gz`)
+* **Papel no Grafo:** Integra produções seriadas notáveis (*Breaking Bad, Game of Thrones, Twin Peaks, Dark, Chernobyl, Succession, The Sopranos, Peaky Blinders*), seus criadores/showrunners, diretores e roteiristas (`has_director`, `has_writer`), gêneros e pontes de trilhas sonoras e adaptações literárias (`based_on`).
+* **Filtro de Ingestão:** Títulos do tipo `tvSeries` e `tvMiniSeries` com pelo menos 2.500 votos.
+* **Volume Ingerido:** 7.647 séries/minisséries, 59.308 créditos de direção/showrunning, 93.181 créditos de roteiro e 18.829 conexões de gêneros e tags.
+
+---
+
 ## 2. Semântica e Tags de Filmes (MovieLens Tag Genome / GroupLens)
 
 * **Origem:** [MovieLens 20M/25M Tag Genome](https://grouplens.org/datasets/movielens/) (GroupLens Research / Universidade de Minnesota)

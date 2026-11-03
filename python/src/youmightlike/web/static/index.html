@@ -78,10 +78,11 @@
             class="bg-transparent border-r border-canvas-border px-2.5 py-1.5 text-[11px] font-bold text-canvas-muted focus:outline-none cursor-pointer"
           >
             <option value="">{{ t('allTypes') }}</option>
+            <option value="movie">{{ t('typeMovies') }}</option>
+            <option value="series">{{ t('typeSeries') }}</option>
             <option value="game">{{ t('typeGames') }}</option>
             <option value="artist">{{ t('typeArtists') }}</option>
             <option value="track">{{ t('typeTracks') }}</option>
-            <option value="movie">{{ t('typeMovies') }}</option>
           </select>
 
           <span class="pl-3 text-canvas-muted text-[11px] font-bold">›</span>
@@ -183,6 +184,13 @@
               class="px-2.5 py-0.5 border-l border-canvas-border transition-colors"
             >
               {{ t('filterFilms') }}
+            </button>
+            <button 
+              @click="targetFilter = 'series'; computeRecommendations()" 
+              :class="{'bg-canvas-text text-white': targetFilter === 'series', 'text-canvas-muted hover:text-canvas-text': targetFilter !== 'series'}"
+              class="px-2.5 py-0.5 border-l border-canvas-border transition-colors"
+            >
+              {{ t('filterSeries') }}
             </button>
             <button 
               @click="targetFilter = 'game'; computeRecommendations()" 
@@ -319,6 +327,7 @@
             <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-denim"></span> {{ t('game') }}</span>
             <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#1d4ed8]"></span> {{ t('studio') }}</span>
             <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#b25900]"></span> {{ t('movie') }}</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#8b5cf6]"></span> {{ t('series') }}</span>
             <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#a1a1aa]"></span> {{ t('tag') }}</span>
           </div>
         </div>
@@ -493,6 +502,7 @@
         filterAll: "TODOS",
         filterMusic: "MÚSICA",
         filterFilms: "FILMES",
+        filterSeries: "SÉRIES",
         filterGames: "JOGOS",
         emptyFeed: "Adicione itens na barra inferior e clique em \"Calcular Difusão\".",
         addToProfile: "+ Adicionar ao perfil",
@@ -505,6 +515,7 @@
         game: "Jogo",
         studio: "Estúdio",
         movie: "Filme",
+        series: "Série",
         tag: "Tag",
         inspecting1: "Nó Selecionado",
         inspectingMulti: "Nós Selecionados",
@@ -521,16 +532,18 @@
         seeAll: "ver todos",
         relatedSuggestions: "Sugestões relacionadas para adicionar ao perfil:",
         addBtn: "+ Adicionar",
-        searchAll: "buscar jogos, artistas, faixas, filmes...",
+        searchAll: "buscar jogos, artistas, faixas, filmes, séries...",
         searchGame: "buscar jogos (ex: skyrim, cyberpunk)...",
         searchArtist: "buscar artistas (ex: daft punk, the cure)...",
         searchTrack: "buscar faixas (ex: many rivers, killing moon)...",
         searchMovie: "buscar filmes (ex: blade runner, dune)...",
+        searchSeries: "buscar séries (ex: breaking bad, dark, twin peaks)...",
         allTypes: "Todos os Tipos",
         typeGames: "Jogos",
         typeArtists: "Artistas",
         typeTracks: "Faixas",
         typeMovies: "Filmes",
+        typeSeries: "Séries",
         quickSkyrim: "+ Skyrim (Jogo)",
         quickTheCure: "+ The Cure (Música)",
         quickLcd: "+ LCD Soundsystem",
@@ -547,6 +560,7 @@
         filterAll: "ALL",
         filterMusic: "MUSIC",
         filterFilms: "FILMS",
+        filterSeries: "SERIES",
         filterGames: "GAMES",
         emptyFeed: "Add entities in the bottom bar and click \"Run Diffusion\".",
         addToProfile: "+ Add to profile",
@@ -559,6 +573,7 @@
         game: "Game",
         studio: "Studio",
         movie: "Movie",
+        series: "Series",
         tag: "Tag",
         inspecting1: "Inspecting 1 Node",
         inspectingMulti: "Nodes Inspected",
@@ -575,16 +590,18 @@
         seeAll: "see all",
         relatedSuggestions: "Related recommendations to add to profile:",
         addBtn: "+ Add",
-        searchAll: "search games, artists, tracks, movies...",
+        searchAll: "search games, artists, tracks, movies, series...",
         searchGame: "search games (e.g. skyrim, cyberpunk)...",
         searchArtist: "search artists (e.g. daft punk, the cure)...",
         searchTrack: "search tracks (e.g. many rivers, killing moon)...",
         searchMovie: "search movies (e.g. blade runner, dune)...",
+        searchSeries: "search series (e.g. breaking bad, dark, twin peaks)...",
         allTypes: "All Types",
         typeGames: "Games",
         typeArtists: "Artists",
         typeTracks: "Tracks",
         typeMovies: "Movies",
+        typeSeries: "Series",
         quickSkyrim: "+ Skyrim (Game)",
         quickTheCure: "+ The Cure (Music)",
         quickLcd: "+ LCD Soundsystem",
@@ -639,6 +656,7 @@
           if (searchType.value === 'artist') return t('searchArtist');
           if (searchType.value === 'track') return t('searchTrack');
           if (searchType.value === 'movie') return t('searchMovie');
+          if (searchType.value === 'series') return t('searchSeries');
           return t('searchAll');
         };
 
@@ -649,6 +667,7 @@
             case 'artist':
             case 'track': return 'text-canvas-sage bg-canvas-sage/10 border-canvas-sage/20';
             case 'movie': return 'text-[#b25900] bg-[#b25900]/10 border-[#b25900]/20';
+            case 'series': return 'text-[#8b5cf6] bg-[#8b5cf6]/10 border-[#8b5cf6]/20';
             default: return 'text-canvas-muted bg-canvas-sidebar border-canvas-border';
           }
         };
@@ -941,6 +960,7 @@
               if (node.type === 'seed') fill = '#e84855';      // Coral
               else if (node.type === 'artist' || node.type === 'track') fill = '#4e937a'; // Sage
               else if (node.type === 'movie') fill = '#b25900';   // Warm amber
+              else if (node.type === 'series') fill = '#8b5cf6';  // Violet
               else if (node.type === 'game') fill = '#2660a4';    // Denim
               else if (node.type === 'developer') fill = '#1d4ed8'; // Studio / Developer
               else if (node.type === 'author') fill = '#7c3aed';    // Author
