@@ -431,6 +431,10 @@ pub fn compute_recommendations_sync(
         };
 
     let is_pt = req.lang == "pt";
+    /// Piso mínimo de probabilidade de difusão PPR (em escala relativa) para evitar ruído estatístico
+    /// e descartar itens desconexos de cotas forçadas com afinidade nula.
+    const MIN_REC_SCORE: f32 = 5e-5;
+
     let steam_noise_tags: HashSet<&str> = [
         "single-player",
         "multiplayer",
@@ -451,6 +455,9 @@ pub fn compute_recommendations_sync(
 
         if artist_quota > 0 || track_quota > 0 {
             for item in &top_diffused_artists {
+                if item.score < MIN_REC_SCORE {
+                    continue;
+                }
                 let nkey = &item.node_key;
                 if seed_set.contains(nkey) {
                     continue;
@@ -592,6 +599,9 @@ pub fn compute_recommendations_sync(
                 top_k_from_scores(&state.graph, &p, &exclude_ids, "track:", Some(track_quota * 4));
 
             for item in top_diffused_tracks {
+                if item.score < MIN_REC_SCORE {
+                    continue;
+                }
                 if track_recs_added >= track_quota {
                     break;
                 }
@@ -751,6 +761,9 @@ pub fn compute_recommendations_sync(
 
             let mut ranked_movies: Vec<(ScoredNode, Vec<(String, String)>)> = Vec::new();
             for m_item in raw_movies {
+                if m_item.score < MIN_REC_SCORE {
+                    continue;
+                }
                 let mut ost_artists: Vec<(String, String)> = Vec::new();
                 let mut seen_ost_names: HashSet<String> = HashSet::new();
 
@@ -924,6 +937,9 @@ pub fn compute_recommendations_sync(
 
             let mut ranked_series: Vec<(ScoredNode, Vec<(String, String)>)> = Vec::new();
             for s_item in raw_series {
+                if s_item.score < MIN_REC_SCORE {
+                    continue;
+                }
                 let mut ost_artists: Vec<(String, String)> = Vec::new();
                 let mut seen_ost_names: HashSet<String> = HashSet::new();
 
@@ -1111,6 +1127,9 @@ pub fn compute_recommendations_sync(
             let mut game_recs_added = 0usize;
 
             for item in top_games {
+                if item.score < MIN_REC_SCORE {
+                    continue;
+                }
                 if game_recs_added >= game_quota {
                     break;
                 }
@@ -1221,6 +1240,9 @@ pub fn compute_recommendations_sync(
             let mut book_recs_added = 0usize;
 
             for item in top_books {
+                if item.score < MIN_REC_SCORE {
+                    continue;
+                }
                 if book_recs_added >= book_quota || results.len() >= req.limit {
                     break;
                 }
@@ -1313,6 +1335,169 @@ pub fn compute_recommendations_sync(
                     desc: String::new(),
                 });
                 book_recs_added += 1;
+            }
+        }
+
+        // -------------------------------------------------------------------
+        // G. REVERSÃO / BACKFILL: Preenche vagas remanescentes com os melhores
+        // candidatos de qualquer domínio que estejam acima de MIN_REC_SCORE
+        // -------------------------------------------------------------------
+        if results.len() < req.limit {
+            let needed = req.limit - results.len();
+            let mut already_chosen: HashSet<String> = results
+                .iter()
+                .filter_map(|r| r.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+                .collect();
+            for s in &req.seeds {
+                already_chosen.insert(s.clone());
+            }
+
+            let best_remaining = top_k_from_scores(&state.graph, &p, &exclude_ids, "", Some(needed * 5));
+            for item in best_remaining {
+                if results.len() >= req.limit {
+                    break;
+                }
+                if item.score < MIN_REC_SCORE {
+                    break;
+                }
+                let nkey = &item.node_key;
+                if already_chosen.contains(nkey) {
+                    continue;
+                }
+                let Some((pfx, nid)) = parse_node_key(nkey) else {
+                    continue;
+                };
+
+                match pfx {
+                    "game" => {
+                        if let Some(g) = state.catalog.games.get(&nid) {
+                            already_chosen.insert(nkey.clone());
+                            let year_str = g.release_year.map(|y| y.to_string()).unwrap_or_else(|| "N/A".to_string());
+                            let sub = if is_pt { format!("Jogo ({})", year_str) } else { format!("Game ({})", year_str) };
+                            let reason = if is_pt { "Alta ressonância na difusão de estilo e mecânicas".to_string() } else { "High diffusion resonance in mechanics and style".to_string() };
+
+                            results.push(json!({
+                                "id": nkey,
+                                "title": g.title,
+                                "type": "game",
+                                "subtitle": sub,
+                                "score": ((item.score as f64) * 1000.0 * 100.0).round() / 100.0,
+                                "reason": reason,
+                            }));
+                            graph_nodes.push(GraphNodePayload {
+                                id: nkey.clone(),
+                                label: g.title.clone(),
+                                node_type: "game".to_string(),
+                                val: 12.0,
+                                tags: Vec::new(),
+                                desc: String::new(),
+                            });
+                        }
+                    }
+                    "book" => {
+                        if let Some(b) = state.catalog.books.get(&nid) {
+                            already_chosen.insert(nkey.clone());
+                            let year_str = b.first_publish_year.map(|y| y.to_string()).unwrap_or_else(|| "N/A".to_string());
+                            let sub = if is_pt { format!("Livro ({})", year_str) } else { format!("Book ({})", year_str) };
+                            let reason = if is_pt { "Afinidade temática e difusão no grafo".to_string() } else { "Thematic affinity and graph diffusion".to_string() };
+
+                            results.push(json!({
+                                "id": nkey,
+                                "title": b.title,
+                                "type": "book",
+                                "subtitle": sub,
+                                "score": ((item.score as f64) * 1000.0 * 100.0).round() / 100.0,
+                                "reason": reason,
+                            }));
+                            graph_nodes.push(GraphNodePayload {
+                                id: nkey.clone(),
+                                label: b.title.clone(),
+                                node_type: "book".to_string(),
+                                val: 12.0,
+                                tags: Vec::new(),
+                                desc: String::new(),
+                            });
+                        }
+                    }
+                    "movie" => {
+                        if let Some(m) = state.catalog.movies.get(&nid) {
+                            already_chosen.insert(nkey.clone());
+                            let year_str = m.release_year.map(|y| y.to_string()).unwrap_or_else(|| "N/A".to_string());
+                            let sub = if is_pt { format!("Filme ({})", year_str) } else { format!("Movie ({})", year_str) };
+                            let reason = if is_pt { "Convergência estética e temática".to_string() } else { "Thematic and aesthetic convergence".to_string() };
+
+                            results.push(json!({
+                                "id": nkey,
+                                "title": m.title,
+                                "type": "movie",
+                                "subtitle": sub,
+                                "score": ((item.score as f64) * 1000.0 * 100.0).round() / 100.0,
+                                "reason": reason,
+                            }));
+                            graph_nodes.push(GraphNodePayload {
+                                id: nkey.clone(),
+                                label: m.title.clone(),
+                                node_type: "movie".to_string(),
+                                val: 12.5,
+                                tags: Vec::new(),
+                                desc: String::new(),
+                            });
+                        }
+                    }
+                    "series" => {
+                        if let Some(s) = state.catalog.series.get(&nid) {
+                            already_chosen.insert(nkey.clone());
+                            let year_str = s.start_year.map(|y| y.to_string()).unwrap_or_else(|| "N/A".to_string());
+                            let sub = if is_pt { format!("Série ({})", year_str) } else { format!("Series ({})", year_str) };
+                            let reason = if is_pt { "Afinidade de universo e gênero narrativo".to_string() } else { "Narrative genre and world affinity".to_string() };
+
+                            results.push(json!({
+                                "id": nkey,
+                                "title": s.title,
+                                "type": "series",
+                                "subtitle": sub,
+                                "score": ((item.score as f64) * 1000.0 * 100.0).round() / 100.0,
+                                "reason": reason,
+                            }));
+                            graph_nodes.push(GraphNodePayload {
+                                id: nkey.clone(),
+                                label: s.title.clone(),
+                                node_type: "series".to_string(),
+                                val: 12.5,
+                                tags: Vec::new(),
+                                desc: String::new(),
+                            });
+                        }
+                    }
+                    "artist" => {
+                        if let Some((aname, country)) = lookup_artist_meta(&conn, nid) {
+                            already_chosen.insert(nkey.clone());
+                            let sub = country
+                                .map(|c| if is_pt { format!("Artista • {}", c) } else { format!("Artist • {}", c) })
+                                .unwrap_or_else(|| if is_pt { "Artista".to_string() } else { "Artist".to_string() });
+                            let reason = if is_pt { "Afinidade no grafo estético".to_string() } else { "Aesthetic graph affinity".to_string() };
+
+                            results.push(json!({
+                                "id": nkey,
+                                "title": aname,
+                                "type": "artist",
+                                "subtitle": sub,
+                                "score": ((item.score as f64) * 1000.0 * 100.0).round() / 100.0,
+                                "top_track": Value::Null,
+                                "reason": reason,
+                            }));
+                            graph_nodes.push(GraphNodePayload {
+                                id: nkey.clone(),
+                                label: aname,
+                                node_type: "artist".to_string(),
+                                val: 12.0,
+                                tags: Vec::new(),
+                                desc: String::new(),
+                            });
+                        }
+                    }
+                    _ => {}
+                }
             }
         }
 
