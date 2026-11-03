@@ -1,7 +1,10 @@
 //! youmightlike-engine: Core determinístico de difusão em grafos heterogêneos e serviço HTTP.
 
 pub mod graph;
+pub mod models;
 pub mod ppr;
+pub mod recommender;
+pub mod search;
 pub mod service;
 
 pub use graph::{DirectedEdge, GraphCSR};
