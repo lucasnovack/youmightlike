@@ -8,42 +8,42 @@ use youmightlike_engine::{run_personalized_pagerank_filtered, GraphCSR};
     name = "youmightlike-engine",
     author = "Lucas Novack",
     version = "0.3.0",
-    about = "Core de difusão de grafos em alta performance para o youmightlike"
+    about = "High-performance graph diffusion engine for youmightlike"
 )]
 struct Args {
-    /// Caminho do banco DuckDB
+    /// DuckDB database path
     #[arg(short, long, default_value = "data/processed/taste_graph.duckdb")]
     db_path: String,
 
-    /// Nós semente separados por vírgula (ex: "artist:11,movie:12406")
+    /// Comma-separated seed node keys (e.g. "artist:11,movie:12406")
     #[arg(short, long, required = true)]
     seeds: String,
 
-    /// Filtrar tipo de nó recomendado (ex: "track:", "artist:", "movie:", "game:", "book:")
+    /// Filter recommended node prefix (e.g. "track:", "artist:", "movie:", "game:", "book:")
     #[arg(short, long, default_value = "")]
     target_prefix: String,
 
-    /// Quantidade de recomendações a retornar
+    /// Number of recommendations to return
     #[arg(short, long, default_value_t = 10)]
     limit: usize,
 
-    /// Fator de teletransporte do PageRank (0.0 a 1.0)
+    /// PageRank teleportation factor (0.0 to 1.0)
     #[arg(long, default_value_t = 0.85)]
     alpha: f32,
 
-    /// Número máximo de iterações do PPR
+    /// Maximum number of PPR iterations
     #[arg(long, default_value_t = 25)]
     max_iter: usize,
 
-    /// Tolerância de convergência (L1 norm)
+    /// Convergence tolerance (L1 norm)
     #[arg(long, default_value_t = 1e-6)]
     tol: f32,
 
-    /// Formatar saída diretamente em JSON
+    /// Output directly in JSON format
     #[arg(long, default_value_t = false)]
     json: bool,
 
-    /// Consulta SQL customizada para carregar arestas (ex: para subgrafos de teste rápido)
+    /// Custom SQL query to load edges (e.g. for rapid test subgraphs)
     #[arg(long)]
     query_edges: Option<String>,
 }
@@ -59,7 +59,7 @@ fn main() -> Result<()> {
         println!("  seeds: {:?}", seed_keys);
     }
 
-    // 1. Carrega o Grafo do DuckDB para CSR em memória
+    // 1. Load graph from DuckDB into in-memory CSR matrix
     let t_load = Instant::now();
     if !args.json {
         print!("  [1/2] loading edges and constructing CSC sparse matrix... ");
@@ -76,7 +76,7 @@ fn main() -> Result<()> {
         );
     }
 
-    // 2. Executa o Personalized PageRank paralelo com Rayon e seleção top-K parcial
+    // 2. Execute parallel Personalized PageRank with Rayon and partial top-K selection
     let t_ppr = Instant::now();
     let target_pfx = if args.target_prefix.is_empty() {
         None

@@ -102,7 +102,7 @@ def run_cli() -> None:
         console.print("[yellow]No sufficient recommendations found with current criteria.[/yellow]")
         return
 
-    # Tabela com resultados
+    # Results table
     table = Table(
         title="Recommendations — youmightlike",
         show_header=True,
@@ -120,7 +120,7 @@ def run_cli() -> None:
         score_color = "bold green" if rec.affinity_score >= 80 else "bold yellow"
         score_str = f"[{score_color}]{rec.affinity_score:.1f}%[/{score_color}]"
 
-        # Trunca explicação longa para caber bem
+        # Truncate long explanations to fit cleanly
         expl = rec.explanation
         if len(expl) > 90:
             expl = expl[:87] + "..."

@@ -38,7 +38,7 @@ pub struct BookMeta {
     pub first_publish_year: Option<i32>,
 }
 
-/// Catálogo dimensional compacto em RAM para resolução O(1) sem I/O de banco durante a montagem do subgrafo.
+/// Compact dimensional catalog in RAM for O(1) resolution without disk I/O during subgraph construction.
 pub struct CatalogCache {
     pub keywords: HashMap<i64, String>,
     pub people: HashMap<i64, String>,
@@ -207,8 +207,8 @@ pub struct AppState {
 }
 
 impl AppState {
-    /// Abre uma nova conexão DuckDB em modo somente-leitura dedicada à thread worker atual,
-    /// eliminando contenção por locks entre buscas e recomendações paralelas.
+    /// Opens a new read-only DuckDB connection dedicated to the current worker thread,
+    /// eliminating lock contention between parallel searches and recommendations.
     pub fn open_read_conn(&self) -> Result<Connection> {
         let conn = Connection::open_with_flags(
             &self.db_path,
@@ -219,7 +219,7 @@ impl AppState {
 }
 
 // ---------------------------------------------------------------------------
-// API Data Models (Contratos compatíveis com o frontend e FastAPI)
+// API Data Models (Compatible with web frontend and legacy API contracts)
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -331,7 +331,7 @@ pub struct TrackRecommendationItem {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers Compartilhados de Topologia e Metadados
+// Shared Topology and Metadata Helpers
 // ---------------------------------------------------------------------------
 
 pub fn is_tag_relation(rel: &str) -> bool {

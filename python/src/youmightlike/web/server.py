@@ -1,4 +1,4 @@
-"""Servidor FastAPI e API REST para a UI do youmightlike."""
+"""FastAPI server and REST API for the youmightlike UI."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from youmightlike.resolution.resolver import MusicResolver
 
 app = FastAPI(
     title="youmightlike",
-    description="Motor de Descoberta Cultural Transmidiático e Grafo de Gosto Pessoal",
+    description="Transmedia cultural discovery engine and taste graph",
     version="0.3.0",
 )
 

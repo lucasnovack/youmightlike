@@ -8,7 +8,7 @@ use duckdb::params;
 use serde_json::json;
 use std::{collections::HashSet, sync::Arc};
 
-/// Executa a busca em modo síncrono utilizando uma conexão DuckDB de leitura dedicada.
+/// Executes entity search synchronously using a dedicated read-only DuckDB connection.
 pub fn search_entities_sync(
     state: &AppState,
     params: &SearchParams,
@@ -26,7 +26,7 @@ pub fn search_entities_sync(
 
     let conn = state.open_read_conn()?;
 
-    // 1. Artistas (se entity_type for vazio ou 'artist')
+    // 1. Artists (if entity_type is empty or 'artist')
     if entity_type.is_empty() || entity_type == "artist" {
         let q_lower = q_str.to_lowercase();
         let q_title = title_case(&q_str);
@@ -88,7 +88,7 @@ pub fn search_entities_sync(
         }
     }
 
-    // 2. Jogos (se entity_type for vazio ou 'game')
+    // 2. Games (if entity_type is empty or 'game')
     if entity_type.is_empty() || entity_type == "game" {
         let sql = "
             SELECT id, title, release_year
@@ -123,7 +123,7 @@ pub fn search_entities_sync(
         }
     }
 
-    // 3. Filmes (se entity_type for vazio ou 'movie')
+    // 3. Movies (if entity_type is empty or 'movie')
     if entity_type.is_empty() || entity_type == "movie" {
         let sql = "
             SELECT id, title, release_year, vote_average
@@ -162,7 +162,7 @@ pub fn search_entities_sync(
         }
     }
 
-    // 4. Séries de TV (se entity_type for vazio ou 'series')
+    // 4. TV Series (if entity_type is empty or 'series')
     if entity_type.is_empty() || entity_type == "series" {
         let sql = "
             SELECT id, title, start_year, end_year, vote_average, series_type
@@ -191,7 +191,7 @@ pub fn search_entities_sync(
                             (Some(s), _) => format!(" ({})", s),
                             _ => String::new(),
                         };
-                        let type_label = if stype == "tvMiniSeries" { "Minissérie" } else { "Série" };
+                        let type_label = if stype == "tvMiniSeries" { "Mini-Series" } else { "Series" };
                         let score_str = svote
                             .map(|v| format!(" • Rating: {:.1}", v))
                             .unwrap_or_default();
@@ -208,7 +208,7 @@ pub fn search_entities_sync(
         }
     }
 
-    // 5. Livros (se entity_type for 'book')
+    // 5. Books (if entity_type is 'book')
     if entity_type == "book" {
         let sql = "
             SELECT id, title, first_publish_year
@@ -242,7 +242,7 @@ pub fn search_entities_sync(
         }
     }
 
-    // 6. Faixas musicais (se entity_type for vazio ou 'track')
+    // 6. Music tracks (if entity_type is empty or 'track')
     if entity_type.is_empty() || entity_type == "track" {
         let needed = (limit.saturating_sub(items.len()) * 3).max(10) as i64;
         let sql = "
@@ -305,7 +305,7 @@ pub fn search_entities_sync(
     Ok(items)
 }
 
-/// Handler HTTP Axum que offloada a busca para o worker pool de blocking tasks.
+/// Axum HTTP handler that offloads search to the blocking task worker pool.
 pub async fn api_search(
     State(state): State<Arc<AppState>>,
     Query(params): Query<SearchParams>,

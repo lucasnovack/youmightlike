@@ -56,7 +56,7 @@ pub fn compute_recommendations_sync(
 
     let conn = state.open_read_conn()?;
 
-    // 1. Resolve metadados dos nós semente
+    // 1. Resolve seed node metadata
         for s in &req.seeds {
             let Some((prefix, nid)) = parse_node_key(s) else {
                 continue;
@@ -217,7 +217,7 @@ pub fn compute_recommendations_sync(
             }
         }
 
-    // 2. Executa a difusão PPR em memória e obtém o vetor completo de probabilidades `p`
+    // 2. Run PPR in-memory diffusion and obtain full stationary probability vector `p`
     let active_seeds: Vec<&str> = if diffusion_seeds.is_empty() {
         req.seeds.iter().map(|s| s.as_str()).collect()
     } else {
@@ -239,7 +239,7 @@ pub fn compute_recommendations_sync(
         }
     }
 
-    // Top artistas difundidos
+    // Top diffused artists
     let top_diffused_artists =
         top_k_from_scores(&state.graph, &p, &exclude_ids, "artist:", Some(20));
 
@@ -253,7 +253,7 @@ pub fn compute_recommendations_sync(
         affinitive_artist_keys.insert(a.node_key.clone());
     }
 
-    // Pré-computa os mapas de vizinhos das sementes para explicações instantâneas em RAM
+    // Pre-compute seed neighbor maps for instant in-memory path explanations
     let mut seed_tag_counts: HashMap<i64, usize> = HashMap::new();
     let mut seed_people: HashSet<i64> = HashSet::new();
     let mut seed_devs: HashSet<i64> = HashSet::new();
@@ -314,7 +314,7 @@ pub fn compute_recommendations_sync(
     .into_iter()
     .collect();
 
-    // 3. Adiciona nós semente e suas âncoras estruturais ao subgrafo
+    // 3. Add seed nodes and structural anchors to subgraph
     for seed_item in &seeds_resolved {
         graph_nodes.push(GraphNodePayload {
             id: seed_item.id.clone(),
@@ -347,7 +347,7 @@ pub fn compute_recommendations_sync(
             }
         }
 
-        // Âncoras estruturais para cada semente (filtrando ruídos de infraestrutura)
+        // Structural anchors for each seed (filtering infrastructure noise)
         let mut anchor_edges = state.graph.out_edges_by_key(&seed_item.id);
         anchor_edges.retain(|e| {
             if let Some(("keyword", tid)) = parse_node_key(e.target_key) {
@@ -443,7 +443,7 @@ pub fn compute_recommendations_sync(
         }
     }
 
-    // Cotas balanceadas por domínio para descoberta transmidiática real
+    // Domain-balanced quotas for true transmedia discovery
     let (artist_quota, track_quota, movie_quota, series_quota, game_quota, book_quota) =
         match req.target_type.as_deref() {
             Some("music") => {
@@ -466,12 +466,12 @@ pub fn compute_recommendations_sync(
         };
 
     let is_pt = req.lang == "pt";
-    /// Piso mínimo de probabilidade de difusão PPR (em escala relativa) para evitar ruído estatístico
-    /// e descartar itens desconexos de cotas forçadas com afinidade nula.
+    /// Minimum PPR diffusion score floor (relative scale) to avoid statistical noise
+    /// and drop disconnected items from forced quotas with zero affinity.
     const MIN_REC_SCORE: f32 = 5e-5;
 
         // -------------------------------------------------------------------
-        // A. ARTISTAS RECOMENDADOS (`artist:*`)
+        // A. RECOMMENDED ARTISTS (`artist:*`)
         // -------------------------------------------------------------------
         let mut artist_recs_added = 0usize;
         let mut recommended_artist_tracks: Vec<(i64, String, f32, TopTrackRow, String)> =
@@ -494,7 +494,7 @@ pub fn compute_recommendations_sync(
                     continue;
                 };
 
-                // Explicação em RAM via arestas CSR direcionadas
+                // In-memory path explanation via directed CSR edges
                 let mut explanation_parts: Vec<String> = Vec::new();
                 let mut direct_co_listening = false;
                 let mut shared_tags: Vec<String> = Vec::new();
@@ -612,7 +612,7 @@ pub fn compute_recommendations_sync(
         }
 
         // -------------------------------------------------------------------
-        // B. FAIXAS RECOMENDADAS (`track:*`)
+        // B. RECOMMENDED TRACKS (`track:*`)
         // -------------------------------------------------------------------
         if track_quota > 0 {
             let mut track_recs_added = 0usize;
@@ -778,7 +778,7 @@ pub fn compute_recommendations_sync(
         }
 
         // -------------------------------------------------------------------
-        // C. FILMES RECOMENDADOS (`movie:*`)
+        // C. RECOMMENDED MOVIES (`movie:*`)
         // -------------------------------------------------------------------
         if movie_quota > 0 {
             let raw_movies = top_k_from_scores(&state.graph, &p, &exclude_ids, "movie:", Some(35));
@@ -953,7 +953,7 @@ pub fn compute_recommendations_sync(
         }
 
         // -------------------------------------------------------------------
-        // D. SÉRIES & MINISSÉRIES RECOMENDADAS (`series:*`)
+        // D. RECOMMENDED SERIES & MINI-SERIES (`series:*`)
         // -------------------------------------------------------------------
         if series_quota > 0 {
             let raw_series =
@@ -1143,7 +1143,7 @@ pub fn compute_recommendations_sync(
         }
 
         // -------------------------------------------------------------------
-        // E. JOGOS RECOMENDADOS (`game:*`)
+        // E. RECOMMENDED GAMES (`game:*`)
         // -------------------------------------------------------------------
         if game_quota > 0 {
             let top_games =
@@ -1275,7 +1275,7 @@ pub fn compute_recommendations_sync(
         }
 
         // -------------------------------------------------------------------
-        // F. LIVROS RECOMENDADOS (`book:*`)
+        // F. RECOMMENDED BOOKS (`book:*`)
         // -------------------------------------------------------------------
         if book_quota > 0 && results.len() < req.limit {
             let top_books =
@@ -1382,8 +1382,8 @@ pub fn compute_recommendations_sync(
         }
 
         // -------------------------------------------------------------------
-        // G. REVERSÃO / BACKFILL: Preenche vagas remanescentes com os melhores
-        // candidatos de qualquer domínio que estejam acima de MIN_REC_SCORE
+        // G. REVERSION / BACKFILL: Fill remaining quota slots with best
+        // candidates from any domain scoring above MIN_REC_SCORE
         // -------------------------------------------------------------------
         if results.len() < req.limit {
             let needed = req.limit - results.len();
@@ -1544,7 +1544,7 @@ pub fn compute_recommendations_sync(
             }
         }
 
-    // 4. Monta arestas internas do subgrafo e filtra pontes isoladas
+    // 4. Assemble internal subgraph edges and filter isolated bridges
     {
         let mut extracted_edges: Vec<GraphLinkPayload> = Vec::new();
         let mut seen_links: HashSet<(String, String)> = HashSet::new();
@@ -1611,7 +1611,7 @@ pub fn compute_recommendations_sync(
         });
     }
 
-    // 5. Enriquece cada nó do grafo com suas tags e metadados descritivos
+    // 5. Enrich each graph node with descriptive tags and metadata
     {
 
         for n in &mut graph_nodes {
@@ -1899,7 +1899,7 @@ pub fn compute_track_recommendations_sync(
         artist_reasons AS (
             SELECT 
                 s.target_artist_id AS artist_id,
-                'Co-escuta Last.fm com ' || ma_src.name || ' (' || CAST(ROUND(s.match_score * 100) AS INT) || '%)' AS reason
+                'Last.fm co-listening with ' || ma_src.name || ' (' || CAST(ROUND(s.match_score * 100) AS INT) || '%)' AS reason
             FROM artist_similarities s
             JOIN music_artists ma_src ON ma_src.id = s.source_artist_id
             WHERE s.source_artist_id IN ({seed_ids_str})
@@ -1907,7 +1907,7 @@ pub fn compute_track_recommendations_sync(
             UNION ALL
             SELECT 
                 t2.artist_id,
-                'Microgêneros com ' || ma_src.name || ': ' || STRING_AGG(k.name, ', ') AS reason
+                'Shared microgenres with ' || ma_src.name || ': ' || STRING_AGG(k.name, ', ') AS reason
             FROM artist_tags t1
             JOIN music_artists ma_src ON ma_src.id = t1.artist_id
             JOIN keywords k ON k.id = t1.keyword_id
@@ -1927,7 +1927,7 @@ pub fn compute_track_recommendations_sync(
                 t.valence,
                 t.energy,
                 t.danceability,
-                COALESCE(ar.reason, 'Afinidade de difusão de cena musical') AS explanation,
+                COALESCE(ar.reason, 'Musical scene diffusion affinity') AS explanation,
                 ROW_NUMBER() OVER (PARTITION BY t.artist_id ORDER BY t.popularity DESC) AS rk
             FROM music_tracks t
             JOIN target_artists ta ON ta.id = t.artist_id

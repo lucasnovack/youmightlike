@@ -19,7 +19,7 @@ def get_db_path() -> Path:
 
 
 class Database:
-    """Gerenciador de conexões e execução no DuckDB."""
+    """Connection manager and query runner for DuckDB."""
 
     def __init__(self, db_path: Path | str | None = None, read_only: bool = False):
         if db_path is None:
@@ -35,14 +35,14 @@ class Database:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     def connect(self) -> duckdb.DuckDBPyConnection:
-        """Retorna uma nova conexão aberta ao DuckDB."""
+        """Returns a new open connection to DuckDB."""
         return duckdb.connect(database=str(self.db_path), read_only=self.read_only)
 
     def init_schema(self) -> None:
-        """Executa o script de inicialização do schema canônico e views de grafo."""
+        """Executes the initialization SQL script for canonical schema and graph views."""
         schema_file = Path(__file__).parent / "schema.sql"
         if not schema_file.exists():
-            raise FileNotFoundError(f"Arquivo de schema não encontrado: {schema_file}")
+            raise FileNotFoundError(f"Schema file not found: {schema_file}")
 
         sql = schema_file.read_text(encoding="utf-8")
         with self.connect() as conn:
@@ -50,7 +50,7 @@ class Database:
 
 
 def init_db(db_path: Path | str | None = None) -> Database:
-    """Função utilitária para inicializar o banco de dados e garantir tabelas/views."""
+    """Utility function to initialize the database and ensure tables/views are created."""
     db = Database(db_path=db_path)
     db.init_schema()
     return db

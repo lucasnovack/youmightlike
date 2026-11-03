@@ -9,8 +9,8 @@ pub struct ScoredNode {
     pub score: f32,
 }
 
-/// Executa o Personalized PageRank (Random Walk with Restart) sobre a matriz esparsa CSC
-/// e retorna o vetor bruto de probabilidades estacionárias `p` (tamanho `graph.num_nodes`).
+/// Executes Personalized PageRank (Random Walk with Restart) over the sparse CSC matrix
+/// and returns the raw stationary probability vector `p` (length `graph.num_nodes`).
 pub fn run_personalized_pagerank_scores(
     graph: &GraphCSR,
     seed_keys: &[&str],
@@ -28,7 +28,7 @@ pub fn run_personalized_pagerank_scores(
     }
 
     if seed_indices.is_empty() {
-        anyhow::bail!("Nenhuma das sementes especificadas foi encontrada no grafo carregado.");
+        anyhow::bail!("None of the specified seed keys were found in the loaded graph.");
     }
 
     let mut s = vec![0.0f32; n];
@@ -72,8 +72,8 @@ pub fn run_personalized_pagerank_scores(
     Ok(p)
 }
 
-/// Extrai os top-K nós de `p` que começam com `prefix` (ou qualquer prefixo se `prefix.is_empty()`),
-/// ignorando nós presentes em `exclude_ids`, em tempo O(N) via `select_nth_unstable_by`.
+/// Extracts top-K nodes from `p` that start with `prefix` (or any prefix if `prefix.is_empty()`),
+/// ignoring nodes present in `exclude_ids`, in O(N) time via `select_nth_unstable_by`.
 pub fn top_k_from_scores(
     graph: &GraphCSR,
     p: &[f32],
@@ -121,8 +121,8 @@ pub fn top_k_from_scores(
         .collect()
 }
 
-/// Executa o Personalized PageRank (Random Walk with Restart) sobre a matriz esparsa CSC.
-/// Cada iteração roda 100% paralela sobre todos os núcleos da CPU via Rayon.
+/// Executes Personalized PageRank (Random Walk with Restart) over the sparse CSC matrix.
+/// Each iteration runs 100% in parallel across all CPU cores via Rayon.
 pub fn run_personalized_pagerank(
     graph: &GraphCSR,
     seed_keys: &[&str],
@@ -133,7 +133,7 @@ pub fn run_personalized_pagerank(
     run_personalized_pagerank_filtered(graph, seed_keys, alpha, max_iter, tol, None, None)
 }
 
-/// Executa o Personalized PageRank com filtragem in-place por prefixo e seleção top-K parcial (O(N)).
+/// Executes Personalized PageRank with in-place prefix filtering and partial top-K selection (O(N)).
 pub fn run_personalized_pagerank_filtered(
     graph: &GraphCSR,
     seed_keys: &[&str],

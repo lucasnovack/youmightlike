@@ -1,32 +1,32 @@
 -- ============================================================================
--- youmightlike: Esquema Canônico e Views de Projeção em Grafo (DuckDB)
--- Fontes 100% Abertas e Livres: Wikidata (CC0) + MusicBrainz + OpenLibrary
+-- youmightlike: Canonical Schema and Graph Projection Views (DuckDB)
+-- 100% Open and Free Sources: Wikidata (CC0) + MusicBrainz + OpenLibrary
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- 1. DOMÍNIO: Filmes & Séries (Wikidata / TVMaze)
+-- 1. DOMAIN: Movies & Series (Wikidata / TVMaze)
 -- ----------------------------------------------------------------------------
 CREATE SEQUENCE IF NOT EXISTS seq_movies START 1;
 CREATE TABLE IF NOT EXISTS movies (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_movies'),
-    wikidata_id VARCHAR UNIQUE,          -- Ex: 'Q183611' (Blade Runner)
-    imdb_id VARCHAR UNIQUE,              -- Ex: 'tt0083658'
+    wikidata_id VARCHAR UNIQUE,          -- E.g. 'Q183611' (Blade Runner)
+    imdb_id VARCHAR UNIQUE,              -- E.g. 'tt0083658'
     title VARCHAR NOT NULL,
     original_title VARCHAR,
     release_year INTEGER,
     runtime INTEGER,
     vote_average DOUBLE,
     vote_count BIGINT,
-    based_on_title VARCHAR,              -- Ex: 'Do Androids Dream of Electric Sheep?'
-    based_on_wikidata_id VARCHAR,        -- Ex: 'Q605249' (Livro original)
+    based_on_title VARCHAR,              -- E.g. 'Do Androids Dream of Electric Sheep?'
+    based_on_wikidata_id VARCHAR,        -- E.g. 'Q605249' (Original book)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE SEQUENCE IF NOT EXISTS seq_people START 1;
 CREATE TABLE IF NOT EXISTS people (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_people'),
-    wikidata_id VARCHAR UNIQUE,          -- Ex: 'Q56005' (Ridley Scott)
-    imdb_id VARCHAR UNIQUE,              -- Ex: 'nm0000631'
+    wikidata_id VARCHAR UNIQUE,          -- E.g. 'Q56005' (Ridley Scott)
+    imdb_id VARCHAR UNIQUE,              -- E.g. 'nm0000631'
     name VARCHAR NOT NULL
 );
 
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS movie_credits (
 CREATE SEQUENCE IF NOT EXISTS seq_keywords START 1;
 CREATE TABLE IF NOT EXISTS keywords (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_keywords'),
-    name VARCHAR UNIQUE NOT NULL,       -- Normalizado em minúsculas (ex: 'cyberpunk', 'dystopia')
+    name VARCHAR UNIQUE NOT NULL,       -- Normalized lowercase (e.g. 'cyberpunk', 'dystopia')
     source VARCHAR DEFAULT 'wikidata'   -- 'wikidata', 'openlibrary', 'lastfm'
 );
 
@@ -65,12 +65,12 @@ CREATE TABLE IF NOT EXISTS movie_genres (
 );
 
 -- ----------------------------------------------------------------------------
--- 1.1 DOMÍNIO: Séries de TV & Minisséries (IMDb)
+-- 1.1 DOMAIN: TV Series & Mini-Series (IMDb)
 -- ----------------------------------------------------------------------------
 CREATE SEQUENCE IF NOT EXISTS seq_tv_series START 1;
 CREATE TABLE IF NOT EXISTS tv_series (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_tv_series'),
-    imdb_id VARCHAR UNIQUE,              -- Ex: 'tt0903747' (Breaking Bad)
+    imdb_id VARCHAR UNIQUE,              -- E.g. 'tt0903747' (Breaking Bad)
     wikidata_id VARCHAR UNIQUE,
     title VARCHAR NOT NULL,
     original_title VARCHAR,
@@ -107,13 +107,13 @@ CREATE TABLE IF NOT EXISTS series_keywords (
 );
 
 -- ----------------------------------------------------------------------------
--- 2. DOMÍNIO: Músicas (MusicBrainz & Last.fm)
+-- 2. DOMAIN: Music (MusicBrainz & Last.fm)
 -- ----------------------------------------------------------------------------
 CREATE SEQUENCE IF NOT EXISTS seq_artists START 1;
 CREATE TABLE IF NOT EXISTS music_artists (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_artists'),
     mbid VARCHAR UNIQUE,                -- MusicBrainz ID
-    wikidata_id VARCHAR UNIQUE,         -- Ponte Wikidata ⇄ MusicBrainz!
+    wikidata_id VARCHAR UNIQUE,         -- Wikidata ⇄ MusicBrainz bridge!
     name VARCHAR NOT NULL,
     country VARCHAR(10),
     type VARCHAR(20),                   -- 'Person', 'Group'
@@ -134,14 +134,14 @@ CREATE TABLE IF NOT EXISTS music_albums (
 CREATE TABLE IF NOT EXISTS artist_tags (
     artist_id BIGINT NOT NULL REFERENCES music_artists(id),
     keyword_id BIGINT NOT NULL REFERENCES keywords(id),
-    weight DOUBLE DEFAULT 1.0,          -- Relevância de tag Last.fm
+    weight DOUBLE DEFAULT 1.0,          -- Last.fm tag relevance weight
     PRIMARY KEY (artist_id, keyword_id)
 );
 
 CREATE TABLE IF NOT EXISTS artist_similarities (
     source_artist_id BIGINT NOT NULL REFERENCES music_artists(id),
     target_artist_id BIGINT NOT NULL REFERENCES music_artists(id),
-    match_score DOUBLE NOT NULL,        -- Similaridade (0.0 a 1.0)
+    match_score DOUBLE NOT NULL,        -- Similarity score (0.0 to 1.0)
     PRIMARY KEY (source_artist_id, target_artist_id)
 );
 
@@ -163,13 +163,13 @@ CREATE TABLE IF NOT EXISTS music_tracks (
 );
 
 -- ----------------------------------------------------------------------------
--- 3. DOMÍNIO: Livros (OpenLibrary & Wikidata)
+-- 3. DOMAIN: Books (OpenLibrary & Wikidata)
 -- ----------------------------------------------------------------------------
 CREATE SEQUENCE IF NOT EXISTS seq_books START 1;
 CREATE TABLE IF NOT EXISTS books (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_books'),
-    work_key VARCHAR UNIQUE,            -- Ex: '/works/OL45804W'
-    wikidata_id VARCHAR UNIQUE,         -- Ex: 'Q605249'
+    work_key VARCHAR UNIQUE,            -- E.g. '/works/OL45804W'
+    wikidata_id VARCHAR UNIQUE,         -- E.g. 'Q605249'
     title VARCHAR NOT NULL,
     first_publish_year INTEGER,
     description TEXT
@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS books (
 CREATE SEQUENCE IF NOT EXISTS seq_book_authors START 1;
 CREATE TABLE IF NOT EXISTS book_authors (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_book_authors'),
-    author_key VARCHAR UNIQUE,          -- Ex: '/authors/OL23919A'
+    author_key VARCHAR UNIQUE,          -- E.g. '/authors/OL23919A'
     wikidata_id VARCHAR UNIQUE,
     name VARCHAR NOT NULL
 );
@@ -190,12 +190,12 @@ CREATE TABLE IF NOT EXISTS book_author_links (
 );
 
 -- ----------------------------------------------------------------------------
--- 4. DOMÍNIO: Games (Steam)
+-- 4. DOMAIN: Games (Steam)
 -- ----------------------------------------------------------------------------
 CREATE SEQUENCE IF NOT EXISTS seq_games START 1;
 CREATE TABLE IF NOT EXISTS games (
     id BIGINT PRIMARY KEY DEFAULT nextval('seq_games'),
-    app_id BIGINT UNIQUE NOT NULL,      -- Steam App ID (ex: 1091500)
+    app_id BIGINT UNIQUE NOT NULL,      -- Steam App ID (e.g. 1091500)
     title VARCHAR NOT NULL,
     release_date VARCHAR,
     release_year INTEGER,
@@ -226,10 +226,10 @@ CREATE TABLE IF NOT EXISTS game_tags (
 );
 
 -- ============================================================================
--- 5. VIEWS DE PROJEÇÃO EM GRAFO (Consumidas pelo Motor em Rust / SciPy)
+-- 5. GRAPH PROJECTION VIEWS (Consumed by Rust / SciPy Engine)
 -- ============================================================================
 
--- View unificada de todos os Nós do Grafo
+-- Unified view of all Graph Nodes
 CREATE OR REPLACE VIEW v_graph_nodes AS
 SELECT 
     'movie:' || CAST(id AS VARCHAR) AS node_id,
@@ -330,9 +330,9 @@ SELECT
     COALESCE(wikidata_id, imdb_id)
 FROM tv_series;
 
--- View unificada de todas as Arestas do Grafo (com pesos base)
+-- Unified view of all Graph Edges (with base weights)
 CREATE OR REPLACE VIEW v_graph_edges AS
--- Filme ➔ Diretor (has_director)
+-- Movie ➔ Director (has_director)
 SELECT 
     'movie:' || CAST(movie_id AS VARCHAR) AS source_id,
     'person:' || CAST(person_id AS VARCHAR) AS target_id,
@@ -340,7 +340,7 @@ SELECT
     2.0 AS base_weight
 FROM movie_credits WHERE job = 'Director'
 UNION ALL
--- Filme ➔ Compositor da Trilha Sonora (has_composer) -> Ponte Filme ⇄ Música!
+-- Movie ➔ Soundtrack Composer (has_composer) -> Movie ⇄ Music Bridge!
 SELECT 
     'movie:' || CAST(movie_id AS VARCHAR) AS source_id,
     'person:' || CAST(person_id AS VARCHAR) AS target_id,
@@ -348,7 +348,7 @@ SELECT
     2.5 AS base_weight
 FROM movie_credits WHERE job = 'Original Music Composer'
 UNION ALL
--- Pessoa / Compositor ➔ Artista Musical (is_artist) -> Ponte Filme ⇄ Música!
+-- Person / Composer ➔ Musical Artist (is_artist) -> Movie ⇄ Music Bridge!
 SELECT 
     'person:' || CAST(p.id AS VARCHAR) AS source_id,
     'artist:' || CAST(a.id AS VARCHAR) AS target_id,
@@ -367,7 +367,7 @@ FROM people p
 JOIN music_artists a ON LOWER(TRIM(p.name)) = LOWER(TRIM(a.name))
 WHERE p.wikidata_id IS NULL OR a.wikidata_id IS NULL
 UNION ALL
--- Artista ➔ Álbum (released)
+-- Artist ➔ Album (released)
 SELECT 
     'artist:' || CAST(artist_id AS VARCHAR) AS source_id,
     'album:' || CAST(id AS VARCHAR) AS target_id,
@@ -375,7 +375,7 @@ SELECT
     2.0 AS base_weight
 FROM music_albums
 UNION ALL
--- Artista ➔ Faixa Musical (has_track)
+-- Artist ➔ Track (has_track)
 SELECT 
     'artist:' || CAST(artist_id AS VARCHAR) AS source_id,
     'track:' || CAST(id AS VARCHAR) AS target_id,
@@ -383,7 +383,7 @@ SELECT
     2.0 AS base_weight
 FROM music_tracks
 UNION ALL
--- Álbum ➔ Faixa Musical (contains_track)
+-- Album ➔ Track (contains_track)
 SELECT 
     'album:' || CAST(album_id AS VARCHAR) AS source_id,
     'track:' || CAST(id AS VARCHAR) AS target_id,
@@ -391,7 +391,7 @@ SELECT
     1.5 AS base_weight
 FROM music_tracks WHERE album_id IS NOT NULL
 UNION ALL
--- Filme ➔ Roteirista (has_writer)
+-- Movie ➔ Screenwriter (has_writer)
 SELECT 
     'movie:' || CAST(movie_id AS VARCHAR) AS source_id,
     'person:' || CAST(person_id AS VARCHAR) AS target_id,
@@ -399,7 +399,7 @@ SELECT
     1.5 AS base_weight
 FROM movie_credits WHERE job IN ('Screenplay', 'Writer')
 UNION ALL
--- Filme / Anime ➔ Estúdio de Animação (produced_by)
+-- Movie / Anime ➔ Animation Studio (produced_by)
 SELECT 
     'movie:' || CAST(movie_id AS VARCHAR) AS source_id,
     'person:' || CAST(person_id AS VARCHAR) AS target_id,
@@ -407,7 +407,7 @@ SELECT
     2.0 AS base_weight
 FROM movie_credits WHERE job = 'Animation Studio'
 UNION ALL
--- Filme ➔ Keyword (has_keyword) -> Ponte Filme ⇄ Livro
+-- Movie ➔ Keyword (has_keyword) -> Movie ⇄ Book Bridge
 SELECT 
     'movie:' || CAST(movie_id AS VARCHAR) AS source_id,
     'keyword:' || CAST(keyword_id AS VARCHAR) AS target_id,
@@ -415,7 +415,7 @@ SELECT
     1.0 AS base_weight
 FROM movie_keywords
 UNION ALL
--- Filme ➔ Livro Original / Adaptação (based_on) -> Ponte Direta Filme ⇄ Livro!
+-- Movie ➔ Original Book / Adaptation (based_on) -> Direct Movie ⇄ Book Bridge!
 SELECT 
     'movie:' || CAST(m.id AS VARCHAR) AS source_id,
     'book:' || CAST(b.id AS VARCHAR) AS target_id,
@@ -425,7 +425,7 @@ FROM movies m
 JOIN books b ON (m.based_on_wikidata_id IS NOT NULL AND m.based_on_wikidata_id = b.wikidata_id)
              OR (LOWER(TRIM(m.based_on_title)) = LOWER(TRIM(b.title)))
 UNION ALL
--- Artista ➔ Tag / Microgênero (has_tag)
+-- Artist ➔ Tag / Microgenre (has_tag)
 SELECT 
     'artist:' || CAST(artist_id AS VARCHAR) AS source_id,
     'keyword:' || CAST(keyword_id AS VARCHAR) AS target_id,
@@ -433,7 +433,7 @@ SELECT
     weight AS base_weight
 FROM artist_tags
 UNION ALL
--- Artista ➔ Artista Similar (similar_to)
+-- Artist ➔ Similar Artist (similar_to)
 SELECT 
     'artist:' || CAST(source_artist_id AS VARCHAR) AS source_id,
     'artist:' || CAST(target_artist_id AS VARCHAR) AS target_id,
@@ -441,7 +441,7 @@ SELECT
     match_score * 2.0 AS base_weight
 FROM artist_similarities
 UNION ALL
--- Livro ➔ Autor (written_by)
+-- Book ➔ Author (written_by)
 SELECT 
     'book:' || CAST(book_id AS VARCHAR) AS source_id,
     'author:' || CAST(author_id AS VARCHAR) AS target_id,
@@ -449,7 +449,7 @@ SELECT
     2.0 AS base_weight
 FROM book_author_links
 UNION ALL
--- Livro ➔ Subject / Keyword (has_subject) -> Ponte Livro ⇄ Filme
+-- Book ➔ Subject / Keyword (has_subject) -> Book ⇄ Movie Bridge
 SELECT 
     'book:' || CAST(book_id AS VARCHAR) AS source_id,
     'keyword:' || CAST(keyword_id AS VARCHAR) AS target_id,
@@ -457,7 +457,7 @@ SELECT
     1.0 AS base_weight
 FROM book_subjects
 UNION ALL
--- Game ➔ Desenvolvedor (developed_by)
+-- Game ➔ Developer (developed_by)
 SELECT 
     'game:' || CAST(game_id AS VARCHAR) AS source_id,
     'developer:' || CAST(developer_id AS VARCHAR) AS target_id,
@@ -465,7 +465,7 @@ SELECT
     2.5 AS base_weight
 FROM game_dev_links
 UNION ALL
--- Game ➔ Keyword / Tag (has_tag) -> Ponte Games ⇄ Filmes ⇄ Livros!
+-- Game ➔ Keyword / Tag (has_tag) -> Games ⇄ Movies ⇄ Books Bridge!
 SELECT 
     'game:' || CAST(game_id AS VARCHAR) AS source_id,
     'keyword:' || CAST(keyword_id AS VARCHAR) AS target_id,
@@ -473,7 +473,7 @@ SELECT
     1.2 AS base_weight
 FROM game_tags
 UNION ALL
--- Série ➔ Diretor (has_director)
+-- Series ➔ Director (has_director)
 SELECT 
     'series:' || CAST(series_id AS VARCHAR) AS source_id,
     'person:' || CAST(person_id AS VARCHAR) AS target_id,
@@ -481,7 +481,7 @@ SELECT
     2.0 AS base_weight
 FROM series_credits WHERE job = 'Director'
 UNION ALL
--- Série ➔ Roteirista / Criador (has_writer)
+-- Series ➔ Screenwriter / Creator (has_writer)
 SELECT 
     'series:' || CAST(series_id AS VARCHAR) AS source_id,
     'person:' || CAST(person_id AS VARCHAR) AS target_id,
@@ -489,7 +489,7 @@ SELECT
     1.8 AS base_weight
 FROM series_credits WHERE job IN ('Writer', 'Creator', 'Screenplay')
 UNION ALL
--- Série ➔ Compositor de Trilha Sonora (has_composer)
+-- Series ➔ Soundtrack Composer (has_composer)
 SELECT 
     'series:' || CAST(series_id AS VARCHAR) AS source_id,
     'person:' || CAST(person_id AS VARCHAR) AS target_id,
@@ -497,7 +497,7 @@ SELECT
     2.5 AS base_weight
 FROM series_credits WHERE job = 'Original Music Composer'
 UNION ALL
--- Série ➔ Keyword / Tema (has_keyword)
+-- Series ➔ Keyword / Theme (has_keyword)
 SELECT 
     'series:' || CAST(series_id AS VARCHAR) AS source_id,
     'keyword:' || CAST(keyword_id AS VARCHAR) AS target_id,
@@ -505,7 +505,7 @@ SELECT
     1.0 AS base_weight
 FROM series_keywords
 UNION ALL
--- Série ➔ Livro Original / Adaptação (based_on)
+-- Series ➔ Original Book / Adaptation (based_on)
 SELECT 
     'series:' || CAST(s.id AS VARCHAR) AS source_id,
     'book:' || CAST(b.id AS VARCHAR) AS target_id,
@@ -516,9 +516,9 @@ JOIN books b ON (s.based_on_wikidata_id IS NOT NULL AND s.based_on_wikidata_id =
              OR (LOWER(TRIM(s.based_on_title)) = LOWER(TRIM(b.title)))
 UNION ALL
 -- =========================================================================
--- PONTES DE ÉPOCA E CONTEXTO HISTÓRICO (released_in_epoch)
+-- HISTORICAL CONTEXT AND EPOCH BRIDGES (released_in_epoch)
 -- =========================================================================
--- Games por ano
+-- Games by year
 SELECT 
     'game:' || CAST(id AS VARCHAR) AS source_id,
     'epoch:' || CAST(release_year AS VARCHAR) AS target_id,
@@ -526,7 +526,7 @@ SELECT
     0.8 AS base_weight
 FROM games WHERE release_year BETWEEN 1970 AND 2026
 UNION ALL
--- Filmes por ano
+-- Movies by year
 SELECT 
     'movie:' || CAST(id AS VARCHAR) AS source_id,
     'epoch:' || CAST(release_year AS VARCHAR) AS target_id,
@@ -534,7 +534,7 @@ SELECT
     0.8 AS base_weight
 FROM movies WHERE release_year BETWEEN 1970 AND 2026
 UNION ALL
--- Séries por ano
+-- TV Series by year
 SELECT 
     'series:' || CAST(id AS VARCHAR) AS source_id,
     'epoch:' || CAST(start_year AS VARCHAR) AS target_id,
@@ -542,7 +542,7 @@ SELECT
     0.8 AS base_weight
 FROM tv_series WHERE start_year BETWEEN 1970 AND 2026;
 
--- View com Mitigação de Super-Nós: Ponderação Adamic-Adar / IDF
+-- Supernode Mitigation View: Adamic-Adar / IDF Weighting
 CREATE OR REPLACE VIEW v_weighted_graph_edges AS
 WITH node_degrees AS (
     SELECT target_id, COUNT(*) AS degree

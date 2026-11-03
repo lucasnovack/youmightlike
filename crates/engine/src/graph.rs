@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use duckdb::{AccessMode, Config, Connection};
 use std::collections::{HashMap, HashSet};
 
-/// Aresta semântica direcionada original do grafo (para explicações e montagem de subgrafo in-memory).
+/// Original directed semantic edge in the graph (for explanations and in-memory subgraph assembly).
 #[derive(Debug, Clone, Copy)]
 pub struct DirectedEdge<'a> {
     pub target_id: u32,
@@ -11,36 +11,36 @@ pub struct DirectedEdge<'a> {
     pub base_weight: f32,
 }
 
-/// Grafo esparso otimizado em memória no formato CSC (Compressed Sparse Column)
-/// para cálculo do Personalized PageRank paralelo via Rayon, acompanhado de
-/// índice CSR de arestas direcionadas semânticas para subgrafos e explicações em tempo real.
+/// In-memory optimized sparse graph in CSC (Compressed Sparse Column) format
+/// for parallel Personalized PageRank computation via Rayon, accompanied by
+/// a CSR index of original directed semantic edges for real-time subgraphs and path explanations.
 pub struct GraphCSR {
     pub num_nodes: usize,
     pub num_edges: usize,
-    /// Apontadores de início de cada nó no vetor de índices CSC de difusão (tamanho: num_nodes + 1)
+    /// Pointer offsets for each node in the CSC diffusion index vector (length: num_nodes + 1)
     pub indptr: Vec<usize>,
-    /// Índices dos nós de origem para cada aresta entrante (tamanho: num_edges)
+    /// Source node indices for each incoming edge (length: num_edges)
     pub indices: Vec<u32>,
-    /// Pesos de transição estocásticos normalizados (Markov: sum(P[u, :]) == 1.0)
+    /// Normalized stochastic Markov transition probabilities: sum(P[u, :]) == 1.0
     pub weights: Vec<f32>,
-    /// Mapeamento de chave de texto (ex: 'artist:11', 'track:38862') para ID numérico
+    /// Map from string key (e.g. 'artist:11', 'track:38862') to internal integer ID
     pub node_to_id: HashMap<String, u32>,
-    /// Mapeamento inverso de ID numérico para chave de texto
+    /// Inverse map from internal integer ID to string key
     pub id_to_node: Vec<String>,
 
-    /// Tabela internada de tipos de relação (ex: 'has_tag', 'similar_to', 'has_director')
+    /// Interned relation type names (e.g. 'has_tag', 'similar_to', 'has_director')
     pub relation_types: Vec<String>,
-    /// Apontadores CSR das arestas direcionadas originais por nó de origem (tamanho: num_nodes + 1)
+    /// CSR pointer offsets for original outgoing directed edges per source node (length: num_nodes + 1)
     pub out_indptr: Vec<usize>,
-    /// Nó de destino de cada aresta direcionada original
+    /// Destination node ID for each original directed edge
     pub out_targets: Vec<u32>,
-    /// ID do tipo de relação em `relation_types`
+    /// Relation type ID in `relation_types`
     pub out_rel_ids: Vec<u8>,
-    /// Peso base original da aresta direcionada
+    /// Original base weight of the directed edge
     pub out_weights: Vec<f32>,
 }
 
-/// Pontes canônicas de trilhas sonoras transmidiáticas (ex.: Grunge / Seattle 90s / Post-Punk / Alt-Rock)
+/// Canonical transmedia soundtrack bridges (e.g. Grunge / Seattle 90s / Post-Punk / Alt-Rock)
 fn canonical_soundtrack_bridges() -> Vec<(&'static str, &'static str, &'static str, f32)> {
     vec![
         // Singles (1992) - movie:276 (O filme definitivo da cena Grunge de Seattle)
@@ -131,7 +131,7 @@ fn canonical_soundtrack_bridges() -> Vec<(&'static str, &'static str, &'static s
 }
 
 impl GraphCSR {
-    /// Carrega o grafo semântico completo (`graph_semantic_edges`) incluindo `relation_type`.
+    /// Loads the full semantic graph (`graph_semantic_edges`) including `relation_type`.
     pub fn load_semantic_graph(db_path: &str) -> Result<Self> {
         Self::load_from_duckdb(
             db_path,
@@ -139,8 +139,8 @@ impl GraphCSR {
         )
     }
 
-    /// Carrega as arestas do DuckDB e constrói o CSC em memória com atenuação Adamic-Adar / IDF,
-    /// além do índice CSR direcionado para inspeção topológica instantânea.
+    /// Loads graph edges from DuckDB and builds the in-memory CSC matrix with Adamic-Adar / IDF attenuation,
+    /// along with the directed CSR index for instant topological inspection.
     pub fn load_from_duckdb(
         db_path: &str,
         query_edges_sql: Option<&str>,
@@ -149,7 +149,7 @@ impl GraphCSR {
             db_path,
             Config::default().access_mode(AccessMode::ReadOnly)?,
         )
-        .context("Falha ao abrir banco DuckDB em modo read_only")?;
+        .context("Failed to open DuckDB database in read_only mode")?;
 
         conn.execute_batch("PRAGMA threads=8; PRAGMA memory_limit='16GB';")?;
 
@@ -190,9 +190,9 @@ impl GraphCSR {
                 }
             };
 
-        // Tuplas brutas de arestas para difusão simétrica (src, dst, weight)
+        // Raw edge tuples for symmetric diffusion (src, dst, weight)
         let mut raw_edges: Vec<(u32, u32, f32)> = Vec::new();
-        // Tuplas direcionadas originais (src, dst, rel_id, weight)
+        // Original directed tuples (src, dst, rel_id, weight)
         let mut directed_edges: Vec<(u32, u32, u8, f32)> = Vec::new();
         let mut seen_directed: HashSet<(u32, u32, u8)> = HashSet::new();
         let mut in_degrees: Vec<u32> = Vec::new();
@@ -255,7 +255,7 @@ impl GraphCSR {
             );
         }
 
-        // Injeta pontes canônicas de trilhas sonoras (ex: Singles 1992, Into the Wild, The Crow, Last Days, The Batman)
+        // Injects canonical soundtrack bridges (e.g. Singles 1992, Into the Wild, The Crow, Last Days, The Batman)
         for (src_key, dst_key, rel_str, w) in canonical_soundtrack_bridges() {
             push_edge(
                 src_key,
@@ -277,11 +277,11 @@ impl GraphCSR {
         let num_edges = raw_edges.len();
 
         if num_nodes == 0 {
-            anyhow::bail!("Nenhuma aresta encontrada na consulta ao DuckDB.");
+            anyhow::bail!("No edges found in DuckDB query.");
         }
 
-        // 1. Aplica atenuação Adamic-Adar / IDF in-memory: w = base_w / ln(1 + degree(v))
-        // e calcula os graus de saída de cada nó u para normalização estocástica
+        // 1. Applies in-memory Adamic-Adar / IDF attenuation: w = base_w / ln(1 + degree(v))
+        // and calculates out-degree sums for each node u for stochastic normalization
         let mut out_sums: Vec<f32> = vec![0.0f32; num_nodes];
         let mut adjusted_edges: Vec<(u32, u32, f32)> = Vec::with_capacity(num_edges);
 
@@ -293,8 +293,8 @@ impl GraphCSR {
             adjusted_edges.push((u, v, eff_w));
         }
 
-        // 2. Normaliza para probabilidades estocásticas de transição de Markov: P[u, v]
-        // E agrupa por nó de destino v (formato CSC - in-edges)
+        // 2. Normalizes to stochastic Markov transition probabilities: P[u, v]
+        // and groups by destination node v (CSC format - in-edges)
         let mut in_adjacency: Vec<Vec<(u32, f32)>> = vec![Vec::new(); num_nodes];
         for (u, v, eff_w) in adjusted_edges {
             let sum_u = out_sums[u as usize];
@@ -302,7 +302,7 @@ impl GraphCSR {
             in_adjacency[v as usize].push((u, prob));
         }
 
-        // 3. Empacota nas estruturas contíguas e compactas de CSC para o PPR
+        // 3. Packs into contiguous, cache-friendly CSC structures for PPR
         let mut indptr: Vec<usize> = Vec::with_capacity(num_nodes + 1);
         let mut indices: Vec<u32> = Vec::with_capacity(num_edges);
         let mut weights: Vec<f32> = Vec::with_capacity(num_edges);
@@ -319,7 +319,7 @@ impl GraphCSR {
             }
         }
 
-        // 4. Constrói CSR das arestas direcionadas semânticas originais por nó de origem
+        // 4. Builds CSR index of original directed semantic edges by source node
         let mut out_adj: Vec<Vec<(u32, u8, f32)>> = vec![Vec::new(); num_nodes];
         for (u, v, rel_id, w) in directed_edges {
             out_adj[u as usize].push((v, rel_id, w));
@@ -359,17 +359,17 @@ impl GraphCSR {
         })
     }
 
-    /// Retorna o ID numérico correspondente a uma chave de nó (ex: 'artist:11')
+    /// Returns the integer ID corresponding to a node key (e.g. 'artist:11')
     pub fn get_node_id(&self, key: &str) -> Option<u32> {
         self.node_to_id.get(key).copied()
     }
 
-    /// Retorna a chave textual de um nó dado seu ID numérico
+    /// Returns the string key of a node given its integer ID
     pub fn get_node_key(&self, id: u32) -> Option<&str> {
         self.id_to_node.get(id as usize).map(|s| s.as_str())
     }
 
-    /// Itera sobre as arestas direcionadas originais que saem do nó `u` (ID numérico)
+    /// Iterates over original directed edges outgoing from node `u` (integer ID)
     pub fn out_edges(&self, u: u32) -> impl Iterator<Item = DirectedEdge<'_>> {
         let u_idx = u as usize;
         let (start, end) = if u_idx < self.num_nodes {
@@ -389,7 +389,7 @@ impl GraphCSR {
         })
     }
 
-    /// Itera sobre as arestas direcionadas originais que saem de `node_key` (ex: 'artist:11')
+    /// Iterates over original directed edges outgoing from `node_key` (e.g. 'artist:11')
     pub fn out_edges_by_key(&self, node_key: &str) -> Vec<DirectedEdge<'_>> {
         if let Some(u) = self.get_node_id(node_key) {
             self.out_edges(u).collect()

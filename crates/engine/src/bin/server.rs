@@ -9,22 +9,22 @@ use youmightlike_engine::service::{build_router, load_app_state};
     name = "youmightlike-server",
     author = "Lucas Novack",
     version = "0.3.0",
-    about = "Servidor HTTP nativo em Rust (Axum) com grafo CSR persistente em RAM para o youmightlike"
+    about = "Native Rust HTTP server (Axum) with persistent in-RAM CSR graph for youmightlike"
 )]
 struct ServerArgs {
-    /// Endereço IP para bind do servidor
+    /// Server IP bind address
     #[arg(long, default_value = "127.0.0.1")]
     host: String,
 
-    /// Porta HTTP do servidor
+    /// Server HTTP port
     #[arg(short, long, default_value_t = 8000)]
     port: u16,
 
-    /// Caminho do banco DuckDB
+    /// DuckDB database path
     #[arg(short, long, default_value = "data/processed/taste_graph.duckdb")]
     db_path: String,
 
-    /// Diretório de arquivos estáticos da interface web
+    /// Static web assets directory
     #[arg(long, default_value = "python/src/youmightlike/web/static")]
     static_dir: PathBuf,
 }

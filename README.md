@@ -1,176 +1,176 @@
 # youmightlike
 
-Sistema de recomendação transmidiática que conecta **Cinema, Séries de TV, Música, Literatura e Games** em um grafo unificado de afinidade estética.
+Transmedia recommendation system connecting **Cinema, TV Series, Music, Literature, and Video Games** into a unified aesthetic affinity graph.
 
-Em vez de silos isolados por mídia, o `youmightlike` projeta relações culturais (direção, trilhas sonoras, literatura de base, estúdios, microgêneros e tags conceituais) sobre um grafo semântico no DuckDB, calculando recomendações por difusão estatística (Personalized PageRank) via motor nativo em Rust.
-
----
-
-## Princípios Técnicos
-
-* **Explicabilidade:** Cada recomendação mantém uma rota rastreável no grafo (*ex.: Filme A conectado ao Artista B pelo Compositor C e pela estética Cyberpunk*).
-* **Eficiência Computacional:** Álgebra linear esparsa em CPU via matriz CSR paralelizada com Rayon, executando em sub-segundo sem dependência de serviços externos.
-* **Privacidade e Autonomia:** Armazenamento colunar local no DuckDB com zero chamadas remotas de inferência ou telemetria em runtime.
+Instead of isolated domain silos, `youmightlike` projects cultural relationships (directing, original soundtracks, source literature, studios, microgenres, and conceptual tags) onto a semantic graph in DuckDB, computing recommendations via statistical diffusion (Personalized PageRank) powered by a native Rust engine.
 
 ---
 
-## Arquitetura
+## Technical Principles
+
+* **Explainability:** Every recommendation maintains a traceable path in the graph (*e.g., Movie A connected to Artist B via Composer C and shared Cyberpunk aesthetic*).
+* **Computational Efficiency:** Sparse CPU linear algebra via CSR matrices parallelized with Rayon, executing in sub-second time without external services.
+* **Privacy and Autonomy:** Local columnar storage in DuckDB with zero runtime inference APIs or telemetry.
+
+---
+
+## Architecture
 
 ```
-[ Datasets Abertos (IMDb, Steam, Goodreads, MusicBrainz, Spotify) ]
+[ Open Datasets (IMDb, Steam, Goodreads, MusicBrainz, Spotify) ]
                                │
-                      Ingestão Colunar (Parquet/TSV)
+                    Columnar Ingestion (Parquet/TSV)
                                ▼
-              ┌──────────────────────────────────┐
-              │   DuckDB Feature Store Local     │
-              │  3.58M arestas semânticas ativas │
-              └─────────────────┬────────────────┘
-                                │
-                    Zero-Copy / Views Ponderadas
-                                ▼
-              ┌──────────────────────────────────┐
-              │   Motor de Difusão em Rust       │
-              │  (Bidirectional PPR / CSR Graph) │
-              └─────────────────┬────────────────┘
-                                │
-                                ▼
-               Subgrafo Explicativo & Recomendações
+               ┌──────────────────────────────────┐
+               │    Local DuckDB Feature Store    │
+               │   3.75M active semantic edges    │
+               └─────────────────┬────────────────┘
+                                 │
+                     Zero-Copy / Weighted Views
+                                 ▼
+               ┌──────────────────────────────────┐
+               │      Rust Diffusion Engine       │
+               │  (Bidirectional PPR / CSR Graph) │
+               └─────────────────┬────────────────┘
+                                 │
+                                 ▼
+               Explanatory Subgraph & Recommendations
 ```
 
-### Ponderação de Arestas (Adamic-Adar / IDF)
+### Edge Weighting (Adamic-Adar / IDF)
 
-Para evitar que categorias amplas (*Ação*, *Rock*, *Ficção*) atuem como sumidouros de probabilidade e saturem o cálculo com sugestões óbvias, a view `v_weighted_graph_edges` atenua o peso de cada aresta com base no inverso do logaritmo do grau do nó de destino:
+To prevent broad categories (*Action*, *Rock*, *Fiction*) from acting as probability sinks and dominating diffusion with generic suggestions, `v_weighted_graph_edges` attenuates edge weights using the inverse log of the destination node's degree:
 
-$$\text{peso}(u, v) = \frac{w_{\text{base}}(u, v)}{\ln(1 + \text{grau}(v))}$$
+$$\text{weight}(u, v) = \frac{w_{\text{base}}(u, v)}{\ln(1 + \text{degree}(v))}$$
 
-Conexões específicas e raras (um subgênero de nicho, compositor ou estúdio autoral) retêm alta transferência de energia, enquanto nós de vocabulário massivo sofrem penalização proporcional.
-
+Rare, specific connections (niche subgenres, auteur directors, or specific soundtrack composers) retain high energy transfer, while mass-vocabulary nodes receive proportional penalty.
 
 ---
 
-## Volume Atual do Grafo (DuckDB)
+## Current Graph Scale (DuckDB)
 
-Todo o grafo roda localmente em um arquivo único (`data/processed/taste_graph.duckdb`):
+The entire graph operates locally in a single database file (`data/processed/taste_graph.duckdb`):
 
-| Domínio / Tabela | Registros | Fonte / Licença |
+| Domain / Table | Records | Source / License |
 | :--- | :---: | :--- |
-| **Filmes & Animes** (`movies`) | **34.188** | IMDb Datasets + MyAnimeList Top Anime |
-| **Séries & Minisséries** (`tv_series`) | **7.647** | IMDb Datasets (`tvSeries`, `tvMiniSeries`) |
-| **Pessoas & Estúdios** (`people`) | **37.498** | Diretores, roteiristas e estúdios de animação |
-| **Créditos & Produção** (`movie_credits`) | **106.423** | Direção, roteiro e estúdios (`produced_by`) |
-| **Keywords de Filmes/Animes** (`movie_keywords`) | **239.528** | MovieLens Tag Genome + MyAnimeList |
-| **Jogos** (`games`) | **20.064** | Steam Dataset + Clássicos de Console (Nintendo/PS/Sega) |
-| **Desenvolvedores** (`game_developers`) | **9.250** | Estúdios e publicadoras (PC e Consoles) |
-| **Tags de Jogos** (`game_tags`) | **133.983** | Tags comunitárias e plataformas clássicas |
-| **Livros** (`books`) | **38.203** | Goodreads 100k (CC0 Parquet) |
-| **Autores de Livros** (`book_authors`) | **29.742** | Autores e co-autores |
-| **Temas Literários** (`book_subjects`) | **400.285** | Tópicos e categorias |
-| **Artistas Musicais** (`music_artists`) | **3.257.918** | MusicBrainz + Spotify Massivo (56M) |
-| **Álbuns Musicais** (`music_albums`) | **18.034.542** | Discografias completas e singles mundiais |
-| **Faixas / Músicas** (`music_tracks`) | **40.418.286** | Spotify Tracks com Audio Features (BPM, Valência, Energia) |
-| **Tags de Música** (`artist_tags`) | **485.064** | Microgêneros e folksonomia |
-| **Similaridades Musicais** (`artist_similarities`) | **61.680** | Last.fm Co-listening Graph (HetRec) |
-| **Keywords Globais** (`keywords`) | **48.263** | Vocabulário temático unificado |
-| **Total de Nós (`v_graph_nodes`)** | **61.927.954** | Consulta analítica no DuckDB |
-| **Total de Arestas (`v_graph_edges`)** | **99.278.228** | Quase 100M de arestas ativas ponderadas |
+| **Movies & Anime** (`movies`) | **34,188** | IMDb Datasets + MyAnimeList Top Anime |
+| **TV Series & Mini-Series** (`tv_series`) | **7,647** | IMDb Datasets (`tvSeries`, `tvMiniSeries`) |
+| **People & Studios** (`people`) | **37,498** | Directors, writers, and animation studios |
+| **Credits & Production** (`movie_credits`) | **106,423** | Direction, writing, and studios (`produced_by`) |
+| **Movie/Anime Keywords** (`movie_keywords`) | **239,528** | MovieLens Tag Genome + MyAnimeList |
+| **Games** (`games`) | **20,064** | Steam Dataset + Console Classics (Nintendo/PS/Sega) |
+| **Developers** (`game_developers`) | **9,250** | Studios and publishers (PC & Consoles) |
+| **Game Tags** (`game_tags`) | **133,983** | Community tags and platform tags |
+| **Books** (`books`) | **38,203** | Goodreads 100k (CC0 Parquet) |
+| **Authors** (`book_authors`) | **29,742** | Authors and co-authors |
+| **Literary Themes** (`book_subjects`) | **400,285** | Topics and categories |
+| **Musical Artists** (`music_artists`) | **3,257,918** | MusicBrainz + Spotify Mass Ingestion (56M) |
+| **Music Albums** (`music_albums`) | **18,034,542** | Full discographies and international releases |
+| **Music Tracks** (`music_tracks`) | **40,418,286** | Spotify Tracks with Audio Features (BPM, Valence, Energy) |
+| **Music Tags** (`artist_tags`) | **485,064** | Microgenres and folksonomy |
+| **Artist Similarities** (`artist_similarities`) | **61,680** | Last.fm Co-listening Graph (HetRec) |
+| **Global Keywords** (`keywords`) | **48,263** | Unified thematic vocabulary |
+| **Total Nodes (`v_graph_nodes`)** | **61,927,954** | Analytical query in DuckDB |
+| **Total Edges (`v_graph_edges`)** | **99,278,228** | Weighted active edges |
 
 ---
 
-## Estrutura do Repositório
+## Repository Structure
 
 ```
 youmightlike/
 ├── crates/
-│   └── engine/             # Core de difusão em Rust (PPR, Petgraph, Rayon)
+│   └── engine/             # Rust diffusion core and server (PPR, Axum, Rayon)
 ├── python/
 │   ├── src/youmightlike/
-│   │   ├── connectors/     # Clientes pontuais (Wikidata, OpenLibrary, MusicBrainz)
-│   │   └── storage/        # Schema SQL, conexão DuckDB e scripts de ingestão bulk
-├── data/                   # Ignorado no git
-│   ├── raw/                # Dumps compactados (IMDb, Steam, Goodreads, MusicBrainz, Last.fm, Games)
+│   │   ├── connectors/     # Metadata fetchers (Wikidata, OpenLibrary, MusicBrainz)
+│   │   ├── storage/        # SQL schema, DuckDB connection, and bulk ingestion scripts
+│   │   └── web/            # Interactive Force-Graph static frontend assets
+├── data/                   # Ignored in git
+│   ├── raw/                # Compressed dumps (IMDb, Steam, Goodreads, MusicBrainz, Last.fm)
 │   └── processed/          # taste_graph.duckdb
-└── docs/                   # Documentação detalhada da arquitetura e datasets
+└── docs/                   # Architecture and dataset documentation
 ```
 
 ---
 
-## Como Rodar Localmente
+## Running Locally
 
-### 1. Pré-requisitos
+### 1. Prerequisites
 * Python 3.11+
-* Rust & Cargo (para o engine compilado)
+* Rust & Cargo
 
-### 2. Configurar o Ambiente Python
+### 2. Python Environment Setup
 ```bash
-# Criar e ativar o ambiente virtual
+# Create and activate virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Instalar o pacote em modo editável
+# Install package in editable mode
 pip install -e python/
 ```
 
-### 3. Rodar as Ingestões em Massa (Opcional se já tiver o banco gerado)
-O banco DuckDB é gerado em segundos lendo diretamente arquivos colunares:
+### 3. Bulk Data Ingestions (Optional if database is already generated)
+The DuckDB database is generated directly from columnar source files:
 ```bash
-# Ingestão de filmes (IMDb TSVs)
+# Movie ingestion (IMDb TSVs)
 python python/src/youmightlike/storage/ingest_imdb.py
 
-# Ingestão de semântica e tags de filmes (MovieLens Tag Genome)
+# Movie semantics and tags (MovieLens Tag Genome)
 python python/src/youmightlike/storage/ingest_movielens.py
 
-# Ingestão de animes, estúdios e temas (MyAnimeList)
+# Anime, studios, and themes (MyAnimeList)
 python python/src/youmightlike/storage/ingest_anime.py
 
-# Ingestão de jogos modernos (Steam Parquet)
+# Modern games (Steam Parquet)
 python python/src/youmightlike/storage/ingest_steam.py
 
-# Ingestão de clássicos de consoles (Nintendo, PlayStation, Sega)
+# Console classics (Nintendo, PlayStation, Sega)
 python python/src/youmightlike/storage/ingest_console_games.py
 
-# Ingestão de livros (Goodreads Parquet)
+# Books ingestion (Goodreads Parquet)
 python python/src/youmightlike/storage/ingest_books.py
 
-# Ingestão de discografia e artistas (MusicBrainz Parquet + Spotify CSV)
+# Music artists and discographies (MusicBrainz Parquet + Spotify CSV)
 python python/src/youmightlike/storage/ingest_music.py
 
-# Ingestão de faixas musicais individuais com audio features (Spotify)
+# Individual music tracks with audio features (Spotify)
 python python/src/youmightlike/storage/ingest_tracks.py
 
-# Ingestão de similaridades diretas entre artistas (Last.fm Graph)
+# Direct artist similarities (Last.fm Graph)
 python python/src/youmightlike/storage/ingest_lastfm_similars.py
 ```
 
-### 4. Iniciar a Interface Web Interativa (Force-Graph UI em Rust)
-O serviço web HTTP e o motor de difusão CSR rodam 100% em Rust (`youmightlike-server` via Axum/Tokio), mantendo o grafo semântico persistente em RAM para recomendações em milissegundos:
+### 4. Start the Interactive Web Interface (Force-Graph UI in Rust)
+The HTTP web service and CSR diffusion engine run natively in Rust (`youmightlike-server` via Axum/Tokio), keeping the semantic graph in memory for sub-second responses:
 ```bash
-# Compilar os binários em modo release (engine + server)
+# Build release binaries (engine + server)
 cargo build --release
 
-# Iniciar o servidor Rust diretamente na porta 8000
+# Run Rust server directly on port 8000
 ./target/release/youmightlike-server --port 8000
 
-# Ou via wrapper do módulo Python (executa o binário Rust nativo)
+# Or run via Python module wrapper (launches native Rust binary)
 python -m youmightlike.web
 ```
-Abra o navegador em `http://localhost:8000`:
-- **Barra de perfil inferior:** Adicione sementes favoritas (músicas, jogos, filmes ou artistas).
-- **Campo Topológico:** Explore as arestas semânticas interativas renderizadas com Force-Graph.
-- **Seletor [ PT | EN ]:** Alterne entre português e inglês instantaneamente.
-- **Shift + Click:** Inspecione e realce caminhos de conexão direta e pontes mútuas entre múltiplos nós.
+Open `http://localhost:8000` in your browser:
+- **Seed bar:** Add favorite seeds (tracks, games, movies, TV series, or artists).
+- **Topological Canvas:** Explore interactive semantic edges rendered with Force-Graph and D3 physics.
+- **Language Switcher [ PT | EN ]:** Toggle between Portuguese and English instantly.
+- **Shift + Click:** Inspect and highlight multi-node paths and mutual bridges.
 
-### 5. Consultar o Grafo via Python / CLI
-Você pode inspecionar o grafo direto no terminal ou conectando o DBeaver em modo `read_only`:
+### 5. Querying Graph via Python / CLI
+You can inspect the graph from the command line or via DBeaver in `read_only` mode:
 ```python
 import duckdb
 
 conn = duckdb.connect("data/processed/taste_graph.duckdb", read_only=True)
-print("Nós:", conn.execute("SELECT count(*) FROM v_graph_nodes").fetchone()[0])
-print("Arestas:", conn.execute("SELECT count(*) FROM v_graph_edges").fetchone()[0])
+print("Nodes:", conn.execute("SELECT count(*) FROM v_graph_nodes").fetchone()[0])
+print("Edges:", conn.execute("SELECT count(*) FROM v_graph_edges").fetchone()[0])
 ```
 
 ---
 
-## Licença
+## License
 
-MIT. Os datasets externos respeitam seus respectivos termos abertos (CC0, ODC-By, e licenças de dados comunitários).
+MIT. External datasets adhere to their respective open licenses (CC0, ODC-By, and open community datasets).

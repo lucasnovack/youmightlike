@@ -1,8 +1,8 @@
-//! Servidor HTTP Axum e orquestração de endpoints para o youmightlike-engine.
+//! Axum HTTP server and endpoint orchestration for youmightlike-engine.
 //!
-//! Este módulo atua como o ponto de entrada das rotas HTTP, delegando a busca
-//! e resolução de seeds para `search`, o cálculo de difusão transmidiática para
-//! `recommender`, e os tipos e estado compartilhado para `models`.
+//! This module acts as the entry point for HTTP routes, delegating search
+//! and seed resolution to `search`, transmedia graph diffusion to
+//! `recommender`, and types/shared state to `models`.
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -28,7 +28,7 @@ pub use crate::models::{
 pub use crate::recommender::{api_recommend, api_recommend_tracks};
 pub use crate::search::api_search;
 
-/// Resposta do endpoint de health
+/// Health check endpoint response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HealthResponse {
     pub status: String,
@@ -36,7 +36,7 @@ pub struct HealthResponse {
     pub edges: usize,
 }
 
-/// Handler do endpoint de verificação de integridade e métricas básicas de nós/arestas.
+/// Health check handler returning basic node/edge counts and engine status.
 pub async fn api_health(State(state): State<Arc<AppState>>) -> Json<HealthResponse> {
     Json(HealthResponse {
         status: "ok".to_string(),
@@ -45,7 +45,7 @@ pub async fn api_health(State(state): State<Arc<AppState>>) -> Json<HealthRespon
     })
 }
 
-/// Carrega o grafo CSR, o catálogo e monta o estado de aplicação compartilhado (`AppState`).
+/// Loads the CSR graph, catalog metadata, and initializes the shared `AppState`.
 pub fn load_app_state(db_path: &str) -> Result<Arc<AppState>> {
     println!("[server] loading graph from duckdb at {}...", db_path);
     let t0 = Instant::now();
@@ -62,7 +62,7 @@ pub fn load_app_state(db_path: &str) -> Result<Arc<AppState>> {
         db_path,
         Config::default().access_mode(AccessMode::ReadOnly)?,
     )
-    .context("Falha ao abrir conexão DuckDB para AppState")?;
+    .context("Failed to open DuckDB read-only connection for AppState")?;
 
     println!("[server] caching metadata catalogs...");
     let t_meta = Instant::now();
@@ -87,7 +87,7 @@ pub fn load_app_state(db_path: &str) -> Result<Arc<AppState>> {
     Ok(state)
 }
 
-/// Constrói o roteador Axum com suporte a CORS, arquivos estáticos e fallback da SPA.
+/// Constructs the Axum router with CORS support, static files, and SPA fallback.
 pub fn build_router(state: Arc<AppState>, static_dir: PathBuf) -> Router {
     let cors = CorsLayer::new()
         .allow_origin(Any)
