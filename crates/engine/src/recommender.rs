@@ -296,6 +296,24 @@ pub fn compute_recommendations_sync(
     let mut graph_nodes: Vec<GraphNodePayload> = Vec::new();
     let mut graph_links: Vec<GraphLinkPayload> = Vec::new();
 
+    let steam_noise_tags: HashSet<&str> = [
+        "adjustable difficulty", "adjustable text size", "camera comfort", "captions available",
+        "chat speech-to-text", "chat text-to-speech", "color alternatives", "commentary available",
+        "cross-platform multiplayer", "custom volume controls", "family sharing", "full controller support",
+        "hdr available", "in-app purchases", "includes source sdk", "includes level editor",
+        "keyboard only option", "lan co-op", "lan pvp", "mods", "mods (require hl2)", "mouse only option",
+        "narrated game menus", "partial controller support", "playable without timed input",
+        "remote play together", "remote play on phone", "remote play on tv", "remote play on tablet",
+        "save anytime", "shared/split screen", "shared/split screen co-op", "shared/split screen pvp",
+        "single-player", "multi-player", "multiplayer", "stats", "steam achievements", "steam cloud",
+        "steam leaderboards", "steam timeline", "steam trading cards", "steam turn notifications",
+        "steam workshop", "steamvr collectibles", "stereo sound", "subtitle options", "surround sound",
+        "touch only option", "tracked controller support", "vr only", "vr support", "vr supported",
+        "valve anti-cheat enabled",
+    ]
+    .into_iter()
+    .collect();
+
     // 3. Adiciona nós semente e suas âncoras estruturais ao subgrafo
     for seed_item in &seeds_resolved {
         graph_nodes.push(GraphNodePayload {
@@ -329,8 +347,16 @@ pub fn compute_recommendations_sync(
             }
         }
 
-        // Âncoras estruturais para cada semente
+        // Âncoras estruturais para cada semente (filtrando ruídos de infraestrutura)
         let mut anchor_edges = state.graph.out_edges_by_key(&seed_item.id);
+        anchor_edges.retain(|e| {
+            if let Some(("keyword", tid)) = parse_node_key(e.target_key) {
+                if let Some(kname) = state.catalog.keywords.get(&tid) {
+                    return !steam_noise_tags.contains(kname.as_str());
+                }
+            }
+            true
+        });
         anchor_edges.sort_by(|a, b| {
             let prio = |rel: &str| match rel {
                 "developed_by" => 1,
@@ -386,12 +412,21 @@ pub fn compute_recommendations_sync(
     if diffusion_seeds.len() > 1 {
         let mut common_tags: Vec<(i64, usize)> = seed_tag_counts
             .iter()
-            .filter(|&(_, &cnt)| cnt >= 2)
+            .filter(|&(kid, &cnt)| {
+                if cnt < 2 {
+                    return false;
+                }
+                if let Some(kname) = state.catalog.keywords.get(kid) {
+                    !steam_noise_tags.contains(kname.as_str())
+                } else {
+                    false
+                }
+            })
             .map(|(&kid, &cnt)| (kid, cnt))
             .collect();
         common_tags.sort_by(|a, b| b.1.cmp(&a.1));
 
-        for (kid, _) in common_tags.into_iter().take(3) {
+        for (kid, _) in common_tags.into_iter().take(5) {
             if let Some(kname) = state.catalog.keywords.get(&kid) {
                 let b_id = format!("keyword:{}", kid);
                 if !graph_nodes.iter().any(|n| n.id == b_id) {
@@ -434,17 +469,6 @@ pub fn compute_recommendations_sync(
     /// Piso mínimo de probabilidade de difusão PPR (em escala relativa) para evitar ruído estatístico
     /// e descartar itens desconexos de cotas forçadas com afinidade nula.
     const MIN_REC_SCORE: f32 = 5e-5;
-
-    let steam_noise_tags: HashSet<&str> = [
-        "single-player",
-        "multiplayer",
-        "steam cloud",
-        "steam achievements",
-        "family sharing",
-        "steam trading cards",
-    ]
-    .into_iter()
-    .collect();
 
         // -------------------------------------------------------------------
         // A. ARTISTAS RECOMENDADOS (`artist:*`)
@@ -1148,11 +1172,15 @@ pub fn compute_recommendations_sync(
                 let mut found_dev: Option<String> = None;
                 let mut specific_tags: Vec<String> = Vec::new();
                 let mut fallback_tags: Vec<String> = Vec::new();
+                let mut best_game_bridge: Option<(String, String, String)> = None;
 
                 for e in state.graph.out_edges_by_key(nkey) {
                     if let Some((tpfx, tid)) = parse_node_key(e.target_key) {
                         if tpfx == "developer" && found_dev.is_none() && seed_devs.contains(&tid) {
                             found_dev = state.catalog.developers.get(&tid).cloned();
+                            if let Some(ref dname) = found_dev {
+                                best_game_bridge = Some((e.target_key.to_string(), dname.clone(), "developer".to_string()));
+                            }
                         } else if tpfx == "keyword"
                             && is_tag_relation(e.relation_type)
                             && seed_tag_counts.contains_key(&tid)
@@ -1162,6 +1190,9 @@ pub fn compute_recommendations_sync(
                                 if !steam_noise_tags.contains(kname.as_str()) {
                                     if specific_tags.len() < 3 && !specific_tags.contains(&tfmt) {
                                         specific_tags.push(tfmt);
+                                    }
+                                    if best_game_bridge.is_none() {
+                                        best_game_bridge = Some((e.target_key.to_string(), format!("#{}", kname), "keyword".to_string()));
                                     }
                                 } else if fallback_tags.len() < 2 && !fallback_tags.contains(&tfmt)
                                 {
@@ -1227,6 +1258,18 @@ pub fn compute_recommendations_sync(
                     tags: Vec::new(),
                     desc: String::new(),
                 });
+                if let Some((b_id, b_label, b_type)) = best_game_bridge {
+                    if !graph_nodes.iter().any(|n| n.id == b_id) {
+                        graph_nodes.push(GraphNodePayload {
+                            id: b_id,
+                            label: b_label,
+                            node_type: b_type,
+                            val: 9.0,
+                            tags: Vec::new(),
+                            desc: String::new(),
+                        });
+                    }
+                }
                 game_recs_added += 1;
             }
         }
