@@ -513,7 +513,34 @@ SELECT
     3.0 AS base_weight
 FROM tv_series s
 JOIN books b ON (s.based_on_wikidata_id IS NOT NULL AND s.based_on_wikidata_id = b.wikidata_id)
-             OR (LOWER(TRIM(s.based_on_title)) = LOWER(TRIM(b.title)));
+             OR (LOWER(TRIM(s.based_on_title)) = LOWER(TRIM(b.title)))
+UNION ALL
+-- =========================================================================
+-- PONTES DE ÉPOCA E CONTEXTO HISTÓRICO (released_in_epoch)
+-- =========================================================================
+-- Games por ano
+SELECT 
+    'game:' || CAST(id AS VARCHAR) AS source_id,
+    'epoch:' || CAST(release_year AS VARCHAR) AS target_id,
+    'released_in_epoch' AS relation_type,
+    0.8 AS base_weight
+FROM games WHERE release_year BETWEEN 1970 AND 2026
+UNION ALL
+-- Filmes por ano
+SELECT 
+    'movie:' || CAST(id AS VARCHAR) AS source_id,
+    'epoch:' || CAST(release_year AS VARCHAR) AS target_id,
+    'released_in_epoch' AS relation_type,
+    0.8 AS base_weight
+FROM movies WHERE release_year BETWEEN 1970 AND 2026
+UNION ALL
+-- Séries por ano
+SELECT 
+    'series:' || CAST(id AS VARCHAR) AS source_id,
+    'epoch:' || CAST(start_year AS VARCHAR) AS target_id,
+    'released_in_epoch' AS relation_type,
+    0.8 AS base_weight
+FROM tv_series WHERE start_year BETWEEN 1970 AND 2026;
 
 -- View com Mitigação de Super-Nós: Ponderação Adamic-Adar / IDF
 CREATE OR REPLACE VIEW v_weighted_graph_edges AS
