@@ -206,6 +206,18 @@ pub struct AppState {
     pub cache: Mutex<ResponseCache>,
 }
 
+impl AppState {
+    /// Abre uma nova conexão DuckDB em modo somente-leitura dedicada à thread worker atual,
+    /// eliminando contenção por locks entre buscas e recomendações paralelas.
+    pub fn open_read_conn(&self) -> Result<Connection> {
+        let conn = Connection::open_with_flags(
+            &self.db_path,
+            duckdb::Config::default().access_mode(duckdb::AccessMode::ReadOnly)?,
+        )?;
+        Ok(conn)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // API Data Models (Contratos compatíveis com o frontend e FastAPI)
 // ---------------------------------------------------------------------------

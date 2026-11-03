@@ -8,13 +8,14 @@ use duckdb::params;
 use serde_json::json;
 use std::{collections::HashSet, sync::Arc};
 
-pub async fn api_search(
-    State(state): State<Arc<AppState>>,
-    Query(params): Query<SearchParams>,
-) -> Result<Json<Vec<EntityItem>>, (StatusCode, String)> {
+/// Executa a busca em modo síncrono utilizando uma conexão DuckDB de leitura dedicada.
+pub fn search_entities_sync(
+    state: &AppState,
+    params: &SearchParams,
+) -> anyhow::Result<Vec<EntityItem>> {
     let q_str = params.q.trim().to_string();
     if q_str.is_empty() {
-        return Ok(Json(Vec::new()));
+        return Ok(Vec::new());
     }
 
     let entity_type = params.entity_type.as_deref().unwrap_or("");
@@ -23,10 +24,7 @@ pub async fn api_search(
     let mut items: Vec<EntityItem> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
 
-    let conn = state
-        .db_conn
-        .lock()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let conn = state.open_read_conn()?;
 
     // 1. Artistas (se entity_type for vazio ou 'artist')
     if entity_type.is_empty() || entity_type == "artist" {
@@ -304,5 +302,19 @@ pub async fn api_search(
     }
 
     items.truncate(limit);
-    Ok(Json(items))
+    Ok(items)
+}
+
+/// Handler HTTP Axum que offloada a busca para o worker pool de blocking tasks.
+pub async fn api_search(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<SearchParams>,
+) -> Result<Json<Vec<EntityItem>>, (StatusCode, String)> {
+    tokio::task::spawn_blocking(move || {
+        search_entities_sync(&state, &params)
+            .map(Json)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+    })
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Task join error: {}", e)))?
 }

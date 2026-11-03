@@ -104,8 +104,7 @@ pub fn build_router(state: Arc<AppState>, static_dir: PathBuf) -> Router {
 
     Router::new()
         .nest("/api", api_routes)
-        .nest_service(
-            "/",
+        .fallback_service(
             ServeDir::new(&static_dir).fallback(axum::routing::get_service(
                 tower_http::services::ServeFile::new(index_file),
             )),

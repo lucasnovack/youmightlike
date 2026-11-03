@@ -54,13 +54,9 @@ pub fn compute_recommendations_sync(
     let mut seed_artist_names: HashMap<String, String> = HashMap::new();
     let mut track_seed_artists: HashMap<String, (i64, String)> = HashMap::new();
 
-    {
-        let conn = state
-            .db_conn
-            .lock()
-            .map_err(|e| anyhow::anyhow!("Mutex poisoned: {}", e))?;
+    let conn = state.open_read_conn()?;
 
-        // 1. Resolve metadados dos nós semente
+    // 1. Resolve metadados dos nós semente
         for s in &req.seeds {
             let Some((prefix, nid)) = parse_node_key(s) else {
                 continue;
@@ -220,7 +216,6 @@ pub fn compute_recommendations_sync(
                 _ => {}
             }
         }
-    }
 
     // 2. Executa a difusão PPR em memória e obtém o vetor completo de probabilidades `p`
     let active_seeds: Vec<&str> = if diffusion_seeds.is_empty() {
@@ -446,12 +441,6 @@ pub fn compute_recommendations_sync(
     ]
     .into_iter()
     .collect();
-
-    {
-        let conn = state
-            .db_conn
-            .lock()
-            .map_err(|e| anyhow::anyhow!("Mutex poisoned: {}", e))?;
 
         // -------------------------------------------------------------------
         // A. ARTISTAS RECOMENDADOS (`artist:*`)
@@ -1326,7 +1315,6 @@ pub fn compute_recommendations_sync(
                 book_recs_added += 1;
             }
         }
-    }
 
     // 4. Monta arestas internas do subgrafo e filtra pontes isoladas
     {
@@ -1397,10 +1385,6 @@ pub fn compute_recommendations_sync(
 
     // 5. Enriquece cada nó do grafo com suas tags e metadados descritivos
     {
-        let conn = state
-            .db_conn
-            .lock()
-            .map_err(|e| anyhow::anyhow!("Mutex poisoned: {}", e))?;
 
         for n in &mut graph_nodes {
             let Some((pfx, nid)) = parse_node_key(&n.id) else {
@@ -1565,9 +1549,13 @@ pub async fn api_recommend(
     State(state): State<Arc<AppState>>,
     Json(req): Json<RecommendationRequest>,
 ) -> Result<Json<RecommendationResponse>, (StatusCode, String)> {
-    let resp = compute_recommendations_sync(&state, &req)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    Ok(Json(resp))
+    tokio::task::spawn_blocking(move || {
+        compute_recommendations_sync(&state, &req)
+            .map(Json)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+    })
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Task join error: {}", e)))?
 }
 
 pub fn compute_track_recommendations_sync(
@@ -1582,42 +1570,37 @@ pub fn compute_track_recommendations_sync(
     let mut seed_track_ids: HashSet<i64> = HashSet::new();
     let mut seed_audio_features: Vec<(f64, f64, f64, f64)> = Vec::new();
 
-    {
-        let conn = state
-            .db_conn
-            .lock()
-            .map_err(|e| anyhow::anyhow!("Mutex poisoned: {}", e))?;
+    let conn = state.open_read_conn()?;
 
-        for s in &req.seeds {
-            let Some((pfx, id)) = parse_node_key(s) else {
-                continue;
-            };
-            if pfx == "artist" {
-                seed_artist_ids.insert(id);
-            } else if pfx == "track" {
-                seed_track_ids.insert(id);
-                if let Ok((a_id, tempo, valence, energy, dance)) = conn.query_row(
-                    "SELECT artist_id, tempo, valence, energy, danceability FROM music_tracks WHERE id = ?",
-                    params![id],
-                    |r| {
-                        Ok((
-                            r.get::<_, i64>(0)?,
-                            r.get::<_, Option<f64>>(1)?,
-                            r.get::<_, Option<f64>>(2)?,
-                            r.get::<_, Option<f64>>(3)?,
-                            r.get::<_, Option<f64>>(4)?,
-                        ))
-                    },
-                ) {
-                    seed_artist_ids.insert(a_id);
-                    if let Some(t) = tempo {
-                        seed_audio_features.push((
-                            t,
-                            valence.unwrap_or(0.5),
-                            energy.unwrap_or(0.5),
-                            dance.unwrap_or(0.5),
-                        ));
-                    }
+    for s in &req.seeds {
+        let Some((pfx, id)) = parse_node_key(s) else {
+            continue;
+        };
+        if pfx == "artist" {
+            seed_artist_ids.insert(id);
+        } else if pfx == "track" {
+            seed_track_ids.insert(id);
+            if let Ok((a_id, tempo, valence, energy, dance)) = conn.query_row(
+                "SELECT artist_id, tempo, valence, energy, danceability FROM music_tracks WHERE id = ?",
+                params![id],
+                |r| {
+                    Ok((
+                        r.get::<_, i64>(0)?,
+                        r.get::<_, Option<f64>>(1)?,
+                        r.get::<_, Option<f64>>(2)?,
+                        r.get::<_, Option<f64>>(3)?,
+                        r.get::<_, Option<f64>>(4)?,
+                    ))
+                },
+            ) {
+                seed_artist_ids.insert(a_id);
+                if let Some(t) = tempo {
+                    seed_audio_features.push((
+                        t,
+                        valence.unwrap_or(0.5),
+                        energy.unwrap_or(0.5),
+                        dance.unwrap_or(0.5),
+                    ));
                 }
             }
         }
@@ -1751,10 +1734,6 @@ pub fn compute_track_recommendations_sync(
         i64,
         String,
     )> = {
-        let conn = state
-            .db_conn
-            .lock()
-            .map_err(|e| anyhow::anyhow!("Mutex poisoned: {}", e))?;
         let mut stmt = conn.prepare(&sql_candidates)?;
         let mut rows = stmt.query([])?;
         let mut list = Vec::new();
@@ -1839,7 +1818,11 @@ pub async fn api_recommend_tracks(
     State(state): State<Arc<AppState>>,
     Json(req): Json<TrackRecommendRequest>,
 ) -> Result<Json<Vec<TrackRecommendationItem>>, (StatusCode, String)> {
-    let recs = compute_track_recommendations_sync(&state, &req)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    Ok(Json(recs))
+    tokio::task::spawn_blocking(move || {
+        compute_track_recommendations_sync(&state, &req)
+            .map(Json)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+    })
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Task join error: {}", e)))?
 }
