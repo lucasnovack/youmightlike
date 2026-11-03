@@ -507,6 +507,10 @@ pub fn compute_recommendations_sync(
                     continue;
                 };
 
+                // In-memory path explanation via directed CSR edges
+                let mut explanation_parts: Vec<String> = Vec::new();
+                let mut direct_co_listening = false;
+                let mut shared_tags: Vec<String> = Vec::new();
                 // Track connecting bridge to seeds or shared tags to avoid isolated nodes
                 let mut best_artist_bridge: Option<(String, String, String, f32)> = None;
 
