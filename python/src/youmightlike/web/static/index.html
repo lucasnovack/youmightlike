@@ -284,9 +284,21 @@
                 </span>
                 <p class="text-[10px] text-canvas-muted mt-0.5">{{ rec.subtitle }}</p>
               </div>
-              <span class="text-[10px] font-mono font-bold text-canvas-denim bg-canvas-sidebar px-1.5 py-0.5 rounded border border-canvas-border shrink-0">
-                score {{ rec.score }}
-              </span>
+              <!-- Qualitative Affinity Badge & PPR Score -->
+              <div class="flex flex-col items-end shrink-0 text-right">
+                <span 
+                  :class="getAffinityBadgeClass(rec.score)"
+                  :title="t('scoreTooltip')"
+                  class="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border cursor-help tracking-tight inline-flex items-center gap-1"
+                >
+                  <span>{{ getAffinityLabel(rec.score) }}</span>
+                  <span class="opacity-40">·</span>
+                  <span>{{ rec.score }} pts</span>
+                </span>
+                <span class="text-[8px] text-canvas-muted font-mono mt-0.5" :title="t('scoreTooltip')">
+                  {{ t('affinityScoreLabel') }}
+                </span>
+              </div>
             </div>
 
             <!-- Mathematical / Graph Explanation (Why this is here) -->
@@ -551,6 +563,12 @@
         addNodeToLikes: "+ Adicionar aos gostos",
         alreadyInLikes: "Nos seus gostos",
         removeFromLikes: "remover",
+        affinityScoreLabel: "afinidade topológica",
+        affinityVeryHigh: "Muito Alta",
+        affinityHigh: "Alta",
+        affinityModerate: "Moderada",
+        affinityThematic: "Temática",
+        scoreTooltip: "Score de Ressonância (PPR): probabilidade de difusão a partir das sementes do seu perfil. Não é nota de avaliação (0-10).",
       },
       en: {
         nodes: "nodes",
@@ -609,6 +627,12 @@
         addNodeToLikes: "+ Add to likes",
         alreadyInLikes: "In your likes",
         removeFromLikes: "remove",
+        affinityScoreLabel: "topological affinity",
+        affinityVeryHigh: "Very High",
+        affinityHigh: "High",
+        affinityModerate: "Moderate",
+        affinityThematic: "Thematic",
+        scoreTooltip: "Resonance Score (PPR): diffusion probability based on your profile seeds. Not a quality rating (0-10).",
       }
     };
 
@@ -670,6 +694,22 @@
             case 'series': return 'text-[#8b5cf6] bg-[#8b5cf6]/10 border-[#8b5cf6]/20';
             default: return 'text-canvas-muted bg-canvas-sidebar border-canvas-border';
           }
+        };
+
+        const getAffinityLabel = (score) => {
+          const val = Number(score) || 0;
+          if (val >= 3.0) return t('affinityVeryHigh');
+          if (val >= 1.5) return t('affinityHigh');
+          if (val >= 0.5) return t('affinityModerate');
+          return t('affinityThematic');
+        };
+
+        const getAffinityBadgeClass = (score) => {
+          const val = Number(score) || 0;
+          if (val >= 3.0) return 'text-canvas-sage bg-canvas-sage/15 border-canvas-sage/30';
+          if (val >= 1.5) return 'text-canvas-denim bg-canvas-denim/10 border-canvas-denim/30';
+          if (val >= 0.5) return 'text-canvas-text bg-canvas-sidebar border-canvas-borderDark';
+          return 'text-canvas-muted bg-canvas-sidebar border-canvas-border';
         };
 
         const onSearchInput = () => {
@@ -1113,6 +1153,8 @@
           computeRecommendations,
           getSearchPlaceholder,
           getTypeBadgeClass,
+          getAffinityLabel,
+          getAffinityBadgeClass,
           selectedNodeIds,
           inspectedNodes,
           focusedNodeSuggestions,
