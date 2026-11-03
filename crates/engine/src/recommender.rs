@@ -258,8 +258,17 @@ pub fn compute_recommendations_sync(
     let mut seed_people: HashSet<i64> = HashSet::new();
     let mut seed_devs: HashSet<i64> = HashSet::new();
     let mut seed_authors: HashSet<i64> = HashSet::new();
+    let mut seed_artists: HashSet<i64> = HashSet::new();
+    let mut seed_games: HashSet<i64> = HashSet::new();
 
     for &seed_key in &active_seeds {
+        if let Some((pfx, nid)) = parse_node_key(seed_key) {
+            if pfx == "artist" {
+                seed_artists.insert(nid);
+            } else if pfx == "game" {
+                seed_games.insert(nid);
+            }
+        }
         let mut seen_seed_tags = HashSet::new();
         for edge in state.graph.out_edges_by_key(seed_key) {
             if let Some((tpfx, tid)) = parse_node_key(edge.target_key) {
@@ -275,6 +284,10 @@ pub fn compute_recommendations_sync(
                     seed_devs.insert(tid);
                 } else if tpfx == "author" && edge.relation_type == "written_by" {
                     seed_authors.insert(tid);
+                } else if tpfx == "artist" && matches!(edge.relation_type, "soundtrack_composer" | "soundtrack_featured" | "is_artist") {
+                    seed_artists.insert(tid);
+                } else if tpfx == "game" && edge.relation_type == "soundtrack_for" {
+                    seed_games.insert(tid);
                 }
             }
         }
@@ -500,7 +513,19 @@ pub fn compute_recommendations_sync(
                 let mut shared_tags: Vec<String> = Vec::new();
 
                 for e in state.graph.out_edges_by_key(nkey) {
-                    if e.relation_type == "similar_to"
+                    if (e.relation_type == "soundtrack_composer" || e.relation_type == "soundtrack_for")
+                        && seed_games.contains(&parse_node_key(e.target_key).map(|(_, id)| id).unwrap_or(0))
+                    {
+                        if let Some(("game", gid)) = parse_node_key(e.target_key) {
+                            if let Some(g) = state.catalog.games.get(&gid) {
+                                explanation_parts.push(if is_pt {
+                                    format!("Compositor da trilha de {}", g.title)
+                                } else {
+                                    format!("Soundtrack composer for {}", g.title)
+                                });
+                            }
+                        }
+                    } else if e.relation_type == "similar_to"
                         && active_seed_set.contains(e.target_key)
                         && !direct_co_listening
                     {
@@ -1169,6 +1194,7 @@ pub fn compute_recommendations_sync(
                 };
 
                 let mut game_explanation: Vec<String> = Vec::new();
+                let mut found_composer: Option<String> = None;
                 let mut found_dev: Option<String> = None;
                 let mut specific_tags: Vec<String> = Vec::new();
                 let mut fallback_tags: Vec<String> = Vec::new();
@@ -1176,7 +1202,17 @@ pub fn compute_recommendations_sync(
 
                 for e in state.graph.out_edges_by_key(nkey) {
                     if let Some((tpfx, tid)) = parse_node_key(e.target_key) {
-                        if tpfx == "developer" && found_dev.is_none() && seed_devs.contains(&tid) {
+                        if tpfx == "artist" && (e.relation_type == "soundtrack_composer" || e.relation_type == "soundtrack_for") && seed_artists.contains(&tid) {
+                            if found_composer.is_none() {
+                                let cname = seed_artist_names.get(e.target_key)
+                                    .cloned()
+                                    .or_else(|| lookup_artist_meta(&conn, tid).map(|(n, _)| n));
+                                if let Some(cname) = cname {
+                                    best_game_bridge = Some((e.target_key.to_string(), cname.clone(), "artist".to_string()));
+                                    found_composer = Some(cname);
+                                }
+                            }
+                        } else if tpfx == "developer" && found_dev.is_none() && seed_devs.contains(&tid) {
                             found_dev = state.catalog.developers.get(&tid).cloned();
                             if let Some(ref dname) = found_dev {
                                 best_game_bridge = Some((e.target_key.to_string(), dname.clone(), "developer".to_string()));
@@ -1203,6 +1239,13 @@ pub fn compute_recommendations_sync(
                     }
                 }
 
+                if let Some(cname) = found_composer {
+                    game_explanation.push(if is_pt {
+                        format!("Trilha sonora por {}", cname)
+                    } else {
+                        format!("Soundtrack by {}", cname)
+                    });
+                }
                 if let Some(dname) = found_dev {
                     game_explanation.push(if is_pt {
                         format!("Mesmo estúdio ({})", dname)
@@ -1417,7 +1460,26 @@ pub fn compute_recommendations_sync(
                             already_chosen.insert(nkey.clone());
                             let year_str = g.release_year.map(|y| y.to_string()).unwrap_or_else(|| "N/A".to_string());
                             let sub = if is_pt { format!("Jogo ({})", year_str) } else { format!("Game ({})", year_str) };
-                            let reason = if is_pt { "Alta ressonância na difusão de estilo e mecânicas".to_string() } else { "High diffusion resonance in mechanics and style".to_string() };
+
+                            let mut comp_name: Option<String> = None;
+                            for e in state.graph.out_edges_by_key(nkey) {
+                                if let Some(("artist", aid)) = parse_node_key(e.target_key) {
+                                    if (e.relation_type == "soundtrack_composer" || e.relation_type == "soundtrack_for") && seed_artists.contains(&aid) {
+                                        comp_name = seed_artist_names.get(e.target_key)
+                                            .cloned()
+                                            .or_else(|| lookup_artist_meta(&conn, aid).map(|(n, _)| n));
+                                        if comp_name.is_some() {
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+
+                            let reason = if let Some(ref c) = comp_name {
+                                if is_pt { format!("Trilha sonora por {}", c) } else { format!("Soundtrack by {}", c) }
+                            } else {
+                                if is_pt { "Alta ressonância na difusão de estilo e mecânicas".to_string() } else { "High diffusion resonance in mechanics and style".to_string() }
+                            };
 
                             results.push(json!({
                                 "id": nkey,

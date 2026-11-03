@@ -1019,15 +1019,9 @@
 
               ctx.save();
 
-              if (!isHighlighted) {
-                // Nó fora da seleção: esmaecido
-                ctx.globalAlpha = 0.12;
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, r * 0.85, 0, 2 * Math.PI, false);
-                ctx.fillStyle = '#d4d4d8';
-                ctx.fill();
-                ctx.restore();
-                return;
+              // Se há nós selecionados e este nó não está em foco direto
+              if (hasSelection && !isHighlighted) {
+                ctx.globalAlpha = 0.45;
               }
 
               // Anel de foco para nó selecionado
@@ -1044,6 +1038,13 @@
                 ctx.arc(node.x, node.y, r + 2.5 / globalScale, 0, 2 * Math.PI, false);
                 ctx.fillStyle = 'rgba(232, 72, 85, 0.18)';
                 ctx.fill();
+              } else if (hasSelection && isNeighbor) {
+                // Anel sutil para vizinhos imediatos
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, r + 2 / globalScale, 0, 2 * Math.PI, false);
+                ctx.strokeStyle = 'rgba(24, 40, 37, 0.45)';
+                ctx.lineWidth = 1.2 / globalScale;
+                ctx.stroke();
               }
 
               // Círculo principal do nó
@@ -1056,13 +1057,19 @@
               ctx.lineWidth = (isSelected ? 2.0 : 1.2) / globalScale;
               ctx.stroke();
 
-              // Rótulo do nó
+              // Rótulo do nó - sempre legível para facilitar multi-seleção
               ctx.textAlign = 'center';
               ctx.textBaseline = 'top';
-              ctx.fillStyle = isSelected ? '#e84855' : '#182825';
-              ctx.font = isSelected 
-                ? `bold ${Math.max(fontSize, 12 / globalScale)}px "JetBrains Mono", monospace`
-                : `600 ${fontSize}px "JetBrains Mono", monospace`;
+              if (isSelected) {
+                ctx.fillStyle = '#e84855';
+                ctx.font = `bold ${Math.max(fontSize, 12 / globalScale)}px "JetBrains Mono", monospace`;
+              } else if (hasSelection && !isHighlighted) {
+                ctx.fillStyle = '#52525b';
+                ctx.font = `500 ${fontSize}px "JetBrains Mono", monospace`;
+              } else {
+                ctx.fillStyle = '#182825';
+                ctx.font = `600 ${fontSize}px "JetBrains Mono", monospace`;
+              }
               
               ctx.fillText(label, node.x, node.y + r + (isSelected ? 4 : 3));
               ctx.restore();
@@ -1090,8 +1097,8 @@
               if (selectedNodeIds.value.has(sId) || selectedNodeIds.value.has(tId)) {
                 return '#182825'; // Pine escuro contrastante
               }
-              // Fora da seleção
-              return 'rgba(228, 228, 231, 0.12)';
+              // Fora da seleção: visível de forma suave sem poluir
+              return 'rgba(212, 212, 216, 0.4)';
             })
             .linkWidth(link => {
               if (selectedNodeIds.value.size === 0) return Math.min(link.weight || 1, 2);
@@ -1103,7 +1110,7 @@
               if (selectedNodeIds.value.has(sId) || selectedNodeIds.value.has(tId)) {
                 return 2.2;
               }
-              return 0.5;
+              return 0.8;
             });
 
           // Física aprimorada: expansão de layout, link distance maior e repulsão anti-colisão

@@ -127,6 +127,101 @@ fn canonical_soundtrack_bridges() -> Vec<(&'static str, &'static str, &'static s
         // Lost Highway (1997) - movie:1345
         ("movie:1345", "artist:131", "soundtrack_featured", 3.8),   // Nine Inch Nails
         ("movie:1345", "artist:65", "soundtrack_featured", 3.8),    // The Smashing Pumpkins
+
+        // -------------------------------------------------------------------
+        // Video Game Soundtrack Bridges
+        // -------------------------------------------------------------------
+        // The Elder Scrolls V: Skyrim - Jeremy Soule (artist:1825)
+        ("game:7811", "artist:1825", "soundtrack_composer", 4.5),
+        ("artist:1825", "game:7811", "soundtrack_for", 4.5),
+        ("game:2618", "artist:1825", "soundtrack_composer", 4.5),
+        ("artist:1825", "game:2618", "soundtrack_for", 4.5),
+        ("game:1292", "artist:1825", "soundtrack_composer", 4.5),
+        ("artist:1825", "game:1292", "soundtrack_for", 4.5),
+
+        // The Elder Scrolls IV: Oblivion - Jeremy Soule
+        ("game:8995", "artist:1825", "soundtrack_composer", 4.5),
+        ("artist:1825", "game:8995", "soundtrack_for", 4.5),
+        ("game:2271", "artist:1825", "soundtrack_composer", 4.5),
+        ("artist:1825", "game:2271", "soundtrack_for", 4.5),
+        ("game:22182", "artist:1825", "soundtrack_composer", 4.5),
+        ("artist:1825", "game:22182", "soundtrack_for", 4.5),
+        ("game:3370", "artist:1825", "soundtrack_composer", 4.5),
+        ("artist:1825", "game:3370", "soundtrack_for", 4.5),
+
+        // The Elder Scrolls III: Morrowind - Jeremy Soule
+        ("game:3185", "artist:1825", "soundtrack_composer", 4.5),
+        ("artist:1825", "game:3185", "soundtrack_for", 4.5),
+        ("game:21493", "artist:1825", "soundtrack_composer", 4.5),
+        ("artist:1825", "game:21493", "soundtrack_for", 4.5),
+
+        // Guild Wars 2 - Jeremy Soule
+        ("game:3601", "artist:1825", "soundtrack_composer", 4.0),
+        ("artist:1825", "game:3601", "soundtrack_for", 4.0),
+
+        // The Witcher 3: Wild Hunt - Marcin Przybyłowicz (artist:7579)
+        ("game:3070", "artist:7579", "soundtrack_composer", 4.5),
+        ("artist:7579", "game:3070", "soundtrack_for", 4.5),
+
+        // Cyberpunk 2077 - Marcin Przybyłowicz
+        ("game:5250", "artist:7579", "soundtrack_composer", 4.5),
+        ("artist:7579", "game:5250", "soundtrack_for", 4.5),
+
+        // DOOM & DOOM Eternal - Mick Gordon (artist:8254)
+        ("game:2023", "artist:8254", "soundtrack_composer", 4.5),
+        ("artist:8254", "game:2023", "soundtrack_for", 4.5),
+        ("game:6044", "artist:8254", "soundtrack_composer", 4.5),
+        ("artist:8254", "game:6044", "soundtrack_for", 4.5),
+
+        // Fallout 3, 4, New Vegas & Dragon Age: Origins - Inon Zur (artist:1287)
+        ("game:4043", "artist:1287", "soundtrack_composer", 4.5),
+        ("artist:1287", "game:4043", "soundtrack_for", 4.5),
+        ("game:1898", "artist:1287", "soundtrack_composer", 4.5),
+        ("artist:1287", "game:1898", "soundtrack_for", 4.5),
+        ("game:2960", "artist:1287", "soundtrack_composer", 4.5),
+        ("artist:1287", "game:2960", "soundtrack_for", 4.5),
+        ("game:3595", "artist:1287", "soundtrack_composer", 4.5),
+        ("artist:1287", "game:3595", "soundtrack_for", 4.5),
+        ("game:1149", "artist:1287", "soundtrack_composer", 4.5),
+        ("artist:1287", "game:1149", "soundtrack_for", 4.5),
+        ("game:24543", "artist:1287", "soundtrack_composer", 4.5),
+        ("artist:1287", "game:24543", "soundtrack_for", 4.5),
+
+        // Hades - Darren Korb (artist:6742)
+        ("game:5360", "artist:6742", "soundtrack_composer", 4.5),
+        ("artist:6742", "game:5360", "soundtrack_for", 4.5),
+        ("game:1627", "artist:6742", "soundtrack_composer", 4.5),
+        ("artist:6742", "game:1627", "soundtrack_for", 4.5),
+
+        // Silent Hill 2 - Akira Yamaoka (artist:729)
+        ("game:7353", "artist:729", "soundtrack_composer", 4.5),
+        ("artist:729", "game:7353", "soundtrack_for", 4.5),
+        ("game:28693", "artist:729", "soundtrack_composer", 4.5),
+        ("artist:729", "game:28693", "soundtrack_for", 4.5),
+
+        // Half-Life 2 & Portal 2 - Kelly Bailey (artist:15231)
+        ("game:3687", "artist:15231", "soundtrack_composer", 4.5),
+        ("artist:15231", "game:3687", "soundtrack_for", 4.5),
+        ("game:2950", "artist:15231", "soundtrack_composer", 4.5),
+        ("artist:15231", "game:2950", "soundtrack_for", 4.5),
+        ("game:8497", "artist:15231", "soundtrack_composer", 4.5),
+        ("artist:15231", "game:8497", "soundtrack_for", 4.5),
+
+        // Final Fantasy VII & VIII - Nobuo Uematsu (artist:248854)
+        ("game:3073", "artist:248854", "soundtrack_composer", 4.5),
+        ("artist:248854", "game:3073", "soundtrack_for", 4.5),
+        ("game:2710", "artist:248854", "soundtrack_composer", 4.5),
+        ("artist:248854", "game:2710", "soundtrack_for", 4.5),
+        ("game:3502", "artist:248854", "soundtrack_composer", 4.5),
+        ("artist:248854", "game:3502", "soundtrack_for", 4.5),
+        ("game:8241", "artist:248854", "soundtrack_composer", 4.5),
+        ("artist:248854", "game:8241", "soundtrack_for", 4.5),
+        ("game:8120", "artist:248854", "soundtrack_composer", 4.5),
+        ("artist:248854", "game:8120", "soundtrack_for", 4.5),
+
+        // Baldur's Gate 3 - Borislav Slavov (artist:10309)
+        ("game:4543", "artist:10309", "soundtrack_composer", 4.5),
+        ("artist:10309", "game:4543", "soundtrack_for", 4.5),
     ]
 }
 
