@@ -6,6 +6,7 @@
   <title>youmightlike</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
   <script src="https://unpkg.com/force-graph"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -342,6 +343,11 @@
             <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#8b5cf6]"></span> {{ t('series') }}</span>
             <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#a1a1aa]"></span> {{ t('tag') }}</span>
           </div>
+          <div class="border-t border-canvas-border/80 pt-1.5 mt-2 flex justify-end">
+            <button @click="fitGraphView" class="text-[9px] font-bold text-canvas-denim hover:underline cursor-pointer">
+              [ {{ t('fitView') }} ]
+            </button>
+          </div>
         </div>
 
         <!-- Inspector Card for Selected Node(s) -->
@@ -569,6 +575,7 @@
         affinityModerate: "Moderada",
         affinityThematic: "Temática",
         scoreTooltip: "Score de Ressonância (PPR): probabilidade de difusão a partir das sementes do seu perfil. Não é nota de avaliação (0-10).",
+        fitView: "recentralizar",
       },
       en: {
         nodes: "nodes",
@@ -633,6 +640,7 @@
         affinityModerate: "Moderate",
         affinityThematic: "Thematic",
         scoreTooltip: "Resonance Score (PPR): diffusion probability based on your profile seeds. Not a quality rating (0-10).",
+        fitView: "recenter",
       }
     };
 
@@ -1097,6 +1105,25 @@
               }
               return 0.5;
             });
+
+          // Física aprimorada: expansão de layout, link distance maior e repulsão anti-colisão
+          if (graphInstance.d3Force('charge')) {
+            graphInstance.d3Force('charge')
+              .strength(-420)
+              .distanceMax(900);
+          }
+          if (graphInstance.d3Force('link')) {
+            graphInstance.d3Force('link')
+              .distance(link => Math.max(80, 125 - (link.weight || 1) * 8));
+          }
+          if (window.d3 && window.d3.forceCollide) {
+            graphInstance.d3Force('collide', window.d3.forceCollide(node => {
+              const r = (node.val || 7) / 2;
+              return r + 30; // Margem física circular impedindo nós e rótulos de se sobreporem
+            }).iterations(3));
+          }
+          graphInstance.d3VelocityDecay(0.35);
+          graphInstance.cooldownTicks(150);
         };
 
         const updateGraph = (graphData) => {
@@ -1124,6 +1151,17 @@
           });
           currentGraphRaw = { nodes: Array.from(nodeMap.values()), links: cleanLinks };
           graphInstance.graphData(currentGraphRaw);
+          setTimeout(() => {
+            if (graphInstance && currentGraphRaw.nodes.length > 0) {
+              graphInstance.zoomToFit(500, 70);
+            }
+          }, 350);
+        };
+
+        const fitGraphView = () => {
+          if (graphInstance && currentGraphRaw && currentGraphRaw.nodes && currentGraphRaw.nodes.length > 0) {
+            graphInstance.zoomToFit(500, 70);
+          }
         };
 
         onMounted(() => {
@@ -1159,6 +1197,7 @@
           inspectedNodes,
           focusedNodeSuggestions,
           clearSelection,
+          fitGraphView,
           currentLang,
           setLang,
           t,
