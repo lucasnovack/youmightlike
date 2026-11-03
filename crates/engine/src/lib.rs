@@ -5,7 +5,10 @@ pub mod ppr;
 pub mod service;
 
 pub use graph::{DirectedEdge, GraphCSR};
-pub use ppr::{run_personalized_pagerank, run_personalized_pagerank_filtered, ScoredNode};
+pub use ppr::{
+    run_personalized_pagerank, run_personalized_pagerank_filtered,
+    run_personalized_pagerank_scores, top_k_from_scores, ScoredNode,
+};
 
 /// Representação básica de um nó de recomendação
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

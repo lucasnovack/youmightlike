@@ -1,5 +1,8 @@
 use crate::graph::GraphCSR;
-use crate::ppr::run_personalized_pagerank_filtered;
+use crate::ppr::{
+    run_personalized_pagerank_filtered, run_personalized_pagerank_scores, top_k_from_scores,
+    ScoredNode,
+};
 use anyhow::{Context, Result};
 use axum::{
     extract::{Query, State},
@@ -309,6 +312,13 @@ fn is_tag_relation(rel: &str) -> bool {
     matches!(rel, "has_tag" | "has_keyword" | "has_subject")
 }
 
+fn is_soundtrack_relation(rel: &str) -> bool {
+    matches!(
+        rel,
+        "soundtrack_featured" | "soundtrack_artist" | "soundtrack_track"
+    )
+}
+
 fn parse_node_key(key: &str) -> Option<(&str, i64)> {
     let (pfx, raw) = key.split_once(':')?;
     let id = raw.parse::<i64>().ok()?;
@@ -339,24 +349,40 @@ fn lookup_artist_meta(conn: &Connection, aid: i64) -> Option<(String, Option<Str
     .ok()
 }
 
-fn lookup_top_track(conn: &Connection, aid: i64) -> Option<Value> {
+#[derive(Debug, Clone)]
+struct TopTrackRow {
+    pub track_id: i64,
+    pub title: String,
+    pub popularity: Option<i32>,
+    pub tempo: Option<f64>,
+    pub valence: Option<f64>,
+    pub energy: Option<f64>,
+}
+
+fn lookup_top_track_full(conn: &Connection, aid: i64) -> Option<TopTrackRow> {
     conn.query_row(
-        "SELECT title, popularity, tempo, valence, energy FROM music_tracks WHERE artist_id = ? ORDER BY popularity DESC LIMIT 1",
+        "SELECT id, title, popularity, tempo, valence, energy FROM music_tracks WHERE artist_id = ? ORDER BY popularity DESC LIMIT 1",
         params![aid],
         |r| {
-            Ok(json!({
-                "title": r.get::<_, String>(0)?,
-                "popularity": r.get::<_, Option<i32>>(1)?,
-                "tempo": r.get::<_, Option<f64>>(2)?,
-                "valence": r.get::<_, Option<f64>>(3)?,
-                "energy": r.get::<_, Option<f64>>(4)?,
-            }))
+            Ok(TopTrackRow {
+                track_id: r.get::<_, i64>(0)?,
+                title: r.get::<_, String>(1)?,
+                popularity: r.get::<_, Option<i32>>(2)?,
+                tempo: r.get::<_, Option<f64>>(3)?,
+                valence: r.get::<_, Option<f64>>(4)?,
+                energy: r.get::<_, Option<f64>>(5)?,
+            })
         },
     )
     .ok()
 }
 
-fn collect_node_tags(graph: &GraphCSR, catalog: &CatalogCache, node_key: &str, max_tags: usize) -> Vec<String> {
+fn collect_node_tags(
+    graph: &GraphCSR,
+    catalog: &CatalogCache,
+    node_key: &str,
+    max_tags: usize,
+) -> Vec<String> {
     let mut tag_edges: Vec<(i64, f32)> = graph
         .out_edges_by_key(node_key)
         .into_iter()
@@ -431,9 +457,10 @@ async fn api_search(
                       WHEN LOWER(ma.name) LIKE LOWER(?) || '%' THEN 4
                       WHEN ma.name NOT LIKE '%;%' THEN 5
                       ELSE 6 END,
-                 CASE WHEN ma.country = 'BR' THEN 1 WHEN ma.country IS NOT NULL THEN 2 ELSE 3 END,
+                 CASE WHEN ma.country = 'BR' THEN 1 WHEN ma.country = 'US' THEN 2 WHEN ma.country IS NOT NULL THEN 3 ELSE 4 END,
                  LENGTH(ma.name) ASC,
-                 ma.listeners DESC
+                 ma.listeners DESC,
+                 ma.id ASC
              LIMIT 8;"
         );
 
@@ -541,7 +568,7 @@ async fn api_search(
         }
     }
 
-    // 4. Livros (se solicitado explicitamente)
+    // 4. Livros
     if entity_type == "book" {
         let sql = "
             SELECT id, title, first_publish_year
@@ -673,7 +700,6 @@ pub fn compute_recommendations_sync(
     let mut seeds_resolved: Vec<EntityItem> = Vec::new();
     let mut diffusion_seeds: Vec<String> = Vec::new();
     let mut seed_artist_names: HashMap<String, String> = HashMap::new();
-    // (track_id -> (artist_id, artist_name))
     let mut track_seed_artists: HashMap<String, (i64, String)> = HashMap::new();
 
     {
@@ -830,42 +856,47 @@ pub fn compute_recommendations_sync(
         }
     }
 
-    // 2. Executa a difusão PPR em memória no motor Rust (zero subprocesso, zero reload do DuckDB!)
-    let target_prefix = match req.target_type.as_deref() {
-        Some("music") => Some("artist:"),
-        Some("movie") => Some("movie:"),
-        Some("game") => Some("game:"),
-        Some("book") => Some("book:"),
-        _ => None,
-    };
-
+    // 2. Executa a difusão PPR em memória e obtém o vetor completo de probabilidades `p`
     let active_seeds: Vec<&str> = if diffusion_seeds.is_empty() {
         req.seeds.iter().map(|s| s.as_str()).collect()
     } else {
         diffusion_seeds.iter().map(|s| s.as_str()).collect()
     };
 
-    let ppr_limit = (req.limit * 8).max(150);
-    let diffusion_results = run_personalized_pagerank_filtered(
-        &state.graph,
-        &active_seeds,
-        0.85,
-        25,
-        1e-6,
-        target_prefix,
-        Some(ppr_limit),
-    )
-    .unwrap_or_default();
+    let p = run_personalized_pagerank_scores(&state.graph, &active_seeds, 0.85, 25, 1e-6)
+        .unwrap_or_else(|_| vec![0.0; state.graph.num_nodes]);
+
+    let mut exclude_ids: HashSet<u32> = HashSet::new();
+    for s in &req.seeds {
+        if let Some(uid) = state.graph.get_node_id(s) {
+            exclude_ids.insert(uid);
+        }
+    }
+    for &s in &active_seeds {
+        if let Some(uid) = state.graph.get_node_id(s) {
+            exclude_ids.insert(uid);
+        }
+    }
+
+    // Top artistas difundidos (usados tanto para recomendar artistas/faixas quanto para pontes de trilha sonora!)
+    let top_diffused_artists =
+        top_k_from_scores(&state.graph, &p, &exclude_ids, "artist:", Some(20));
+
+    let active_seed_set: HashSet<String> = active_seeds.iter().map(|s| s.to_string()).collect();
+    // Conjunto de artistas de alta afinidade: sementes + top 12 artistas difundidos na cena
+    let mut affinitive_artist_keys: HashSet<String> = active_seed_set
+        .iter()
+        .filter(|s| s.starts_with("artist:"))
+        .cloned()
+        .collect();
+    for a in top_diffused_artists.iter().take(12) {
+        affinitive_artist_keys.insert(a.node_key.clone());
+    }
 
     // Pré-computa os mapas de vizinhos das sementes para explicações instantâneas em RAM
-    let active_seed_set: HashSet<String> = active_seeds.iter().map(|s| s.to_string()).collect();
-    // tag keyword_id -> count de sementes conectadas
     let mut seed_tag_counts: HashMap<i64, usize> = HashMap::new();
-    // person_id -> (relation_type) conectado às sementes
     let mut seed_people: HashSet<i64> = HashSet::new();
-    // developer_id -> conectado às sementes
     let mut seed_devs: HashSet<i64> = HashSet::new();
-    // author_id -> conectado às sementes
     let mut seed_authors: HashSet<i64> = HashSet::new();
 
     for &seed_key in &active_seeds {
@@ -884,6 +915,19 @@ pub fn compute_recommendations_sync(
                     seed_devs.insert(tid);
                 } else if tpfx == "author" && edge.relation_type == "written_by" {
                     seed_authors.insert(tid);
+                }
+            }
+        }
+    }
+
+    // Também agrega as tags mais fortes dos top 5 artistas difundidos se o perfil ainda tiver poucas tags
+    if seed_tag_counts.len() < 5 {
+        for a in top_diffused_artists.iter().take(5) {
+            for edge in state.graph.out_edges_by_key(&a.node_key) {
+                if let Some(("keyword", tid)) = parse_node_key(edge.target_key) {
+                    if is_tag_relation(edge.relation_type) {
+                        *seed_tag_counts.entry(tid).or_insert(0) += 1;
+                    }
                 }
             }
         }
@@ -1005,10 +1049,28 @@ pub fn compute_recommendations_sync(
         }
     }
 
-    let is_pt = req.lang == "pt";
-    let mut recs_count = 0usize;
-    let mut bridge_count = 0usize;
+    // Cotas balanceadas por domínio para descoberta transmidiática real (Artistas + Músicas + Filmes + Jogos)
+    let (artist_quota, track_quota, movie_quota, game_quota, book_quota) =
+        match req.target_type.as_deref() {
+            Some("music") => {
+                let a_q = (req.limit + 1) / 2;
+                let t_q = req.limit.saturating_sub(a_q).max(1);
+                (a_q, t_q, 0, 0, 0)
+            }
+            Some("movie") => (0, 0, req.limit, 0, 0),
+            Some("game") => (0, 0, 0, req.limit, 0),
+            Some("book") => (0, 0, 0, 0, req.limit),
+            _ => {
+                // Modo TODOS: garante mix transmidiático rico (Artistas, Músicas/Faixas, Filmes com trilha/estética e Jogos)
+                let a_q = (req.limit * 34 / 100).max(4);
+                let t_q = (req.limit * 33 / 100).max(4);
+                let m_q = (req.limit * 26 / 100).max(3);
+                let g_q = req.limit.saturating_sub(a_q + t_q + m_q);
+                (a_q, t_q, m_q, g_q, 1)
+            }
+        };
 
+    let is_pt = req.lang == "pt";
     let steam_noise_tags: HashSet<&str> = [
         "single-player",
         "multiplayer",
@@ -1026,23 +1088,39 @@ pub fn compute_recommendations_sync(
             .lock()
             .map_err(|e| anyhow::anyhow!("Mutex poisoned: {}", e))?;
 
-        for item in &diffusion_results {
-            let nkey = &item.node_key;
-            let score = item.score;
-            if seed_set.contains(nkey) {
-                continue;
-            }
-            let Some((prefix, nid)) = parse_node_key(nkey) else {
-                continue;
-            };
+        // -------------------------------------------------------------------
+        // A. ARTISTAS RECOMENDADOS (`artist:*`)
+        // -------------------------------------------------------------------
+        let mut artist_recs_added = 0usize;
+        let mut recommended_artist_tracks: Vec<(i64, String, f32, TopTrackRow, String)> =
+            Vec::new();
 
-            if prefix == "artist" && recs_count < req.limit {
+        if artist_quota > 0 || track_quota > 0 {
+            for item in &top_diffused_artists {
+                let nkey = &item.node_key;
+                let score = item.score;
+                if seed_set.contains(nkey) {
+                    continue;
+                }
+                let Some(("artist", nid)) = parse_node_key(nkey) else {
+                    continue;
+                };
+
                 if let Some((art_name, art_country)) = lookup_artist_meta(&conn, nid) {
-                    let trk_info = lookup_top_track(&conn, nid);
-                    let mut explanation_parts: Vec<String> = Vec::new();
+                    let top_trk_row = lookup_top_track_full(&conn, nid);
+                    let trk_info = top_trk_row.as_ref().map(|t| {
+                        json!({
+                            "title": t.title,
+                            "popularity": t.popularity,
+                            "tempo": t.tempo,
+                            "valence": t.valence,
+                            "energy": t.energy,
+                        })
+                    });
 
-                    // 1. Conexão direta entre semente e este artista (em qualquer direção)
+                    let mut explanation_parts: Vec<String> = Vec::new();
                     let mut direct_found: Option<(String, f32, String)> = None;
+
                     for &s_key in &active_seeds {
                         for e in state.graph.out_edges_by_key(s_key) {
                             if e.target_key == nkey && s_key.starts_with("artist:") && s_key != nkey
@@ -1104,7 +1182,6 @@ pub fn compute_recommendations_sync(
                         }
                     }
 
-                    // 2. Tags compartilhadas com as sementes
                     let mut shared_tags: Vec<String> = Vec::new();
                     for e in state.graph.out_edges_by_key(nkey) {
                         if is_tag_relation(e.relation_type) {
@@ -1138,297 +1215,624 @@ pub fn compute_recommendations_sync(
                         explanation_parts.join(" • ")
                     };
 
-                    let country_label = art_country.as_deref().unwrap_or("Global");
-                    let artist_subtitle = if is_pt {
-                        format!("Artista Musical ({})", country_label)
+                    if let Some(trk) = top_trk_row {
+                        recommended_artist_tracks.push((
+                            nid,
+                            art_name.clone(),
+                            score,
+                            trk,
+                            full_reason.clone(),
+                        ));
+                    }
+
+                    if artist_recs_added < artist_quota {
+                        let country_label = art_country.as_deref().unwrap_or("Global");
+                        let artist_subtitle = if is_pt {
+                            format!("Artista Musical ({})", country_label)
+                        } else {
+                            format!("Musical Artist ({})", country_label)
+                        };
+
+                        results.push(json!({
+                            "id": nkey,
+                            "title": art_name,
+                            "type": "artist",
+                            "subtitle": artist_subtitle,
+                            "score": ((score as f64) * 1000.0 * 100.0).round() / 100.0,
+                            "top_track": trk_info,
+                            "reason": full_reason,
+                        }));
+                        graph_nodes.push(GraphNodePayload {
+                            id: nkey.clone(),
+                            label: art_name,
+                            node_type: "artist".to_string(),
+                            val: 12.0,
+                            tags: Vec::new(),
+                            desc: String::new(),
+                        });
+                        artist_recs_added += 1;
+                    }
+                }
+            }
+        }
+
+        // -------------------------------------------------------------------
+        // B. MÚSICAS / FAIXAS RECOMENDADAS (`track:*`)
+        // -------------------------------------------------------------------
+        if track_quota > 0 {
+            let mut track_recs_added = 0usize;
+            let mut seen_rec_track_ids: HashSet<i64> = HashSet::new();
+            let mut seen_rec_track_artists: HashSet<i64> = HashSet::new();
+
+            // 1. Faixas diretamente difundidas no grafo (ex: trilhas sonoras de artistas que não sejam apenas repetição das sementes)
+            let direct_tracks =
+                top_k_from_scores(&state.graph, &p, &exclude_ids, "track:", Some(10));
+            let mut seed_artist_tracks_used = 0usize;
+            for item in direct_tracks {
+                if track_recs_added >= track_quota {
+                    break;
+                }
+                if seed_set.contains(&item.node_key) {
+                    continue;
+                }
+                let Some(("track", tid)) = parse_node_key(&item.node_key) else {
+                    continue;
+                };
+                if let Ok((t_title, a_id, a_name, t_pop, t_bpm)) = conn.query_row(
+                    "SELECT t.title, ma.id, ma.name, t.popularity, t.tempo FROM music_tracks t JOIN music_artists ma ON ma.id = t.artist_id WHERE t.id = ?",
+                    params![tid],
+                    |r| {
+                        Ok((
+                            r.get::<_, String>(0)?,
+                            r.get::<_, i64>(1)?,
+                            r.get::<_, String>(2)?,
+                            r.get::<_, Option<i32>>(3)?,
+                            r.get::<_, Option<f64>>(4)?,
+                        ))
+                    },
+                ) {
+                    let art_key = format!("artist:{}", a_id);
+                    if active_seed_set.contains(&art_key) {
+                        if seed_artist_tracks_used >= 1 {
+                            continue;
+                        }
+                        seed_artist_tracks_used += 1;
+                    }
+                    if !seen_rec_track_ids.insert(tid) || !seen_rec_track_artists.insert(a_id) {
+                        continue;
+                    }
+                    let bpm_str = t_bpm
+                        .filter(|&b| b > 0.0)
+                        .map(|b| format!(" • {} BPM", b.round() as i32))
+                        .unwrap_or_default();
+                    let trk_subtitle = if is_pt {
+                        format!("Música de {}{}", a_name, bpm_str)
                     } else {
-                        format!("Musical Artist ({})", country_label)
+                        format!("Track by {}{}", a_name, bpm_str)
+                    };
+                    let trk_reason = if is_pt {
+                        format!("Faixa icônica de {} conectada na trilha/cena do perfil", a_name)
+                    } else {
+                        format!("Iconic track by {} connected to your scene & soundtracks", a_name)
                     };
 
                     results.push(json!({
-                        "id": nkey,
-                        "title": art_name,
-                        "type": "artist",
-                        "subtitle": artist_subtitle,
-                        "score": ((score as f64) * 1000.0 * 100.0).round() / 100.0,
-                        "top_track": trk_info,
-                        "reason": full_reason,
+                        "id": item.node_key,
+                        "title": t_title,
+                        "type": "track",
+                        "subtitle": trk_subtitle,
+                        "score": ((item.score as f64) * 1000.0 * 100.0).round() / 100.0,
+                        "top_track": {
+                            "title": t_title,
+                            "popularity": t_pop.unwrap_or(70),
+                        },
+                        "reason": trk_reason,
                     }));
+
+                    if !graph_nodes.iter().any(|n| n.id == art_key) {
+                        graph_nodes.push(GraphNodePayload {
+                            id: art_key.clone(),
+                            label: a_name.clone(),
+                            node_type: "artist".to_string(),
+                            val: 11.5,
+                            tags: Vec::new(),
+                            desc: String::new(),
+                        });
+                    }
                     graph_nodes.push(GraphNodePayload {
-                        id: nkey.clone(),
-                        label: art_name,
+                        id: item.node_key.clone(),
+                        label: t_title,
+                        node_type: "track".to_string(),
+                        val: 10.5,
+                        tags: Vec::new(),
+                        desc: String::new(),
+                    });
+                    graph_links.push(GraphLinkPayload {
+                        source: item.node_key.clone(),
+                        target: art_key,
+                        label: "performed_by".to_string(),
+                        weight: 2.5,
+                    });
+                    track_recs_added += 1;
+                }
+            }
+
+            // 2. Faixas essenciais dos artistas difundidos na cena (garante sempre músicas recomendadas!)
+            for (a_id, a_name, a_score, trk, art_reason) in recommended_artist_tracks {
+                if track_recs_added >= track_quota {
+                    break;
+                }
+                let t_key = format!("track:{}", trk.track_id);
+                if seed_set.contains(&t_key)
+                    || !seen_rec_track_ids.insert(trk.track_id)
+                    || !seen_rec_track_artists.insert(a_id)
+                {
+                    continue;
+                }
+
+                let bpm_str = trk
+                    .tempo
+                    .filter(|&b| b > 0.0)
+                    .map(|b| format!(" • {} BPM", b.round() as i32))
+                    .unwrap_or_default();
+                let trk_subtitle = if is_pt {
+                    format!("Música de {}{}", a_name, bpm_str)
+                } else {
+                    format!("Track by {}{}", a_name, bpm_str)
+                };
+                let trk_reason = if is_pt {
+                    format!("Faixa essencial de {} ({})", a_name, art_reason)
+                } else {
+                    format!("Essential track by {} ({})", a_name, art_reason)
+                };
+
+                results.push(json!({
+                    "id": t_key,
+                    "title": trk.title,
+                    "type": "track",
+                    "subtitle": trk_subtitle,
+                    "score": ((a_score as f64) * 950.0 * 100.0).round() / 100.0,
+                    "top_track": {
+                        "title": trk.title,
+                        "popularity": trk.popularity.unwrap_or(65),
+                    },
+                    "reason": trk_reason,
+                }));
+
+                let art_key = format!("artist:{}", a_id);
+                if !graph_nodes.iter().any(|n| n.id == art_key) {
+                    graph_nodes.push(GraphNodePayload {
+                        id: art_key.clone(),
+                        label: a_name.clone(),
                         node_type: "artist".to_string(),
-                        val: 12.0,
+                        val: 11.5,
                         tags: Vec::new(),
                         desc: String::new(),
                     });
-                    recs_count += 1;
                 }
-            } else if prefix == "movie" && recs_count < req.limit {
-                if let Some(m) = state.catalog.movies.get(&nid) {
-                    let mut movie_explanation: Vec<String> = Vec::new();
-                    let mut shared_movie_tags: Vec<String> = Vec::new();
-                    let mut found_person: Option<String> = None;
+                graph_nodes.push(GraphNodePayload {
+                    id: t_key.clone(),
+                    label: trk.title,
+                    node_type: "track".to_string(),
+                    val: 10.5,
+                    tags: Vec::new(),
+                    desc: String::new(),
+                });
+                graph_links.push(GraphLinkPayload {
+                    source: t_key,
+                    target: art_key,
+                    label: "performed_by".to_string(),
+                    weight: 2.5,
+                });
+                track_recs_added += 1;
+            }
+        }
 
-                    for e in state.graph.out_edges_by_key(nkey) {
-                        if let Some((tpfx, tid)) = parse_node_key(e.target_key) {
-                            if tpfx == "person"
-                                && found_person.is_none()
-                                && seed_people.contains(&tid)
-                            {
-                                found_person = state.catalog.people.get(&tid).cloned();
-                            } else if tpfx == "keyword"
-                                && is_tag_relation(e.relation_type)
-                                && seed_tag_counts.contains_key(&tid)
-                                && shared_movie_tags.len() < 3
-                            {
-                                if let Some(kname) = state.catalog.keywords.get(&tid) {
-                                    let tfmt = format!("#{}", kname);
-                                    if !shared_movie_tags.contains(&tfmt) {
-                                        shared_movie_tags.push(tfmt);
-                                    }
+        // -------------------------------------------------------------------
+        // C. FILMES RECOMENDADOS (`movie:*`) — incluindo Trilhas Sonoras da Cena!
+        // -------------------------------------------------------------------
+        if movie_quota > 0 {
+            let raw_movies = top_k_from_scores(&state.graph, &p, &exclude_ids, "movie:", Some(35));
+
+            // Avalia vínculos de trilha sonora (soundtrack_featured / soundtrack_artist) com as sementes e artistas difundidos
+            let mut ranked_movies: Vec<(ScoredNode, Vec<(String, String)>)> = Vec::new();
+            for m_item in raw_movies {
+                let mut ost_artists: Vec<(String, String)> = Vec::new();
+                let mut seen_ost_names: HashSet<String> = HashSet::new();
+
+                for e in state.graph.out_edges_by_key(&m_item.node_key) {
+                    if is_soundtrack_relation(e.relation_type)
+                        && e.target_key.starts_with("artist:")
+                        && affinitive_artist_keys.contains(e.target_key)
+                    {
+                        if let Some(("artist", aid)) = parse_node_key(e.target_key) {
+                            let aname = seed_artist_names
+                                .get(e.target_key)
+                                .cloned()
+                                .or_else(|| lookup_artist_meta(&conn, aid).map(|(n, _)| n));
+                            if let Some(name) = aname {
+                                if seen_ost_names.insert(name.clone()) {
+                                    ost_artists.push((e.target_key.to_string(), name));
                                 }
                             }
                         }
                     }
-
-                    if let Some(pname) = found_person {
-                        movie_explanation.push(if is_pt {
-                            format!("Mesmo realizador/compositor ({})", pname)
-                        } else {
-                            format!("Same director/composer ({})", pname)
-                        });
-                    }
-                    if !shared_movie_tags.is_empty() {
-                        let tag_str = shared_movie_tags.join(", ");
-                        movie_explanation.push(if is_pt {
-                            format!("Tags em comum: {}", tag_str)
-                        } else {
-                            format!("Shared tags: {}", tag_str)
-                        });
-                    }
-
-                    let default_movie_reason = if is_pt {
-                        "Afinidade de difusão de gênero e estilo"
-                    } else {
-                        "Genre and style diffusion affinity"
-                    };
-                    let full_movie_reason = if movie_explanation.is_empty() {
-                        default_movie_reason.to_string()
-                    } else {
-                        movie_explanation.join(" • ")
-                    };
-
-                    let year_str = m
-                        .release_year
-                        .map(|y| y.to_string())
-                        .unwrap_or_else(|| "N/A".to_string());
-                    let vote_str = m
-                        .vote_average
-                        .map(|v| format!("{:.1}", v))
-                        .unwrap_or_else(|| "N/A".to_string());
-                    let movie_subtitle = if is_pt {
-                        format!("Filme ({}) • Nota {}", year_str, vote_str)
-                    } else {
-                        format!("Movie ({}) • Rating: {}", year_str, vote_str)
-                    };
-
-                    results.push(json!({
-                        "id": nkey,
-                        "title": m.title,
-                        "type": "movie",
-                        "subtitle": movie_subtitle,
-                        "score": ((score as f64) * 1000.0 * 100.0).round() / 100.0,
-                        "reason": full_movie_reason,
-                    }));
-                    graph_nodes.push(GraphNodePayload {
-                        id: nkey.clone(),
-                        label: m.title.clone(),
-                        node_type: "movie".to_string(),
-                        val: 12.0,
-                        tags: Vec::new(),
-                        desc: String::new(),
-                    });
-                    recs_count += 1;
                 }
-            } else if prefix == "game" && recs_count < req.limit {
-                if let Some(g) = state.catalog.games.get(&nid) {
-                    let mut game_explanation: Vec<String> = Vec::new();
-                    let mut found_dev: Option<String> = None;
-                    let mut specific_tags: Vec<String> = Vec::new();
-                    let mut fallback_tags: Vec<String> = Vec::new();
 
-                    for e in state.graph.out_edges_by_key(nkey) {
-                        if let Some((tpfx, tid)) = parse_node_key(e.target_key) {
-                            if tpfx == "developer"
-                                && found_dev.is_none()
-                                && seed_devs.contains(&tid)
-                            {
-                                found_dev = state.catalog.developers.get(&tid).cloned();
-                            } else if tpfx == "keyword"
-                                && is_tag_relation(e.relation_type)
-                                && seed_tag_counts.contains_key(&tid)
-                            {
-                                if let Some(kname) = state.catalog.keywords.get(&tid) {
-                                    let tfmt = format!("#{}", kname);
-                                    if !steam_noise_tags.contains(kname.as_str()) {
-                                        if specific_tags.len() < 3 && !specific_tags.contains(&tfmt)
-                                        {
-                                            specific_tags.push(tfmt);
-                                        }
-                                    } else if fallback_tags.len() < 2
-                                        && !fallback_tags.contains(&tfmt)
-                                    {
-                                        fallback_tags.push(tfmt);
-                                    }
+                // Impulsiona filmes que têm múltiplos artistas da cena na trilha sonora (ex: Singles 1992, The Crow, Into the Wild)
+                let ost_boost = 1.0 + (ost_artists.len() as f32) * 0.65;
+                let boosted = ScoredNode {
+                    node_key: m_item.node_key,
+                    score: m_item.score * ost_boost,
+                };
+                ranked_movies.push((boosted, ost_artists));
+            }
+
+            ranked_movies.sort_by(|a, b| {
+                b.0.score
+                    .partial_cmp(&a.0.score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+
+            let mut movie_recs_added = 0usize;
+            for (item, ost_artists) in ranked_movies {
+                if movie_recs_added >= movie_quota {
+                    break;
+                }
+                let nkey = &item.node_key;
+                if seed_set.contains(nkey) {
+                    continue;
+                }
+                let Some(("movie", nid)) = parse_node_key(nkey) else {
+                    continue;
+                };
+                let Some(m) = state.catalog.movies.get(&nid) else {
+                    continue;
+                };
+
+                let mut movie_explanation: Vec<String> = Vec::new();
+
+                // 1. Trilha sonora com artistas do perfil ou da cena difundida!
+                if !ost_artists.is_empty() {
+                    let names: Vec<&str> = ost_artists
+                        .iter()
+                        .take(4)
+                        .map(|(_, n)| n.as_str())
+                        .collect();
+                    movie_explanation.push(if is_pt {
+                        format!("Trilha sonora com {}", names.join(", "))
+                    } else {
+                        format!("Soundtrack featuring {}", names.join(", "))
+                    });
+
+                    // Garante que pelo menos os 2 principais artistas da trilha estejam no subgrafo visual para desenhar a ponte!
+                    for (art_key, art_name) in ost_artists.iter().take(2) {
+                        if !graph_nodes.iter().any(|n| &n.id == art_key) {
+                            graph_nodes.push(GraphNodePayload {
+                                id: art_key.clone(),
+                                label: art_name.clone(),
+                                node_type: "artist".to_string(),
+                                val: 11.5,
+                                tags: Vec::new(),
+                                desc: String::new(),
+                            });
+                        }
+                    }
+                }
+
+                // 2. Diretor ou compositor compartilhado
+                let mut found_person: Option<String> = None;
+                let mut shared_movie_tags: Vec<String> = Vec::new();
+
+                for e in state.graph.out_edges_by_key(nkey) {
+                    if let Some((tpfx, tid)) = parse_node_key(e.target_key) {
+                        if tpfx == "person" && found_person.is_none() && seed_people.contains(&tid)
+                        {
+                            found_person = state.catalog.people.get(&tid).cloned();
+                        } else if tpfx == "keyword"
+                            && is_tag_relation(e.relation_type)
+                            && seed_tag_counts.contains_key(&tid)
+                            && shared_movie_tags.len() < 3
+                        {
+                            if let Some(kname) = state.catalog.keywords.get(&tid) {
+                                let tfmt = format!("#{}", kname);
+                                if !shared_movie_tags.contains(&tfmt) {
+                                    shared_movie_tags.push(tfmt);
                                 }
                             }
                         }
                     }
-
-                    if let Some(dname) = found_dev {
-                        game_explanation.push(if is_pt {
-                            format!("Mesmo estúdio ({})", dname)
-                        } else {
-                            format!("Same studio ({})", dname)
-                        });
-                    }
-                    if !specific_tags.is_empty() {
-                        let tag_str = specific_tags.join(", ");
-                        game_explanation.push(if is_pt {
-                            format!("Tags em comum: {}", tag_str)
-                        } else {
-                            format!("Shared tags: {}", tag_str)
-                        });
-                    } else if !fallback_tags.is_empty() {
-                        game_explanation.push(format!("Tags: {}", fallback_tags.join(", ")));
-                    }
-
-                    let default_game_reason = if is_pt {
-                        "Afinidade de jogabilidade e universo temático"
-                    } else {
-                        "Gameplay and thematic universe affinity"
-                    };
-                    let full_game_reason = if game_explanation.is_empty() {
-                        default_game_reason.to_string()
-                    } else {
-                        game_explanation.join(" • ")
-                    };
-
-                    let year_str = g
-                        .release_year
-                        .map(|y| y.to_string())
-                        .unwrap_or_else(|| "N/A".to_string());
-                    let game_subtitle = if is_pt {
-                        format!("Jogo ({})", year_str)
-                    } else {
-                        format!("Game ({})", year_str)
-                    };
-
-                    results.push(json!({
-                        "id": nkey,
-                        "title": g.title,
-                        "type": "game",
-                        "subtitle": game_subtitle,
-                        "score": ((score as f64) * 1000.0 * 100.0).round() / 100.0,
-                        "reason": full_game_reason,
-                    }));
-                    graph_nodes.push(GraphNodePayload {
-                        id: nkey.clone(),
-                        label: g.title.clone(),
-                        node_type: "game".to_string(),
-                        val: 12.0,
-                        tags: Vec::new(),
-                        desc: String::new(),
-                    });
-                    recs_count += 1;
                 }
-            } else if prefix == "book" && recs_count < req.limit {
-                if let Some(b) = state.catalog.books.get(&nid) {
-                    let mut book_explanation: Vec<String> = Vec::new();
-                    let mut found_author: Option<String> = None;
-                    let mut shared_book_tags: Vec<String> = Vec::new();
 
-                    for e in state.graph.out_edges_by_key(nkey) {
-                        if let Some((tpfx, tid)) = parse_node_key(e.target_key) {
-                            if tpfx == "author"
-                                && found_author.is_none()
-                                && seed_authors.contains(&tid)
-                            {
-                                found_author = state.catalog.authors.get(&tid).cloned();
-                            } else if tpfx == "keyword"
-                                && is_tag_relation(e.relation_type)
-                                && seed_tag_counts.contains_key(&tid)
-                                && shared_book_tags.len() < 3
-                            {
-                                if let Some(kname) = state.catalog.keywords.get(&tid) {
-                                    let tfmt = format!("#{}", kname);
-                                    if !shared_book_tags.contains(&tfmt) {
-                                        shared_book_tags.push(tfmt);
+                if let Some(pname) = found_person {
+                    movie_explanation.push(if is_pt {
+                        format!("Mesmo realizador/compositor ({})", pname)
+                    } else {
+                        format!("Same director/composer ({})", pname)
+                    });
+                }
+                if !shared_movie_tags.is_empty() {
+                    let tag_str = shared_movie_tags.join(", ");
+                    movie_explanation.push(if is_pt {
+                        format!("Tags em comum: {}", tag_str)
+                    } else {
+                        format!("Shared tags: {}", tag_str)
+                    });
+                }
+
+                let default_movie_reason = if is_pt {
+                    "Afinidade de difusão de gênero e estilo"
+                } else {
+                    "Genre and style diffusion affinity"
+                };
+                let full_movie_reason = if movie_explanation.is_empty() {
+                    default_movie_reason.to_string()
+                } else {
+                    movie_explanation.join(" • ")
+                };
+
+                let year_str = m
+                    .release_year
+                    .map(|y| y.to_string())
+                    .unwrap_or_else(|| "N/A".to_string());
+                let vote_str = m
+                    .vote_average
+                    .map(|v| format!("{:.1}", v))
+                    .unwrap_or_else(|| "N/A".to_string());
+                let movie_subtitle = if is_pt {
+                    format!("Filme ({}) • Nota {}", year_str, vote_str)
+                } else {
+                    format!("Movie ({}) • Rating: {}", year_str, vote_str)
+                };
+
+                results.push(json!({
+                    "id": nkey,
+                    "title": m.title,
+                    "type": "movie",
+                    "subtitle": movie_subtitle,
+                    "score": ((item.score as f64) * 1000.0 * 100.0).round() / 100.0,
+                    "reason": full_movie_reason,
+                }));
+                graph_nodes.push(GraphNodePayload {
+                    id: nkey.clone(),
+                    label: m.title.clone(),
+                    node_type: "movie".to_string(),
+                    val: 12.5,
+                    tags: Vec::new(),
+                    desc: String::new(),
+                });
+                movie_recs_added += 1;
+            }
+        }
+
+        // -------------------------------------------------------------------
+        // D. JOGOS RECOMENDADOS (`game:*`)
+        // -------------------------------------------------------------------
+        if game_quota > 0 {
+            let top_games =
+                top_k_from_scores(&state.graph, &p, &exclude_ids, "game:", Some(game_quota + 4));
+            let mut game_recs_added = 0usize;
+
+            for item in top_games {
+                if game_recs_added >= game_quota {
+                    break;
+                }
+                let nkey = &item.node_key;
+                if seed_set.contains(nkey) {
+                    continue;
+                }
+                let Some(("game", nid)) = parse_node_key(nkey) else {
+                    continue;
+                };
+                let Some(g) = state.catalog.games.get(&nid) else {
+                    continue;
+                };
+
+                let mut game_explanation: Vec<String> = Vec::new();
+                let mut found_dev: Option<String> = None;
+                let mut specific_tags: Vec<String> = Vec::new();
+                let mut fallback_tags: Vec<String> = Vec::new();
+
+                for e in state.graph.out_edges_by_key(nkey) {
+                    if let Some((tpfx, tid)) = parse_node_key(e.target_key) {
+                        if tpfx == "developer" && found_dev.is_none() && seed_devs.contains(&tid) {
+                            found_dev = state.catalog.developers.get(&tid).cloned();
+                        } else if tpfx == "keyword"
+                            && is_tag_relation(e.relation_type)
+                            && seed_tag_counts.contains_key(&tid)
+                        {
+                            if let Some(kname) = state.catalog.keywords.get(&tid) {
+                                let tfmt = format!("#{}", kname);
+                                if !steam_noise_tags.contains(kname.as_str()) {
+                                    if specific_tags.len() < 3 && !specific_tags.contains(&tfmt) {
+                                        specific_tags.push(tfmt);
                                     }
+                                } else if fallback_tags.len() < 2 && !fallback_tags.contains(&tfmt)
+                                {
+                                    fallback_tags.push(tfmt);
                                 }
                             }
                         }
                     }
-
-                    if let Some(aname) = found_author {
-                        book_explanation.push(if is_pt {
-                            format!("Mesmo autor ({})", aname)
-                        } else {
-                            format!("Same author ({})", aname)
-                        });
-                    }
-                    if !shared_book_tags.is_empty() {
-                        let tag_str = shared_book_tags.join(", ");
-                        book_explanation.push(if is_pt {
-                            format!("Temas em comum: {}", tag_str)
-                        } else {
-                            format!("Shared themes: {}", tag_str)
-                        });
-                    }
-
-                    let default_book_reason = if is_pt {
-                        "Afinidade literária e temática"
-                    } else {
-                        "Literary and thematic affinity"
-                    };
-                    let full_book_reason = if book_explanation.is_empty() {
-                        default_book_reason.to_string()
-                    } else {
-                        book_explanation.join(" • ")
-                    };
-
-                    let year_str = b
-                        .first_publish_year
-                        .map(|y| y.to_string())
-                        .unwrap_or_else(|| "N/A".to_string());
-                    let book_subtitle = if is_pt {
-                        format!("Livro ({})", year_str)
-                    } else {
-                        format!("Book ({})", year_str)
-                    };
-
-                    results.push(json!({
-                        "id": nkey,
-                        "title": b.title,
-                        "type": "book",
-                        "subtitle": book_subtitle,
-                        "score": ((score as f64) * 1000.0 * 100.0).round() / 100.0,
-                        "reason": full_book_reason,
-                    }));
-                    graph_nodes.push(GraphNodePayload {
-                        id: nkey.clone(),
-                        label: b.title.clone(),
-                        node_type: "book".to_string(),
-                        val: 12.0,
-                        tags: Vec::new(),
-                        desc: String::new(),
-                    });
-                    recs_count += 1;
                 }
-            } else if matches!(prefix, "keyword" | "person" | "developer" | "author")
-                && bridge_count < 12
-            {
+
+                if let Some(dname) = found_dev {
+                    game_explanation.push(if is_pt {
+                        format!("Mesmo estúdio ({})", dname)
+                    } else {
+                        format!("Same studio ({})", dname)
+                    });
+                }
+                if !specific_tags.is_empty() {
+                    let tag_str = specific_tags.join(", ");
+                    game_explanation.push(if is_pt {
+                        format!("Tags em comum: {}", tag_str)
+                    } else {
+                        format!("Shared tags: {}", tag_str)
+                    });
+                } else if !fallback_tags.is_empty() {
+                    game_explanation.push(format!("Tags: {}", fallback_tags.join(", ")));
+                }
+
+                let default_game_reason = if is_pt {
+                    "Afinidade de jogabilidade e universo temático"
+                } else {
+                    "Gameplay and thematic universe affinity"
+                };
+                let full_game_reason = if game_explanation.is_empty() {
+                    default_game_reason.to_string()
+                } else {
+                    game_explanation.join(" • ")
+                };
+
+                let year_str = g
+                    .release_year
+                    .map(|y| y.to_string())
+                    .unwrap_or_else(|| "N/A".to_string());
+                let game_subtitle = if is_pt {
+                    format!("Jogo ({})", year_str)
+                } else {
+                    format!("Game ({})", year_str)
+                };
+
+                results.push(json!({
+                    "id": nkey,
+                    "title": g.title,
+                    "type": "game",
+                    "subtitle": game_subtitle,
+                    "score": ((item.score as f64) * 1000.0 * 100.0).round() / 100.0,
+                    "reason": full_game_reason,
+                }));
+                graph_nodes.push(GraphNodePayload {
+                    id: nkey.clone(),
+                    label: g.title.clone(),
+                    node_type: "game".to_string(),
+                    val: 12.0,
+                    tags: Vec::new(),
+                    desc: String::new(),
+                });
+                game_recs_added += 1;
+            }
+        }
+
+        // -------------------------------------------------------------------
+        // E. LIVROS RECOMENDADOS (`book:*`)
+        // -------------------------------------------------------------------
+        if book_quota > 0 && results.len() < req.limit {
+            let top_books =
+                top_k_from_scores(&state.graph, &p, &exclude_ids, "book:", Some(book_quota + 2));
+            let mut book_recs_added = 0usize;
+
+            for item in top_books {
+                if book_recs_added >= book_quota || results.len() >= req.limit {
+                    break;
+                }
+                let nkey = &item.node_key;
+                if seed_set.contains(nkey) {
+                    continue;
+                }
+                let Some(("book", nid)) = parse_node_key(nkey) else {
+                    continue;
+                };
+                let Some(b) = state.catalog.books.get(&nid) else {
+                    continue;
+                };
+
+                let mut book_explanation: Vec<String> = Vec::new();
+                let mut found_author: Option<String> = None;
+                let mut shared_book_tags: Vec<String> = Vec::new();
+
+                for e in state.graph.out_edges_by_key(nkey) {
+                    if let Some((tpfx, tid)) = parse_node_key(e.target_key) {
+                        if tpfx == "author" && found_author.is_none() && seed_authors.contains(&tid)
+                        {
+                            found_author = state.catalog.authors.get(&tid).cloned();
+                        } else if tpfx == "keyword"
+                            && is_tag_relation(e.relation_type)
+                            && seed_tag_counts.contains_key(&tid)
+                            && shared_book_tags.len() < 3
+                        {
+                            if let Some(kname) = state.catalog.keywords.get(&tid) {
+                                let tfmt = format!("#{}", kname);
+                                if !shared_book_tags.contains(&tfmt) {
+                                    shared_book_tags.push(tfmt);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if let Some(aname) = found_author {
+                    book_explanation.push(if is_pt {
+                        format!("Mesmo autor ({})", aname)
+                    } else {
+                        format!("Same author ({})", aname)
+                    });
+                }
+                if !shared_book_tags.is_empty() {
+                    let tag_str = shared_book_tags.join(", ");
+                    book_explanation.push(if is_pt {
+                        format!("Temas em comum: {}", tag_str)
+                    } else {
+                        format!("Shared themes: {}", tag_str)
+                    });
+                }
+
+                let default_book_reason = if is_pt {
+                    "Afinidade literária e temática"
+                } else {
+                    "Literary and thematic affinity"
+                };
+                let full_book_reason = if book_explanation.is_empty() {
+                    default_book_reason.to_string()
+                } else {
+                    book_explanation.join(" • ")
+                };
+
+                let year_str = b
+                    .first_publish_year
+                    .map(|y| y.to_string())
+                    .unwrap_or_else(|| "N/A".to_string());
+                let book_subtitle = if is_pt {
+                    format!("Livro ({})", year_str)
+                } else {
+                    format!("Book ({})", year_str)
+                };
+
+                results.push(json!({
+                    "id": nkey,
+                    "title": b.title,
+                    "type": "book",
+                    "subtitle": book_subtitle,
+                    "score": ((item.score as f64) * 1000.0 * 100.0).round() / 100.0,
+                    "reason": full_book_reason,
+                }));
+                graph_nodes.push(GraphNodePayload {
+                    id: nkey.clone(),
+                    label: b.title.clone(),
+                    node_type: "book".to_string(),
+                    val: 12.0,
+                    tags: Vec::new(),
+                    desc: String::new(),
+                });
+                book_recs_added += 1;
+            }
+        }
+
+        // -------------------------------------------------------------------
+        // F. NÓS PONTE EXPLICATIVOS (`keyword:`, `person:`, `developer:`, `author:`)
+        // -------------------------------------------------------------------
+        let mut bridge_count = 0usize;
+        let top_any = top_k_from_scores(&state.graph, &p, &exclude_ids, "", Some(120));
+        for item in top_any {
+            if bridge_count >= 12 {
+                break;
+            }
+            let nkey = &item.node_key;
+            let Some((prefix, nid)) = parse_node_key(nkey) else {
+                continue;
+            };
+            if matches!(prefix, "keyword" | "person" | "developer" | "author") {
                 let label = match prefix {
                     "keyword" => state
                         .catalog
@@ -1456,6 +1860,8 @@ pub fn compute_recommendations_sync(
             }
         }
     }
+
+    results.truncate(req.limit);
 
     // 4. Extrai conexões entre os nós exibidos para o Force-Graph (100% em memória no GraphCSR!)
     let all_graph_node_ids: HashSet<String> = graph_nodes.iter().map(|n| n.id.clone()).collect();
@@ -1543,18 +1949,22 @@ pub fn compute_recommendations_sync(
                     };
                 }
                 "track" => {
-                    if node_tags.is_empty() {
-                        if let Some((a_id, _)) = track_seed_artists.get(&n.id) {
+                    if let Ok((a_id, a_name, bpm)) = conn.query_row(
+                        "SELECT a.id, a.name, t.tempo FROM music_tracks t JOIN music_artists a ON a.id = t.artist_id WHERE t.id = ?",
+                        params![nid],
+                        |r| {
+                            Ok((
+                                r.get::<_, i64>(0)?,
+                                r.get::<_, String>(1)?,
+                                r.get::<_, Option<f64>>(2)?,
+                            ))
+                        },
+                    ) {
+                        if node_tags.is_empty() {
                             let art_key = format!("artist:{}", a_id);
                             node_tags =
                                 collect_node_tags(&state.graph, &state.catalog, &art_key, 12);
                         }
-                    }
-                    if let Ok((a_name, bpm)) = conn.query_row(
-                        "SELECT a.name, t.tempo FROM music_tracks t JOIN music_artists a ON a.id = t.artist_id WHERE t.id = ?",
-                        params![nid],
-                        |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<f64>>(1)?)),
-                    ) {
                         let bpm_str = format!("{} BPM", bpm.unwrap_or(0.0).round() as i32);
                         node_desc = if is_pt {
                             format!("Faixa de {} • {}", a_name, bpm_str)
