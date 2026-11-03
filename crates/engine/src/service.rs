@@ -769,6 +769,62 @@ pub fn compute_recommendations_sync(
                         }
                     }
                 }
+                "keyword" => {
+                    if let Some(kname) = state.catalog.keywords.get(&nid) {
+                        seeds_resolved.push(EntityItem {
+                            id: s.clone(),
+                            name: format!("#{}", kname),
+                            entity_type: "keyword".to_string(),
+                            subtitle: Some("Tag".to_string()),
+                            extra: None,
+                        });
+                        if !diffusion_seeds.contains(s) {
+                            diffusion_seeds.push(s.clone());
+                        }
+                    }
+                }
+                "person" => {
+                    if let Some(pname) = state.catalog.people.get(&nid) {
+                        seeds_resolved.push(EntityItem {
+                            id: s.clone(),
+                            name: pname.clone(),
+                            entity_type: "person".to_string(),
+                            subtitle: Some("Person".to_string()),
+                            extra: None,
+                        });
+                        if !diffusion_seeds.contains(s) {
+                            diffusion_seeds.push(s.clone());
+                        }
+                    }
+                }
+                "developer" => {
+                    if let Some(dname) = state.catalog.developers.get(&nid) {
+                        seeds_resolved.push(EntityItem {
+                            id: s.clone(),
+                            name: dname.clone(),
+                            entity_type: "developer".to_string(),
+                            subtitle: Some("Studio".to_string()),
+                            extra: None,
+                        });
+                        if !diffusion_seeds.contains(s) {
+                            diffusion_seeds.push(s.clone());
+                        }
+                    }
+                }
+                "author" => {
+                    if let Some(aname) = state.catalog.authors.get(&nid) {
+                        seeds_resolved.push(EntityItem {
+                            id: s.clone(),
+                            name: aname.clone(),
+                            entity_type: "author".to_string(),
+                            subtitle: Some("Author".to_string()),
+                            extra: None,
+                        });
+                        if !diffusion_seeds.contains(s) {
+                            diffusion_seeds.push(s.clone());
+                        }
+                    }
+                }
                 _ => {}
             }
         }

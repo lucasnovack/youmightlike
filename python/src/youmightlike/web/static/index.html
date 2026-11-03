@@ -204,9 +204,18 @@
               </span>
               <span class="text-[9px] text-canvas-muted shrink-0">({{ inspectedNodes[0].type }})</span>
             </div>
-            <button @click="clearSelection" class="text-[8px] font-bold text-canvas-muted hover:text-canvas-coral uppercase tracking-wider shrink-0">
-              [{{ t('seeAll') }}]
-            </button>
+            <div class="flex items-center gap-2 shrink-0">
+              <button 
+                v-if="!isNodeInProfile(inspectedNodes[0].id)"
+                @click="addNodeToProfile(inspectedNodes[0])"
+                class="px-2 py-0.5 bg-canvas-coral hover:opacity-90 text-white rounded text-[9px] font-bold transition-opacity cursor-pointer"
+              >
+                {{ t('addNodeToLikes') }}
+              </button>
+              <button @click="clearSelection" class="text-[8px] font-bold text-canvas-muted hover:text-canvas-coral uppercase tracking-wider shrink-0 cursor-pointer">
+                [{{ t('seeAll') }}]
+              </button>
+            </div>
           </div>
 
           <!-- Tags rápidas do nó focado -->
@@ -334,10 +343,33 @@
                   <h4 class="font-bold text-canvas-text text-xs leading-tight">{{ node.label }}</h4>
                   <p v-if="node.desc" class="text-[9px] text-canvas-muted mt-0.5">{{ node.desc }}</p>
                 </div>
-                <span class="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold"
-                      :class="node.type === 'seed' ? 'bg-canvas-coral text-white' : 'bg-canvas-text text-white'">
+                <span class="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold shrink-0"
+                      :class="node.type === 'seed' || isNodeInProfile(node.id) ? 'bg-canvas-coral text-white' : 'bg-canvas-text text-white'">
                   {{ node.type }}
                 </span>
+              </div>
+
+              <!-- Ação direta para adicionar/remover o nó selecionado dos gostos -->
+              <div class="mt-2">
+                <button
+                  v-if="!isNodeInProfile(node.id)"
+                  @click="addNodeToProfile(node)"
+                  class="w-full py-1.5 px-2.5 bg-canvas-coral hover:opacity-90 text-white rounded text-[10px] font-bold transition-opacity flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
+                >
+                  <span>{{ t('addNodeToLikes') }}</span>
+                </button>
+                <div
+                  v-else
+                  class="flex items-center justify-between gap-2 px-2 py-1 bg-canvas-coral/10 border border-canvas-coral/30 rounded text-[9px]"
+                >
+                  <span class="font-bold text-canvas-coral">{{ t('alreadyInLikes') }}</span>
+                  <button
+                    @click="removeSeed(node.id)"
+                    class="text-canvas-muted hover:text-canvas-coral font-bold underline cursor-pointer"
+                  >
+                    {{ t('removeFromLikes') }}
+                  </button>
+                </div>
               </div>
 
               <!-- Tags do Nó -->
@@ -503,6 +535,9 @@
         quickTheCure: "+ The Cure (Música)",
         quickLcd: "+ LCD Soundsystem",
         quickBladeRunner: "+ Blade Runner (Filme)",
+        addNodeToLikes: "+ Adicionar aos gostos",
+        alreadyInLikes: "Nos seus gostos",
+        removeFromLikes: "remover",
       },
       en: {
         nodes: "nodes",
@@ -554,6 +589,9 @@
         quickTheCure: "+ The Cure (Music)",
         quickLcd: "+ LCD Soundsystem",
         quickBladeRunner: "+ Blade Runner (Movie)",
+        addNodeToLikes: "+ Add to likes",
+        alreadyInLikes: "In your likes",
+        removeFromLikes: "remove",
       }
     };
 
@@ -638,6 +676,10 @@
           }, 180);
         };
 
+        const isNodeInProfile = (nodeId) => {
+          return profileSeeds.value.some(s => s.id === nodeId);
+        };
+
         const addSeed = (item) => {
           if (!profileSeeds.value.find(s => s.id === item.id)) {
             profileSeeds.value.push(item);
@@ -646,6 +688,17 @@
           }
           searchQuery.value = '';
           searchResults.value = [];
+        };
+
+        const addNodeToProfile = (node) => {
+          if (!node || !node.id || isNodeInProfile(node.id)) return;
+          const rawType = node.id.includes(':') ? node.id.split(':')[0] : (node.type || 'item');
+          addSeed({
+            id: node.id,
+            name: node.label,
+            type: rawType,
+            subtitle: node.desc || rawType,
+          });
         };
 
         const quickAdd = async (name) => {
@@ -1031,7 +1084,9 @@
           isLoadingRecs,
           targetFilter,
           onSearchInput,
+          isNodeInProfile,
           addSeed,
+          addNodeToProfile,
           quickAdd,
           removeSeed,
           clearProfile,
