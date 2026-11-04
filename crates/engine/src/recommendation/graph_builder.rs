@@ -2,7 +2,8 @@
 
 use super::context::is_steam_noise_tag;
 use crate::models::{
-    collect_node_tags, parse_node_key, AppState, EntityItem, GraphLinkPayload, GraphNodePayload,
+    collect_node_tags, lookup_artist_meta, parse_node_key, AppState, EntityItem, GraphLinkPayload,
+    GraphNodePayload,
 };
 use duckdb::{params, Connection};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -10,6 +11,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 /// Adds seeds, track-artist connections, and structural anchors to the recommendation graph
 pub fn init_subgraph_anchors(
     state: &AppState,
+    conn: &Connection,
     seeds_resolved: &[EntityItem],
     track_seed_artists: &HashMap<String, (i64, String)>,
     seed_tag_counts: &HashMap<i64, usize>,
@@ -49,15 +51,20 @@ pub fn init_subgraph_anchors(
             }
         }
 
-        // Structural anchors for each seed: up to 1 creator/studio + up to 2 top tags
-        // so studio edges never starve a seed of its conceptual tag anchors
+        // Structural anchors for each seed:
+        // - Up to 1 creator/studio (games/movies/books) OR up to 1 top similar peer artist (music)
+        // - Up to 2 top non-noise tags (shared multi-seed tags prioritized)
         let mut creator_edges = Vec::new();
+        let mut peer_artist_edges = Vec::new();
         let mut tag_edges = Vec::new();
 
         for e in state.graph.out_edges_by_key(&seed_item.id) {
             match e.relation_type {
                 "developed_by" | "has_director" | "has_writer" | "written_by" => {
                     creator_edges.push(e);
+                }
+                "similar_to" if seed_item.entity_type == "artist" => {
+                    peer_artist_edges.push(e);
                 }
                 "has_tag" => {
                     if let Some(("keyword", tid)) = parse_node_key(e.target_key) {
@@ -88,6 +95,12 @@ pub fn init_subgraph_anchors(
                 })
         });
 
+        peer_artist_edges.sort_by(|a, b| {
+            b.base_weight
+                .partial_cmp(&a.base_weight)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
         tag_edges.sort_by(|a, b| {
             let cnt_a = seed_tag_counts.get(&a.0).copied().unwrap_or(0);
             let cnt_b = seed_tag_counts.get(&b.0).copied().unwrap_or(0);
@@ -104,6 +117,7 @@ pub fn init_subgraph_anchors(
         let selected_anchors = creator_edges
             .into_iter()
             .take(1)
+            .chain(peer_artist_edges.into_iter().take(1))
             .chain(tag_edges.into_iter().take(2).map(|(_, e)| e));
 
         for edge in selected_anchors {
@@ -117,6 +131,7 @@ pub fn init_subgraph_anchors(
                         .map(|k| format!("#{}", k)),
                     "person" => state.catalog.people.get(&t_nid).cloned(),
                     "author" => state.catalog.authors.get(&t_nid).cloned(),
+                    "artist" => lookup_artist_meta(conn, t_nid).map(|(n, _)| n),
                     _ => None,
                 };
                 if let Some(label) = t_label {

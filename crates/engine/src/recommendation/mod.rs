@@ -321,6 +321,7 @@ pub fn run_recommendation_pipeline(
     // 3. Add seed nodes and structural anchors to subgraph
     init_subgraph_anchors(
         state,
+        &conn,
         &seeds_resolved,
         &track_seed_artists,
         &seed_tag_counts,
