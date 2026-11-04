@@ -27,9 +27,10 @@
               muted: '#64748b',
               pine: '#0f172a',
               sage: '#0d9488',
+              orange: '#ea580c',
               coral: '#e11d48',
               denim: '#2563eb',
-              amber: '#d97706',
+              amber: '#ca8a04',
               violet: '#7c3aed',
             }
           }
@@ -67,12 +68,12 @@
         </span>
       </div>
 
-      <!-- Search Bar -->
-      <div class="relative w-[500px]">
-        <div class="relative flex items-center border border-canvas-border focus-within:border-canvas-text rounded-md bg-canvas-sidebar focus-within:bg-white transition-all overflow-hidden">
+      <!-- Explicit Search Bar (Enter or Search Button) -->
+      <div id="search-box-wrapper" class="relative w-[540px]">
+        <form @submit.prevent="executeSearch" class="relative flex items-center border border-canvas-border focus-within:border-canvas-text rounded-md bg-canvas-sidebar focus-within:bg-white transition-all overflow-hidden">
           <select
             v-model="searchType"
-            @change="onSearchInput"
+            @change="onSearchTypeChange"
             class="bg-transparent border-r border-canvas-border px-2.5 py-1.5 text-[10px] font-bold text-canvas-muted focus:outline-none cursor-pointer"
           >
             <option value="">{{ t('allTypes') }}</option>
@@ -88,12 +89,30 @@
           <input
             type="text"
             v-model="searchQuery"
-            @input="onSearchInput"
+            @keydown.escape="clearSearch"
             :placeholder="getSearchPlaceholder()"
             class="w-full bg-transparent px-2.5 py-1.5 text-xs text-canvas-text placeholder-canvas-muted/60 focus:outline-none"
           />
-          <span v-if="isSearching" class="w-1.5 h-1.5 rounded-full bg-canvas-coral animate-ping mr-3"></span>
-        </div>
+
+          <button
+            v-if="searchQuery.length > 0 || searchResults.length > 0 || hasSearched"
+            type="button"
+            @click="clearSearch"
+            class="px-2 text-canvas-muted hover:text-canvas-coral font-bold text-xs cursor-pointer"
+            :title="t('clearSearchBtn')"
+          >
+            ×
+          </button>
+
+          <button
+            type="submit"
+            :disabled="isSearching || searchQuery.trim().length === 0"
+            class="bg-canvas-text hover:bg-black disabled:opacity-40 text-white font-bold text-[10px] uppercase tracking-wider px-3.5 py-1.5 transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer"
+          >
+            <span v-if="isSearching" class="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+            <span>{{ t('searchBtn') }}</span>
+          </button>
+        </form>
 
         <!-- Search Dropdown -->
         <div v-if="searchResults.length > 0" class="absolute top-10 left-0 right-0 bg-white border border-canvas-border rounded-lg shadow-xl p-1.5 z-50 max-h-80 overflow-y-auto">
@@ -117,6 +136,10 @@
             </div>
             <span class="text-[10px] font-bold text-canvas-coral opacity-0 group-hover:opacity-100 transition-opacity shrink-0">{{ t('addBtn') }}</span>
           </div>
+        </div>
+        <div v-else-if="hasSearched && !isSearching" class="absolute top-10 left-0 right-0 bg-white border border-canvas-border rounded-lg shadow-xl px-4 py-3 z-50 text-xs text-canvas-muted flex items-center justify-between">
+          <span>{{ t('noSearchResults') }}</span>
+          <button @click="clearSearch" class="text-[10px] font-bold text-canvas-coral hover:underline cursor-pointer">[fechar]</button>
         </div>
       </div>
 
@@ -498,50 +521,92 @@
       <!-- ================================================================= -->
       <section class="flex-1 relative bg-canvas-bg flex flex-col overflow-hidden select-none">
 
-        <!-- Top-Left Constellation HUD & Layer Filters -->
-        <div class="absolute top-4 left-4 z-20 bg-white/95 backdrop-blur border border-canvas-border rounded-xl p-3.5 shadow-md max-w-sm text-[10px]">
-          <div class="flex items-center justify-between mb-1">
-            <span class="font-bold text-canvas-text text-[11px]">{{ t('topologicalField') }}</span>
-            <button @click="fitGraphView" class="text-[9px] font-bold text-canvas-denim hover:underline cursor-pointer">
-              [ {{ t('fitView') }} ]
+        <!-- Top-Left Compact Controls + Collapsible Legend -->
+        <div class="absolute top-4 left-4 z-20 flex flex-col items-start gap-2 max-w-sm text-[10px]">
+          <div class="bg-white/95 backdrop-blur border border-canvas-border rounded-lg px-2.5 py-1.5 shadow-sm flex flex-wrap items-center gap-1.5">
+            <button
+              @click="showLegend = !showLegend"
+              :class="showLegend ? 'bg-canvas-text text-white border-canvas-text' : 'bg-canvas-sidebar text-canvas-text border-canvas-border hover:border-canvas-text'"
+              class="px-2.5 py-1 rounded border text-[9px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+            >
+              <span>{{ showLegend ? t('hideLegendBtn') : t('showLegendBtn') }}</span>
             </button>
-          </div>
-          <p class="text-canvas-muted leading-tight mb-2.5 text-[9px]">
-            {{ t('constellationDesc') }}
-          </p>
 
-          <!-- Ring Legend -->
-          <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-bold text-[9px] mb-2.5">
-            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-canvas-coral ring-2 ring-canvas-coral/30"></span> {{ t('seed') }}</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-denim"></span> {{ t('game') }}</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-sage"></span> {{ t('music') }}</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-amber"></span> {{ t('movie') }}</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-violet"></span> {{ t('series') }}</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rotate-45 bg-slate-600"></span> {{ t('bridgeTag') }}</span>
-          </div>
+            <button
+              @click="fitGraphView"
+              class="px-2 py-1 rounded border border-canvas-border bg-white hover:bg-canvas-sidebar text-[9px] font-bold text-canvas-denim transition-colors cursor-pointer"
+            >
+              {{ t('fitView') }}
+            </button>
 
-          <!-- Visual Declutter Controls -->
-          <div class="pt-2 border-t border-canvas-border flex items-center gap-1.5">
+            <span class="h-3.5 w-px bg-canvas-border mx-0.5"></span>
+
             <button
               @click="onlySharedBridges = !onlySharedBridges; rebuildConstellation()"
-              :class="onlySharedBridges ? 'bg-canvas-text text-white border-canvas-text' : 'bg-canvas-sidebar text-canvas-muted border-canvas-border'"
-              class="px-2 py-0.5 rounded border text-[9px] font-bold transition-colors cursor-pointer"
+              :class="onlySharedBridges ? 'bg-canvas-text text-white border-canvas-text' : 'bg-canvas-sidebar text-canvas-muted border-canvas-border hover:text-canvas-text'"
+              class="px-2 py-1 rounded border text-[9px] font-bold transition-colors cursor-pointer"
             >
               {{ t('toggleSharedBridges') }}
             </button>
             <button
               @click="hideTrackNodes = !hideTrackNodes; rebuildConstellation()"
-              :class="hideTrackNodes ? 'bg-canvas-text text-white border-canvas-text' : 'bg-canvas-sidebar text-canvas-muted border-canvas-border'"
-              class="px-2 py-0.5 rounded border text-[9px] font-bold transition-colors cursor-pointer"
+              :class="hideTrackNodes ? 'bg-canvas-text text-white border-canvas-text' : 'bg-canvas-sidebar text-canvas-muted border-canvas-border hover:text-canvas-text'"
+              class="px-2 py-1 rounded border text-[9px] font-bold transition-colors cursor-pointer"
             >
               {{ t('toggleHideTracks') }}
             </button>
           </div>
-        </div>
 
-        <!-- Bottom-Right Quick Help Pill -->
-        <div class="absolute bottom-4 right-4 z-20 bg-white/90 backdrop-blur border border-canvas-border rounded-lg px-3 py-1.5 text-[9px] text-canvas-muted shadow-xs">
-          {{ t('graphInteractionHint') }}
+          <!-- Collapsible Legend Card (Hidden by default) -->
+          <div
+            v-if="showLegend"
+            class="bg-white/95 backdrop-blur border border-canvas-border rounded-xl p-3.5 shadow-lg w-full space-y-2.5"
+          >
+            <div class="flex items-center justify-between border-b border-canvas-border pb-1.5">
+              <span class="font-bold text-canvas-text text-[11px]">{{ t('topologicalField') }}</span>
+              <button @click="showLegend = false" class="text-canvas-muted hover:text-canvas-coral font-bold text-xs cursor-pointer">×</button>
+            </div>
+
+            <p class="text-canvas-muted leading-relaxed text-[9px]">
+              {{ t('constellationDesc') }}
+            </p>
+
+            <!-- Node Type & Ring Color Legend -->
+            <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 font-bold text-[9px] pt-1">
+              <span class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-white border-2 border-canvas-coral ring-2 ring-canvas-coral/25 shrink-0"></span>
+                <span>{{ t('seed') }}</span>
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-canvas-denim shrink-0"></span>
+                <span>{{ t('game') }}</span>
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-canvas-orange shrink-0"></span>
+                <span>{{ t('artist') }}</span>
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-canvas-sage shrink-0"></span>
+                <span>{{ t('music') }}</span>
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-canvas-amber shrink-0"></span>
+                <span>{{ t('movie') }}</span>
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-canvas-violet shrink-0"></span>
+                <span>{{ t('series') }}</span>
+              </span>
+              <span class="flex items-center gap-1.5 col-span-2">
+                <span class="w-2.5 h-2.5 rotate-45 bg-slate-700 shrink-0"></span>
+                <span>{{ t('bridgeTag') }}</span>
+              </span>
+            </div>
+
+            <div class="pt-2 border-t border-canvas-border text-[9px] text-canvas-muted leading-relaxed">
+              {{ t('graphInteractionHint') }}
+            </div>
+          </div>
         </div>
 
         <div id="graph-container" class="flex-1 w-full h-full relative">
@@ -635,14 +700,17 @@
         addToProfile: "+ Perfil",
         path: "Caminho:",
         pop: "pop",
-        topologicalField: "Constelação Radial de Afinidade",
+        topologicalField: "Legenda da Constelação Radial",
         constellationDesc: "Anel Central: Suas Sementes • Anel Médio: Pontes & Tags em Comum • Anel Externo: Descobertas.",
-        seed: "Semente",
-        music: "Música",
+        showLegendBtn: "Legenda ▾",
+        hideLegendBtn: "Legenda ▴",
+        seed: "Semente (Halo Rubi)",
+        artist: "Artista",
+        music: "Música / Faixa",
         game: "Jogo",
         movie: "Filme",
         series: "Série",
-        bridgeTag: "Ponte / #Tag",
+        bridgeTag: "Ponte / #Tag / Estúdio",
         inspecting1: "1 Nó em Foco",
         inspectingMulti: "Nós Combinados em Foco",
         clearSelectionBtn: "limpar seleção",
@@ -652,7 +720,10 @@
         liveExpansionTitle: "Expansão ao Vivo para esta Seleção",
         liveExpansionSubtitle: "Sugestões calculadas diretamente a partir dos nós selecionados acima:",
         addBtn: "+ Perfil",
-        searchAll: "buscar jogos, artistas, faixas, filmes, séries, #tags...",
+        searchBtn: "Buscar",
+        clearSearchBtn: "Limpar busca",
+        noSearchResults: "Nenhum resultado encontrado para esta busca.",
+        searchAll: "digite e pressione Enter ou clique em Buscar...",
         searchGame: "buscar jogos (ex: skyrim, elden ring, witcher)...",
         searchArtist: "buscar artistas (ex: kanye west, daft punk, the cure)...",
         searchTrack: "buscar faixas...",
@@ -672,11 +743,12 @@
         affinityModerate: "Moderada",
         affinityThematic: "Temática",
         scoreTooltip: "Score de Ressonância (PPR + Interseção Temática)",
-        fitView: "recentralizar",
+        fitView: "Recentralizar",
         focusInGraph: "Focar no Grafo",
         seeMoreDomain: "Ver mais desta categoria",
         sectionGames: "Jogos Recomendados",
-        sectionMusic: "Artistas & Faixas",
+        sectionArtists: "Artistas Recomendados",
+        sectionTracks: "Músicas & Faixas",
         sectionScreen: "Filmes & Séries",
         toggleSharedBridges: "Focar Pontes Comuns",
         toggleHideTracks: "Ocultar Faixas",
@@ -700,14 +772,17 @@
         addToProfile: "+ Profile",
         path: "Path:",
         pop: "pop",
-        topologicalField: "Radial Affinity Constellation",
+        topologicalField: "Radial Constellation Legend",
         constellationDesc: "Inner Ring: Profile Seeds • Middle Ring: Shared Bridges & Tags • Outer Ring: Discoveries.",
-        seed: "Seed",
-        music: "Music",
+        showLegendBtn: "Legend ▾",
+        hideLegendBtn: "Legend ▴",
+        seed: "Seed (Ruby Halo)",
+        artist: "Artist",
+        music: "Music / Track",
         game: "Game",
         movie: "Movie",
         series: "Series",
-        bridgeTag: "Bridge / #Tag",
+        bridgeTag: "Bridge / #Tag / Studio",
         inspecting1: "1 Node Focused",
         inspectingMulti: "Combined Nodes Focused",
         clearSelectionBtn: "clear selection",
@@ -717,7 +792,10 @@
         liveExpansionTitle: "Live Expansion for Selection",
         liveExpansionSubtitle: "Recommendations computed directly from the selected nodes above:",
         addBtn: "+ Profile",
-        searchAll: "search games, artists, tracks, movies, series, #tags...",
+        searchBtn: "Search",
+        clearSearchBtn: "Clear search",
+        noSearchResults: "No results found for this query.",
+        searchAll: "type and press Enter or click Search...",
         searchGame: "search games (e.g. skyrim, elden ring, witcher)...",
         searchArtist: "search artists (e.g. kanye west, daft punk, the cure)...",
         searchTrack: "search tracks...",
@@ -737,11 +815,12 @@
         affinityModerate: "Moderate",
         affinityThematic: "Thematic",
         scoreTooltip: "Resonance Score (PPR + Thematic Confluence)",
-        fitView: "recenter",
+        fitView: "Recenter",
         focusInGraph: "Focus in Graph",
         seeMoreDomain: "See more in category",
         sectionGames: "Recommended Games",
-        sectionMusic: "Artists & Tracks",
+        sectionArtists: "Recommended Artists",
+        sectionTracks: "Music & Tracks",
         sectionScreen: "Movies & Series",
         toggleSharedBridges: "Focus Shared Bridges",
         toggleHideTracks: "Hide Tracks",
@@ -763,6 +842,9 @@
         const searchType = ref('');
         const searchResults = ref([]);
         const isSearching = ref(false);
+        const hasSearched = ref(false);
+        const showLegend = ref(false);
+
         const profileSeeds = ref([]);
         const recommendations = ref([]);
         const isLoadingRecs = ref(false);
@@ -777,7 +859,7 @@
         const onlySharedBridges = ref(false);
         const hideTrackNodes = ref(false);
 
-        let searchTimeout = null;
+        let searchAbortController = null;
         let fullServerGraph = { nodes: [], links: [] };
 
         // Pure non-reactive Canvas state (zero Vue proxy overhead during rendering)
@@ -858,7 +940,7 @@
         const getTypeBadgeClass = (type) => {
           switch(type) {
             case 'game': return 'text-canvas-denim bg-canvas-denim/10 border-canvas-denim/25';
-            case 'artist':
+            case 'artist': return 'text-canvas-orange bg-canvas-orange/10 border-canvas-orange/30';
             case 'track': return 'text-canvas-sage bg-canvas-sage/10 border-canvas-sage/25';
             case 'movie': return 'text-canvas-amber bg-canvas-amber/10 border-canvas-amber/25';
             case 'series': return 'text-canvas-violet bg-canvas-violet/10 border-canvas-violet/25';
@@ -905,12 +987,14 @@
             }];
           }
           const games = recommendations.value.filter(r => r.type === 'game');
-          const music = recommendations.value.filter(r => r.type === 'artist' || r.type === 'track');
+          const artists = recommendations.value.filter(r => r.type === 'artist');
+          const tracks = recommendations.value.filter(r => r.type === 'track');
           const screen = recommendations.value.filter(r => r.type === 'movie' || r.type === 'series' || r.type === 'book');
           return [
             { key: 'games', label: t('sectionGames'), color: '#2563eb', filterType: 'game', items: games },
-            { key: 'music', label: t('sectionMusic'), color: '#0d9488', filterType: 'music', items: music },
-            { key: 'screen', label: t('sectionScreen'), color: '#d97706', filterType: 'movie', items: screen },
+            { key: 'artists', label: t('sectionArtists'), color: '#ea580c', filterType: 'music', items: artists },
+            { key: 'tracks', label: t('sectionTracks'), color: '#0d9488', filterType: 'music', items: tracks },
+            { key: 'screen', label: t('sectionScreen'), color: '#ca8a04', filterType: 'movie', items: screen },
           ];
         });
 
@@ -935,27 +1019,49 @@
           fetchLiveInspectorRecommendations();
         };
 
-        const onSearchInput = () => {
-          clearTimeout(searchTimeout);
-          if (searchQuery.value.trim().length < 2) {
+        const clearSearch = () => {
+          if (searchAbortController) {
+            searchAbortController.abort();
+          }
+          searchQuery.value = '';
+          searchResults.value = [];
+          hasSearched.value = false;
+          isSearching.value = false;
+        };
+
+        const executeSearch = async () => {
+          const q = searchQuery.value.trim();
+          if (!q) {
             searchResults.value = [];
+            hasSearched.value = false;
             return;
           }
-          searchTimeout = setTimeout(async () => {
-            isSearching.value = true;
-            try {
-              let url = `/api/search?q=${encodeURIComponent(searchQuery.value.trim())}`;
-              if (searchType.value) {
-                url += `&entity_type=${encodeURIComponent(searchType.value)}`;
-              }
-              const res = await fetch(url);
-              searchResults.value = await res.json();
-            } catch (err) {
-              console.error(err);
-            } finally {
-              isSearching.value = false;
+          if (searchAbortController) {
+            searchAbortController.abort();
+          }
+          searchAbortController = new AbortController();
+          isSearching.value = true;
+          hasSearched.value = true;
+          try {
+            let url = `/api/search?q=${encodeURIComponent(q)}`;
+            if (searchType.value) {
+              url += `&entity_type=${encodeURIComponent(searchType.value)}`;
             }
-          }, 160);
+            const res = await fetch(url, { signal: searchAbortController.signal });
+            searchResults.value = await res.json();
+          } catch (err) {
+            if (err.name !== 'AbortError') {
+              console.error(err);
+            }
+          } finally {
+            isSearching.value = false;
+          }
+        };
+
+        const onSearchTypeChange = () => {
+          if (searchQuery.value.trim().length > 0) {
+            executeSearch();
+          }
         };
 
         const isNodeInProfile = (nodeId) => {
@@ -968,8 +1074,7 @@
             saveProfile();
             computeRecommendations();
           }
-          searchQuery.value = '';
-          searchResults.value = [];
+          clearSearch();
         };
 
         const addNodeToProfile = (node) => {
@@ -1506,13 +1611,14 @@
             const isHighlighted = !hasFocus || isSelected || isNeighbor;
 
             let fill = '#64748b';
-            if (n.isSeed) fill = '#e11d48';
-            else if (n.rawType === 'game') fill = '#2563eb';
-            else if (n.rawType === 'artist' || n.rawType === 'track') fill = '#0d9488';
-            else if (n.rawType === 'movie') fill = '#d97706';
+            if (n.rawType === 'game') fill = '#2563eb';
+            else if (n.rawType === 'artist') fill = '#ea580c';
+            else if (n.rawType === 'track') fill = '#0d9488';
+            else if (n.rawType === 'movie') fill = '#ca8a04';
             else if (n.rawType === 'series') fill = '#7c3aed';
-            else if (n.rawType === 'developer') fill = '#1d4ed8';
+            else if (n.rawType === 'developer') fill = '#334155';
             else if (n.rawType === 'keyword') fill = n.sharedSeedsCount >= 2 ? '#1e293b' : '#64748b';
+            else if (n.isSeed) fill = '#e11d48';
 
             ctx.save();
             if (hasFocus && !isHighlighted) {
@@ -1522,11 +1628,11 @@
             // Halo for Seeds & Focused Nodes
             if (n.isSeed || isSelected) {
               ctx.beginPath();
-              ctx.arc(n.x, n.y, n.r + 5 / viewTransform.k, 0, Math.PI * 2);
-              ctx.fillStyle = isSelected ? 'rgba(225, 29, 72, 0.24)' : 'rgba(225, 29, 72, 0.14)';
+              ctx.arc(n.x, n.y, n.r + 5.5 / viewTransform.k, 0, Math.PI * 2);
+              ctx.fillStyle = isSelected ? 'rgba(225, 29, 72, 0.25)' : 'rgba(225, 29, 72, 0.16)';
               ctx.fill();
               ctx.strokeStyle = '#e11d48';
-              ctx.lineWidth = (isSelected ? 2.0 : 1.2) / viewTransform.k;
+              ctx.lineWidth = (isSelected ? 2.2 : 1.6) / viewTransform.k;
               ctx.stroke();
             }
 
@@ -1549,8 +1655,8 @@
               ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
               ctx.fillStyle = fill;
               ctx.fill();
-              ctx.strokeStyle = '#ffffff';
-              ctx.lineWidth = 1.6 / viewTransform.k;
+              ctx.strokeStyle = n.isSeed ? '#e11d48' : '#ffffff';
+              ctx.lineWidth = (n.isSeed ? 2.2 : 1.6) / viewTransform.k;
               ctx.stroke();
             }
 
@@ -1708,6 +1814,13 @@
         onMounted(() => {
           loadSavedProfile();
           initCanvasEvents();
+          window.addEventListener('pointerdown', (e) => {
+            const box = document.getElementById('search-box-wrapper');
+            if (box && !box.contains(e.target)) {
+              searchResults.value = [];
+              hasSearched.value = false;
+            }
+          });
           if (profileSeeds.value.length > 0) {
             computeRecommendations();
           }
@@ -1722,6 +1835,8 @@
           searchType,
           searchResults,
           isSearching,
+          hasSearched,
+          showLegend,
           profileSeeds,
           recommendations,
           isLoadingRecs,
@@ -1729,7 +1844,9 @@
           domainCounts,
           groupedRecommendations,
           setDomainFilter,
-          onSearchInput,
+          executeSearch,
+          clearSearch,
+          onSearchTypeChange,
           isNodeInProfile,
           addSeed,
           addNodeToProfile,
