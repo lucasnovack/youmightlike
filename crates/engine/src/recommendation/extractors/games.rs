@@ -92,7 +92,7 @@ pub fn extract_games(
 
         let mut touches_direct_seed_artist = false;
         let mut touches_seed_dev = false;
-        let mut touches_seed_tag = false;
+        let mut _touches_seed_tag = false;
 
         for e in ctx.state.graph.out_edges_by_key(nkey) {
             if let Some((tpfx, tid)) = parse_node_key(e.target_key) {
@@ -137,7 +137,7 @@ pub fn extract_games(
                     let is_shared_seed_tag = ctx.seed_tag_counts.contains_key(&tid);
 
                     if is_active_seed {
-                        touches_seed_tag = true;
+                        _touches_seed_tag = true;
                     }
 
                     if is_active_seed || is_shared_seed_tag {
