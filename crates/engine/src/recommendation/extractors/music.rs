@@ -199,6 +199,12 @@ pub fn extract_music(
                 explanation_parts.join(" • ")
             };
 
+            let need_more_artists = artist_recs_added < artist_quota;
+            let need_more_tracks = recommended_artist_tracks.len() < track_quota;
+            if !need_more_artists && !need_more_tracks {
+                break;
+            }
+
             let top_track_row = lookup_top_track_full(ctx.conn, nid);
             let top_track_val = top_track_row.as_ref().map(|t| {
                 json!({
@@ -217,7 +223,7 @@ pub fn extract_music(
                 ));
             }
 
-            if artist_recs_added < artist_quota {
+            if need_more_artists {
                 let sub = country
                     .map(|c| {
                         if ctx.is_pt {
@@ -273,6 +279,9 @@ pub fn extract_music(
                 }
 
                 artist_recs_added += 1;
+                if artist_recs_added >= artist_quota && recommended_artist_tracks.len() >= track_quota {
+                    break;
+                }
             }
         }
     }
