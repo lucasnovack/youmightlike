@@ -1,6 +1,4 @@
-//! Strict domain-respecting backfill recommendation extractor.
-
-use super::super::context::RecContext;
+use super::super::context::{normalize_game_title, RecContext};
 use crate::models::{lookup_artist_meta, parse_node_key, GraphLinkPayload, GraphNodePayload};
 use crate::ppr::top_k_from_scores;
 use serde_json::{json, Value};
@@ -26,6 +24,24 @@ pub fn extract_backfill(
         .collect();
     for s in seeds {
         already_chosen.insert(s.clone());
+    }
+
+    let mut seen_game_titles: HashSet<String> = HashSet::new();
+    for s in seeds {
+        if let Some(("game", gid)) = parse_node_key(s) {
+            if let Some(g) = ctx.state.catalog.games.get(&gid) {
+                seen_game_titles.insert(normalize_game_title(&g.title));
+            }
+        }
+    }
+    for r in results.iter() {
+        if let Some(nkey) = r.get("id").and_then(|v| v.as_str()) {
+            if let Some(("game", gid)) = parse_node_key(nkey) {
+                if let Some(g) = ctx.state.catalog.games.get(&gid) {
+                    seen_game_titles.insert(normalize_game_title(&g.title));
+                }
+            }
+        }
     }
 
     let filter_prefix = match target_type {
@@ -63,6 +79,11 @@ pub fn extract_backfill(
         match pfx {
             "game" => {
                 if let Some(g) = ctx.state.catalog.games.get(&nid) {
+                    let norm = normalize_game_title(&g.title);
+                    if seen_game_titles.contains(&norm) {
+                        continue;
+                    }
+                    seen_game_titles.insert(norm);
                     already_chosen.insert(nkey.clone());
                     let year_str = g
                         .release_year

@@ -86,3 +86,115 @@ pub fn is_steam_noise_tag(tag: &str) -> bool {
             | "valve anti-cheat enabled"
     )
 }
+
+/// Normalizes game title by stripping trademark symbols, year suffixes, and edition variants
+/// (e.g. GOTY, Remastered, VR, Special Edition) for robust franchise deduplication.
+pub fn normalize_game_title(title: &str) -> String {
+    let mut s = title.to_lowercase();
+    s.retain(|c| c != '®' && c != '™' && c != '©');
+
+    if let Some(idx) = s.find('(') {
+        if let Some(end_idx) = s[idx..].find(')') {
+            let inner = &s[idx + 1..idx + end_idx];
+            if inner.len() == 4 && inner.chars().all(|c| c.is_ascii_digit()) {
+                s.replace_range(idx..=idx + end_idx, "");
+            }
+        }
+    }
+
+    let patterns = [
+        "game of the year edition",
+        "game of the year",
+        "goty edition",
+        "goty",
+        "special edition",
+        "deluxe edition",
+        "deluxe",
+        "remastered",
+        "remaster",
+        "definitive edition",
+        "enhanced edition",
+        "anniversary edition",
+        "director's cut",
+        "vr",
+        "add-on pack",
+    ];
+    for pat in patterns {
+        s = s.replace(pat, " ");
+    }
+
+    if let Some(pos) = s.find(" - ") {
+        let sub = &s[pos + 3..];
+        let sub_trimmed = sub.trim();
+        if matches!(
+            sub_trimmed,
+            "elsweyr" | "greymoor" | "blackwood" | "high isle" | "necrom" | "gold road"
+        ) {
+            s.truncate(pos);
+        }
+    }
+
+    let mut cleaned = String::with_capacity(s.len());
+    let mut prev_space = false;
+    for c in s.chars() {
+        if c.is_alphanumeric() {
+            cleaned.push(c);
+            prev_space = false;
+        } else if !prev_space {
+            cleaned.push(' ');
+            prev_space = true;
+        }
+    }
+    cleaned.trim().to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_game_title() {
+        assert_eq!(
+            normalize_game_title("The Elder Scrolls V: Skyrim"),
+            "the elder scrolls v skyrim"
+        );
+        assert_eq!(
+            normalize_game_title("The Elder Scrolls V: Skyrim Special Edition"),
+            "the elder scrolls v skyrim"
+        );
+        assert_eq!(
+            normalize_game_title("The Elder Scrolls V: Skyrim VR"),
+            "the elder scrolls v skyrim"
+        );
+        assert_eq!(
+            normalize_game_title("The Elder Scrolls IV: Oblivion Remastered"),
+            "the elder scrolls iv oblivion"
+        );
+        assert_eq!(
+            normalize_game_title(
+                "The Elder Scrolls IV: Oblivion® Game of the Year Edition Deluxe (2009)"
+            ),
+            "the elder scrolls iv oblivion"
+        );
+        assert_eq!(
+            normalize_game_title("Fallout 4"),
+            "fallout 4"
+        );
+        assert_eq!(
+            normalize_game_title("Fallout 4 VR"),
+            "fallout 4"
+        );
+        assert_eq!(
+            normalize_game_title("Far Cry®"),
+            "far cry"
+        );
+        assert_eq!(
+            normalize_game_title("Far Cry 3"),
+            "far cry 3"
+        );
+        assert_ne!(
+            normalize_game_title("Far Cry"),
+            normalize_game_title("Far Cry 3")
+        );
+    }
+}
