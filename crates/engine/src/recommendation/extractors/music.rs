@@ -22,8 +22,18 @@ pub fn extract_music(
     let mut artist_recs_added = 0usize;
 
     if artist_quota > 0 || track_quota > 0 {
+        let mut seen_artist_names: HashSet<String> = ctx
+            .seed_artist_names
+            .values()
+            .map(|s| s.trim().to_lowercase())
+            .collect();
+        if seen_artist_names.contains("kanye west") || seen_artist_names.contains("ye") {
+            seen_artist_names.insert("kanye west".to_string());
+            seen_artist_names.insert("ye".to_string());
+        }
+
         let top_diffused_artists =
-            top_k_from_scores(&ctx.state.graph, ctx.p, ctx.exclude_ids, "artist:", Some(20));
+            top_k_from_scores(&ctx.state.graph, ctx.p, ctx.exclude_ids, "artist:", Some(30));
 
         for item in &top_diffused_artists {
             if item.score < ctx.min_rec_score {
@@ -33,6 +43,14 @@ pub fn extract_music(
             if ctx.seed_set.contains(nkey) {
                 continue;
             }
+            let out_edges = ctx.state.graph.out_edges_by_key(nkey);
+            if out_edges.len() < 5
+                && !out_edges.iter().any(|e| {
+                    e.relation_type == "soundtrack_composer" || e.relation_type == "soundtrack_for"
+                })
+            {
+                continue;
+            }
             let Some(("artist", nid)) = parse_node_key(nkey) else {
                 continue;
             };
@@ -40,6 +58,14 @@ pub fn extract_music(
             let Some((aname, country)) = lookup_artist_meta(ctx.conn, nid) else {
                 continue;
             };
+            let aname_norm = aname
+                .trim()
+                .to_lowercase()
+                .replace('’', "'")
+                .replace(['\u{2010}', '\u{2011}', '\u{2012}', '\u{2013}', '\u{2014}'], "-");
+            if !seen_artist_names.insert(aname_norm) {
+                continue;
+            }
 
             // In-memory path explanation via directed CSR edges
             let mut explanation_parts: Vec<String> = Vec::new();
@@ -47,7 +73,7 @@ pub fn extract_music(
             let mut shared_tags: Vec<String> = Vec::new();
             let mut best_artist_bridge: Option<(String, String, String, f32)> = None;
 
-            for e in ctx.state.graph.out_edges_by_key(nkey) {
+            for e in out_edges {
                 if (e.relation_type == "soundtrack_composer" || e.relation_type == "soundtrack_for")
                     && ctx.seed_games.contains(&parse_node_key(e.target_key).map(|(_, id)| id).unwrap_or(0))
                 {

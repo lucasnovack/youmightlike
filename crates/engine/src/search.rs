@@ -32,29 +32,39 @@ pub fn search_entities_sync(
         let q_title = title_case(&q_str);
         let q_upper = q_str.to_uppercase();
 
-        let mut variants = vec![q_str.clone()];
-        if !variants.contains(&q_lower) {
-            variants.push(q_lower);
-        }
-        if !variants.contains(&q_title) {
-            variants.push(q_title);
-        }
-        if !variants.contains(&q_upper) {
-            variants.push(q_upper);
+        let mut base_variants = vec![q_str.clone(), q_lower.clone(), q_title, q_upper];
+        match q_lower.as_str() {
+            "ye" | "yeezy" => base_variants.push("Kanye West".to_string()),
+            "kesha" => base_variants.push("Ke$ha".to_string()),
+            "pink" => base_variants.push("P!nk".to_string()),
+            _ => {}
         }
 
+        let mut variants: Vec<String> = Vec::new();
+        for bv in base_variants {
+            let v_curly = bv.replace('\'', "’");
+            let v_hyphen = bv.replace('-', "\u{2010}");
+            let v_endash = bv.replace('-', "\u{2013}");
+            for cand in [bv, v_curly, v_hyphen, v_endash] {
+                if !variants.contains(&cand) {
+                    variants.push(cand);
+                }
+            }
+        }
+
+        let q_prefix_curly = q_str.replace('\'', "’").replace('-', "\u{2010}");
         let placeholders = variants.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
         let sql = format!(
             "SELECT id, name, country, listeners 
              FROM music_artists 
-             WHERE name IN ({placeholders}) OR name ILIKE ? || '%'
+             WHERE name IN ({placeholders}) OR name ILIKE ? || '%' OR name ILIKE ? || '%'
              ORDER BY 
-                 CASE WHEN LOWER(name) = LOWER(?) THEN 1
+                 CASE WHEN LOWER(name) = LOWER(?) OR LOWER(name) = LOWER(?) THEN 1
                       WHEN name NOT LIKE '%;%' THEN 2
                       ELSE 3 END,
                  LENGTH(name) ASC,
                  listeners DESC 
-             LIMIT 6;"
+             LIMIT 30;"
         );
 
         let mut query_params: Vec<&dyn duckdb::ToSql> = Vec::new();
@@ -62,8 +72,20 @@ pub fn search_entities_sync(
             query_params.push(v);
         }
         query_params.push(&q_str);
+        query_params.push(&q_prefix_curly);
         query_params.push(&q_str);
+        query_params.push(&q_prefix_curly);
 
+        let norm_artist_key = |s: &str| -> String {
+            s.trim()
+                .to_lowercase()
+                .replace('’', "'")
+                .replace('‘', "'")
+                .replace(['\u{2010}', '\u{2011}', '\u{2012}', '\u{2013}', '\u{2014}'], "-")
+        };
+        let q_norm = norm_artist_key(&q_str);
+
+        let mut artist_candidates: Vec<(usize, usize, usize, EntityItem, String)> = Vec::new();
         if let Ok(mut stmt) = conn.prepare(&sql) {
             if let Ok(mut rows) = stmt.query(query_params.as_slice()) {
                 while let Ok(Some(r)) = rows.next() {
@@ -71,18 +93,54 @@ pub fn search_entities_sync(
                     let aname: String = r.get(1).unwrap_or_default();
                     let country: Option<String> = r.get(2).ok();
                     let nid = format!("artist:{}", aid);
-                    if seen.insert(nid.clone()) {
-                        let sub = country
-                            .map(|c| format!("Artist • {}", c))
-                            .unwrap_or_else(|| "Artist".to_string());
-                        items.push(EntityItem {
+                    let degree = state.graph.out_edges_by_key(&nid).len();
+                    if degree < 5 {
+                        continue;
+                    }
+                    let nkey = norm_artist_key(&aname);
+                    let is_alias_exact = ((q_norm == "ye" || q_norm == "yeezy")
+                        && nkey == "kanye west")
+                        || (q_norm == "kesha" && nkey == "ke$ha")
+                        || (q_norm == "pink" && nkey == "p!nk");
+                    let exact_prio = if nkey == q_norm || is_alias_exact {
+                        0
+                    } else if !aname.contains(';') {
+                        1
+                    } else {
+                        2
+                    };
+                    let sub = country
+                        .map(|c| format!("Artist • {}", c))
+                        .unwrap_or_else(|| "Artist".to_string());
+                    artist_candidates.push((
+                        exact_prio,
+                        aname.len(),
+                        degree,
+                        EntityItem {
                             id: nid,
                             name: aname,
                             entity_type: "artist".to_string(),
                             subtitle: Some(sub),
                             extra: None,
-                        });
-                    }
+                        },
+                        nkey,
+                    ));
+                }
+            }
+        }
+
+        artist_candidates.sort_by(|a, b| {
+            a.0.cmp(&b.0)
+                .then_with(|| b.2.cmp(&a.2))
+                .then_with(|| a.1.cmp(&b.1))
+        });
+
+        let mut seen_artist_names: HashSet<String> = HashSet::new();
+        for (_, _, _, item, nkey) in artist_candidates {
+            if seen_artist_names.insert(nkey) && seen.insert(item.id.clone()) {
+                items.push(item);
+                if items.len() >= 6 {
+                    break;
                 }
             }
         }
