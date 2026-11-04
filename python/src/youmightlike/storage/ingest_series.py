@@ -256,50 +256,10 @@ def run_series_bulk_ingestion(min_votes: int = 2500) -> None:
         console.print(f"  -> {writer_count:,} roteiristas vinculados em {time.time() - t0:.2f}s!")
 
         # ---------------------------------------------------------------------
-        # 5. PONTES CANÔNICAS (Trilhas Sonoras & Adaptações Literárias)
+        # 5. PONTES TRANS-MIDIÁTICAS E ADAPTAÇÕES LITERÁRIAS
         # ---------------------------------------------------------------------
-        console.print("\n[bold green]5/6 Inserindo pontes canônicas de trilha sonora e adaptações...[/bold green]")
+        console.print("\n[bold green]5/6 Processando pontes de adaptações e realizadores...[/bold green]")
         t0 = time.time()
-
-        # Vínculos diretos canônicos de séries com artistas musicais / compositores
-        canonical_series_soundtracks = [
-            # Twin Peaks (tt0098936) ⇄ Angelo Badalamenti (artist:8)
-            ("tt0098936", "artist:8", "soundtrack_featured", 4.0),
-            # Game of Thrones (tt0944947) ⇄ Ramin Djawadi (artist:1326)
-            ("tt0944947", "artist:1326", "soundtrack_featured", 4.0),
-            # Dark (tt5753856) ⇄ Ben Frost (artist:7349)
-            ("tt5753856", "artist:7349", "soundtrack_featured", 4.0),
-            # Chernobyl (tt8235236) ⇄ Hildur Guðnadóttir (artist:12870)
-            ("tt8235236", "artist:12870", "soundtrack_featured", 4.0),
-            # Succession (tt7660850) ⇄ Nicholas Britell (artist:6203)
-            ("tt7660850", "artist:6203", "soundtrack_featured", 4.0),
-            # Peaky Blinders (tt2442560) ⇄ Nick Cave & the Bad Seeds (artist:440)
-            ("tt2442560", "artist:440", "soundtrack_featured", 3.8),
-            # The Sopranos (tt0141842) ⇄ Alabama 3 (artist:5180)
-            ("tt0141842", "artist:5180", "soundtrack_featured", 3.8),
-            # True Detective (tt2356777) ⇄ The Handsome Family (artist:8650)
-            ("tt2356777", "artist:8650", "soundtrack_featured", 3.8),
-            # The Leftovers (tt2699128) ⇄ Max Richter (artist:1309)
-            ("tt2699128", "artist:1309", "soundtrack_featured", 4.0),
-            # Battlestar Galactica (tt0407362) ⇄ Bear McCreary (artist:1192)
-            ("tt0407362", "artist:1192", "soundtrack_featured", 4.0),
-        ]
-
-        conn.execute(
-            """
-            CREATE OR REPLACE TEMP TABLE tmp_series_soundtracks (
-                imdb_id VARCHAR,
-                target_id VARCHAR,
-                relation_type VARCHAR,
-                base_weight DOUBLE
-            );
-            """
-        )
-        for row in canonical_series_soundtracks:
-            conn.execute(
-                "INSERT INTO tmp_series_soundtracks VALUES (?, ?, ?, ?)",
-                [row[0], row[1], row[2], row[3]],
-            )
 
         # ---------------------------------------------------------------------
         # 6. ENRIQUECER 'graph_semantic_edges' COM AS ARESTAS DE SÉRIES
@@ -362,26 +322,6 @@ def run_series_bulk_ingestion(min_votes: int = 2500) -> None:
                 WHERE gse.source_id = 'series:' || CAST(sk.series_id AS VARCHAR)
                   AND gse.target_id = 'keyword:' || CAST(sk.keyword_id AS VARCHAR)
                   AND gse.relation_type = 'has_tag'
-            );
-            """
-        )
-
-        # Inserir Pontes Canônicas de Trilha Sonora
-        conn.execute(
-            """
-            INSERT INTO graph_semantic_edges (source_id, target_id, base_weight, relation_type)
-            SELECT DISTINCT
-                'series:' || CAST(s.id AS VARCHAR),
-                st.target_id,
-                st.base_weight,
-                st.relation_type
-            FROM tmp_series_soundtracks st
-            JOIN tv_series s ON st.imdb_id = s.imdb_id
-            WHERE NOT EXISTS (
-                SELECT 1 FROM graph_semantic_edges gse
-                WHERE gse.source_id = 'series:' || CAST(s.id AS VARCHAR)
-                  AND gse.target_id = st.target_id
-                  AND gse.relation_type = st.relation_type
             );
             """
         )

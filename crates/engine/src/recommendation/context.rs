@@ -123,13 +123,9 @@ pub fn normalize_game_title(title: &str) -> String {
         s = s.replace(pat, " ");
     }
 
+    // Truncate generic subtitle / expansion packs separated by " - " (e.g. "Game - Subtitle")
     if let Some(pos) = s.find(" - ") {
-        let sub = &s[pos + 3..];
-        let sub_trimmed = sub.trim();
-        if matches!(
-            sub_trimmed,
-            "elsweyr" | "greymoor" | "blackwood" | "high isle" | "necrom" | "gold road"
-        ) {
+        if s[..pos].trim().len() >= 3 {
             s.truncate(pos);
         }
     }
