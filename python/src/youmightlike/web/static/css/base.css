@@ -1,0 +1,54 @@
+/* Design Tokens & Global Resets */
+:root {
+  --color-canvas-bg: #f8fafc;
+  --color-canvas-panel: #ffffff;
+  --color-canvas-sidebar: #f1f5f9;
+  --color-canvas-border: #e2e8f0;
+  --color-canvas-border-dark: #cbd5e1;
+  --color-canvas-text: #0f172a;
+  --color-canvas-muted: #64748b;
+  --color-canvas-pine: #0f172a;
+  --color-canvas-sage: #0d9488;
+  --color-canvas-orange: #ea580c;
+  --color-canvas-coral: #e11d48;
+  --color-canvas-denim: #2563eb;
+  --color-canvas-amber: #ca8a04;
+  --color-canvas-violet: #7c3aed;
+}
+
+* {
+  font-feature-settings: "zero" 1;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--color-canvas-bg);
+  color: var(--color-canvas-text);
+  font-family: 'JetBrains Mono', monospace;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: var(--color-canvas-text);
+  color: #ffffff;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-canvas-border-dark);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
