@@ -85,7 +85,7 @@ youmightlike/
 │   ├── src/youmightlike/
 │   │   ├── connectors/     # Metadata fetchers (Wikidata, OpenLibrary, MusicBrainz)
 │   │   ├── storage/        # SQL schema, DuckDB connection, and bulk ingestion scripts
-│   │   └── web/            # Interactive Force-Graph static frontend assets
+│   │   └── web/            # Interactive constellation Canvas UI assets
 ├── data/                   # Ignored in git
 │   ├── raw/                # Compressed dumps (IMDb, Steam, Goodreads, MusicBrainz, Last.fm)
 │   └── processed/          # taste_graph.duckdb
@@ -141,7 +141,7 @@ python python/src/youmightlike/storage/ingest_tracks.py
 python python/src/youmightlike/storage/ingest_lastfm_similars.py
 ```
 
-### 4. Start the Interactive Web Interface (Force-Graph UI in Rust)
+### 4. Start the Interactive Web Interface (Native Canvas UI in Rust)
 The HTTP web service and CSR diffusion engine run natively in Rust (`youmightlike-server` via Axum/Tokio), keeping the semantic graph in memory for sub-second responses:
 ```bash
 # Build release binaries (engine + server)
@@ -155,7 +155,7 @@ python -m youmightlike.web
 ```
 Open `http://localhost:8000` in your browser:
 - **Seed bar:** Add favorite seeds (tracks, games, movies, TV series, or artists).
-- **Topological Canvas:** Explore interactive semantic edges rendered with Force-Graph and D3 physics.
+- **Topological Canvas:** Explore interactive semantic edges rendered with a zero-freeze native HTML5 Canvas 3-ring constellation.
 - **Language Switcher [ PT | EN ]:** Toggle between Portuguese and English instantly.
 - **Shift + Click:** Inspect and highlight multi-node paths and mutual bridges.
 
