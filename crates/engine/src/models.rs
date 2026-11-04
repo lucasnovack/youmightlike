@@ -390,110 +390,208 @@ pub struct TopTrackRow {
 }
 
 pub fn lookup_top_track_full(conn: &Connection, aid: i64) -> Option<TopTrackRow> {
-    conn.query_row(
-        "SELECT t.id, t.title, a.title, t.popularity, t.tempo, t.valence, t.energy
-         FROM music_tracks t
-         LEFT JOIN music_albums a ON a.id = t.album_id
-         WHERE t.artist_id = ?
-         ORDER BY t.popularity DESC NULLS LAST
-         LIMIT 1",
-        params![aid],
-        |r| {
-            Ok(TopTrackRow {
-                track_id: r.get::<_, i64>(0)?,
-                title: r.get::<_, String>(1)?,
-                album_title: r.get::<_, Option<String>>(2)?,
-                popularity: r.get::<_, Option<i32>>(3)?,
-                tempo: r.get::<_, Option<f64>>(4)?,
-                valence: r.get::<_, Option<f64>>(5)?,
-                energy: r.get::<_, Option<f64>>(6)?,
-            })
-        },
-    )
-    .ok()
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, title, popularity, tempo, valence, energy, album_id
+             FROM music_tracks
+             WHERE artist_id = ?
+             ORDER BY popularity DESC NULLS LAST
+             LIMIT 1",
+        )
+        .ok()?;
+
+    let row = stmt
+        .query_row(params![aid], |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, Option<i32>>(2)?,
+                r.get::<_, Option<f64>>(3)?,
+                r.get::<_, Option<f64>>(4)?,
+                r.get::<_, Option<f64>>(5)?,
+                r.get::<_, Option<i64>>(6)?,
+            ))
+        })
+        .ok()?;
+
+    let alb_title = row.6.and_then(|alb_id| {
+        conn.query_row(
+            "SELECT title FROM music_albums WHERE id = ?",
+            params![alb_id],
+            |r| r.get::<_, Option<String>>(0),
+        )
+        .ok()
+        .flatten()
+    });
+
+    Some(TopTrackRow {
+        track_id: row.0,
+        title: row.1,
+        album_title: alb_title,
+        popularity: row.2,
+        tempo: row.3,
+        valence: row.4,
+        energy: row.5,
+    })
 }
 
 pub fn lookup_seed_top_tracks(conn: &Connection, aid: i64, limit: usize) -> Vec<TopTrackRow> {
     let mut stmt = match conn.prepare(
-        "SELECT t.id, t.title, a.title, t.popularity, t.tempo, t.valence, t.energy
-         FROM music_tracks t
-         LEFT JOIN music_albums a ON a.id = t.album_id
-         WHERE t.artist_id = ?
-         ORDER BY t.popularity DESC NULLS LAST
+        "SELECT id, title, popularity, tempo, valence, energy, album_id
+         FROM music_tracks
+         WHERE artist_id = ?
+         ORDER BY popularity DESC NULLS LAST
          LIMIT ?",
     ) {
         Ok(s) => s,
         Err(_) => return Vec::new(),
     };
 
-    let rows = stmt
+    let rows: Vec<(i64, String, Option<i32>, Option<f64>, Option<f64>, Option<f64>, Option<i64>)> = match stmt
         .query_map(params![aid, limit as i64], |r| {
-            Ok(TopTrackRow {
-                track_id: r.get::<_, i64>(0)?,
-                title: r.get::<_, String>(1)?,
-                album_title: r.get::<_, Option<String>>(2)?,
-                popularity: r.get::<_, Option<i32>>(3)?,
-                tempo: r.get::<_, Option<f64>>(4)?,
-                valence: r.get::<_, Option<f64>>(5)?,
-                energy: r.get::<_, Option<f64>>(6)?,
-            })
-        })
-        .ok();
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+                r.get(6)?,
+            ))
+        }) {
+        Ok(iter) => iter.filter_map(|r| r.ok()).collect(),
+        Err(_) => return Vec::new(),
+    };
 
-    if let Some(r_iter) = rows {
-        r_iter.filter_map(|r| r.ok()).collect()
-    } else {
-        Vec::new()
-    }
-}
-
-pub fn lookup_artist_collaborative_track(
-    conn: &Connection,
-    candidate_aid: i64,
-    seed_album_titles: &std::collections::HashMap<String, (i64, String)>,
-) -> Option<(TopTrackRow, i64, String)> {
-    if seed_album_titles.is_empty() {
-        return None;
-    }
-
-    let mut stmt = conn
-        .prepare(
-            "SELECT t.id, t.title, a.title, t.popularity, t.tempo, t.valence, t.energy
-             FROM music_tracks t
-             JOIN music_albums a ON a.id = t.album_id
-             WHERE t.artist_id = ?
-             ORDER BY t.popularity DESC NULLS LAST",
-        )
-        .ok()?;
-
-    let rows = stmt
-        .query_map(params![candidate_aid], |r| {
-            Ok(TopTrackRow {
-                track_id: r.get::<_, i64>(0)?,
-                title: r.get::<_, String>(1)?,
-                album_title: r.get::<_, Option<String>>(2)?,
-                popularity: r.get::<_, Option<i32>>(3)?,
-                tempo: r.get::<_, Option<f64>>(4)?,
-                valence: r.get::<_, Option<f64>>(5)?,
-                energy: r.get::<_, Option<f64>>(6)?,
-            })
-        })
-        .ok()?;
-
-    for row in rows.flatten() {
-        if let Some(ref alb) = row.album_title {
-            let norm = alb.trim().to_lowercase();
-            if norm.len() >= 3 && norm != "single" && norm != "ep" && norm != "greatest hits" {
-                if let Some((seed_aid, seed_name)) = seed_album_titles.get(&norm) {
-                    if *seed_aid != candidate_aid {
-                        return Some((row, *seed_aid, seed_name.clone()));
+    let mut album_map: std::collections::HashMap<i64, String> = std::collections::HashMap::new();
+    let album_ids: Vec<i64> = rows.iter().filter_map(|r| r.6).collect();
+    if !album_ids.is_empty() {
+        let placeholders = album_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let q = format!("SELECT id, title FROM music_albums WHERE id IN ({})", placeholders);
+        if let Ok(mut a_stmt) = conn.prepare(&q) {
+            let params_vec: Vec<&dyn duckdb::ToSql> = album_ids.iter().map(|id| id as &dyn duckdb::ToSql).collect();
+            if let Ok(a_rows) = a_stmt.query_map(&params_vec[..], |r| {
+                Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?))
+            }) {
+                for r in a_rows.flatten() {
+                    if let (id, Some(title)) = r {
+                        album_map.insert(id, title);
                     }
                 }
             }
         }
     }
 
-    None
+    rows.into_iter()
+        .map(|r| {
+            let alb = r.6.and_then(|id| album_map.get(&id).cloned());
+            TopTrackRow {
+                track_id: r.0,
+                title: r.1,
+                album_title: alb,
+                popularity: r.2,
+                tempo: r.3,
+                valence: r.4,
+                energy: r.5,
+            }
+        })
+        .collect()
+}
+
+pub fn resolve_artist_track_and_collab(
+    conn: &Connection,
+    aid: i64,
+    seed_album_titles: &std::collections::HashMap<String, (i64, String)>,
+) -> Option<(TopTrackRow, Option<(i64, String)>)> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, title, popularity, tempo, valence, energy, album_id
+             FROM music_tracks
+             WHERE artist_id = ?
+             ORDER BY popularity DESC NULLS LAST
+             LIMIT 5",
+        )
+        .ok()?;
+
+    let rows: Vec<(i64, String, Option<i32>, Option<f64>, Option<f64>, Option<f64>, Option<i64>)> = stmt
+        .query_map(params![aid], |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+                r.get(6)?,
+            ))
+        })
+        .ok()?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    if rows.is_empty() {
+        return None;
+    }
+
+    let mut album_map: std::collections::HashMap<i64, String> = std::collections::HashMap::new();
+    let album_ids: Vec<i64> = rows.iter().filter_map(|r| r.6).collect();
+    if !album_ids.is_empty() {
+        let placeholders = album_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let q = format!("SELECT id, title FROM music_albums WHERE id IN ({})", placeholders);
+        if let Ok(mut a_stmt) = conn.prepare(&q) {
+            let params_vec: Vec<&dyn duckdb::ToSql> = album_ids.iter().map(|id| id as &dyn duckdb::ToSql).collect();
+            if let Ok(a_rows) = a_stmt.query_map(&params_vec[..], |r| {
+                Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?))
+            }) {
+                for r in a_rows.flatten() {
+                    if let (id, Some(title)) = r {
+                        album_map.insert(id, title);
+                    }
+                }
+            }
+        }
+    }
+
+    for r in &rows {
+        if let Some(alb_id) = r.6 {
+            if let Some(alb_title) = album_map.get(&alb_id) {
+                let norm = alb_title.trim().to_lowercase();
+                if norm.len() >= 3 && norm != "single" && norm != "ep" && norm != "greatest hits" {
+                    if let Some((seed_aid, seed_name)) = seed_album_titles.get(&norm) {
+                        if *seed_aid != aid {
+                            return Some((
+                                TopTrackRow {
+                                    track_id: r.0,
+                                    title: r.1.clone(),
+                                    album_title: Some(alb_title.clone()),
+                                    popularity: r.2,
+                                    tempo: r.3,
+                                    valence: r.4,
+                                    energy: r.5,
+                                },
+                                Some((*seed_aid, seed_name.clone())),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let first = &rows[0];
+    let alb_title = first.6.and_then(|id| album_map.get(&id).cloned());
+    Some((
+        TopTrackRow {
+            track_id: first.0,
+            title: first.1.clone(),
+            album_title: alb_title,
+            popularity: first.2,
+            tempo: first.3,
+            valence: first.4,
+            energy: first.5,
+        },
+        None,
+    ))
 }
 
 pub fn collect_node_tags(

@@ -3,8 +3,8 @@
 
 use super::super::context::{is_steam_noise_tag, RecContext};
 use crate::models::{
-    is_tag_relation, lookup_artist_collaborative_track, lookup_artist_meta, lookup_seed_top_tracks,
-    lookup_top_track_full, parse_node_key, GraphLinkPayload, GraphNodePayload, TopTrackRow,
+    is_tag_relation, lookup_artist_meta, lookup_seed_top_tracks, parse_node_key,
+    resolve_artist_track_and_collab, GraphLinkPayload, GraphNodePayload, TopTrackRow,
 };
 use crate::ppr::top_k_from_scores;
 use duckdb::params;
@@ -22,9 +22,6 @@ struct CandidateArtist {
     primary_seed: Option<String>,
     full_reason: String,
     best_bridge: Option<(String, String, String, f32)>,
-    top_track: Option<TopTrackRow>,
-    collab_seed_aid: Option<i64>,
-    collab_seed_name: Option<String>,
 }
 
 #[derive(Clone)]
@@ -257,26 +254,6 @@ pub fn extract_music(
         // Explanation assembly
         let mut explanation_parts: Vec<String> = Vec::new();
 
-        let mut collab_seed_aid: Option<i64> = None;
-        let mut collab_seed_name: Option<String> = None;
-
-        let top_track = if let Some((collab_trk, s_aid, s_name)) =
-            lookup_artist_collaborative_track(ctx.conn, nid, &seed_album_titles)
-        {
-            collab_seed_aid = Some(s_aid);
-            collab_seed_name = Some(s_name.clone());
-            let alb = collab_trk.album_title.as_deref().unwrap_or("compartilhado");
-            let collab_desc = if ctx.is_pt {
-                format!("Colaboração com {} no álbum {}", s_name, alb)
-            } else {
-                format!("Collaboration with {} on album {}", s_name, alb)
-            };
-            explanation_parts.push(collab_desc);
-            Some(collab_trk)
-        } else {
-            lookup_top_track_full(ctx.conn, nid)
-        };
-
         if let Some(gid) = matched_seed_game {
             if let Some(g) = ctx.state.catalog.games.get(&gid) {
                 explanation_parts.push(if ctx.is_pt {
@@ -337,31 +314,15 @@ pub fn extract_music(
 
         // Score weighting with multi-seed confluence boost and hub degree normalization
         let mut boost = 1.0f32;
-        if collab_seed_aid.is_some() {
-            // Highly prized collaborative partner with a seed artist (e.g. Watch The Throne)
-            boost *= 1.8;
-        }
         if connected_seeds.len() >= 2 {
             // Highly prized confluence node bridging multiple seeds
             boost *= 2.5;
         } else if connected_seeds.len() == 1 {
             let s_key = &connected_seeds[0];
             let deg = seed_degrees.get(s_key).copied().unwrap_or(300);
-            // Counteract hub diffusion penalty so mega-hubs (e.g. Kanye degree 1400)
-            // don't have their neighbors starved by smaller niche seeds (degree 300)
             let deg_factor = ((deg as f32) / 300.0).sqrt().clamp(1.0, 2.3);
             boost *= deg_factor;
         }
-
-        let pop = top_track.as_ref().and_then(|t| t.popularity).unwrap_or(45) as f32;
-        let pop_factor = if pop < 30.0 {
-            0.35
-        } else if pop < 50.0 {
-            0.75
-        } else {
-            1.0 + (pop - 50.0) / 100.0 * 0.5
-        };
-        boost *= pop_factor;
 
         let boosted_score = item.score * boost;
 
@@ -381,9 +342,6 @@ pub fn extract_music(
             primary_seed,
             full_reason,
             best_bridge: best_artist_bridge,
-            top_track,
-            collab_seed_aid,
-            collab_seed_name,
         });
     }
 
@@ -478,6 +436,12 @@ pub fn extract_music(
 
     // Materialize recommended artists
     for c in &chosen_candidates {
+        // Resolve track and joint collaboration exclusively for this chosen artist
+        let (resolved_track, collab_info) =
+            resolve_artist_track_and_collab(ctx.conn, c.nid, &seed_album_titles)
+                .map(|(t, clb)| (Some(t), clb))
+                .unwrap_or((None, None));
+
         let sub = c
             .country
             .as_ref()
@@ -496,12 +460,26 @@ pub fn extract_music(
                 }
             });
 
-        let top_track_val = c.top_track.as_ref().map(|t| {
+        let top_track_val = resolved_track.as_ref().map(|t| {
             json!({
                 "title": t.title,
                 "popularity": t.popularity.unwrap_or(50),
             })
         });
+
+        let mut final_reason = c.full_reason.clone();
+        if let Some((_, ref s_name)) = collab_info {
+            let alb = resolved_track
+                .as_ref()
+                .and_then(|t| t.album_title.as_deref())
+                .unwrap_or("compartilhado");
+            let collab_desc = if ctx.is_pt {
+                format!("Colaboração com {} no álbum {}", s_name, alb)
+            } else {
+                format!("Collaboration with {} on album {}", s_name, alb)
+            };
+            final_reason = format!("{} • {}", collab_desc, final_reason);
+        }
 
         results.push(json!({
             "id": c.nkey,
@@ -510,7 +488,7 @@ pub fn extract_music(
             "subtitle": sub,
             "score": ((c.boosted_score as f64) * 1000.0 * 100.0).round() / 100.0,
             "top_track": top_track_val,
-            "reason": c.full_reason,
+            "reason": final_reason,
         }));
 
         graph_nodes.push(GraphNodePayload {
@@ -546,7 +524,7 @@ pub fn extract_music(
         }
 
         // Link collaborative artist directly to the seed artist they collaborated with
-        if let Some(collab_aid) = c.collab_seed_aid {
+        if let Some((collab_aid, _)) = collab_info {
             let seed_key = format!("artist:{}", collab_aid);
             if !graph_links.iter().any(|l| {
                 (l.source == c.nkey && l.target == seed_key)
@@ -565,17 +543,17 @@ pub fn extract_music(
             }
         }
 
-        if let Some(ref trk) = c.top_track {
+        if let Some(ref trk) = resolved_track {
             let primary = c.primary_seed.clone().or_else(|| c.connected_seeds.first().cloned());
             recommended_artist_tracks.push(TrackRecItem {
                 artist_id: c.nid,
                 artist_name: c.aname.clone(),
                 score: c.boosted_score,
                 track: trk.clone(),
-                reason: c.full_reason.clone(),
+                reason: final_reason,
                 primary_seed: primary,
-                collab_seed_aid: c.collab_seed_aid,
-                collab_seed_name: c.collab_seed_name.clone(),
+                collab_seed_aid: collab_info.as_ref().map(|(id, _)| *id),
+                collab_seed_name: collab_info.as_ref().map(|(_, name)| name.clone()),
             });
         }
     }
