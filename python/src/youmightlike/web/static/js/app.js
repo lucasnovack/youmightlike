@@ -1,6 +1,6 @@
 // Main Vue 3 Application Controller for youmightlike
 import { createTranslator } from './i18n.js';
-import { getTypeBadgeClass, getTypeIcon, getAffinityLabel, getAffinityBadgeClass, getRawType } from './config.js';
+import { getTypeBadgeClass, getTypeIcon, getSeedDotColor, getAffinityLabel, getAffinityBadgeClass, getRawType } from './config.js';
 import { searchEntities, fetchRecommendations } from './api.js';
 import { ConstellationEngine } from './constellation.js';
 
@@ -464,6 +464,7 @@ createApp({
       getSearchPlaceholder,
       getRawType,
       getTypeIcon,
+      getSeedDotColor,
       getTypeBadgeClass,
       getAffinityLabel: (score) => getAffinityLabel(score, t),
       getAffinityBadgeClass,

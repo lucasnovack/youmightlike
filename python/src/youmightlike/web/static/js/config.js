@@ -18,19 +18,12 @@ export function getRawType(node) {
   return node.type || 'item';
 }
 
-export function getTypeIcon(type) {
-  switch (type) {
-    case 'game': return '🎮';
-    case 'artist': return '👤';
-    case 'track': return '🎵';
-    case 'movie': return '🎬';
-    case 'series': return '📺';
-    case 'keyword': return '#';
-    case 'developer': return '🏛️';
-    case 'author': return '✍️';
-    case 'person': return '🎬';
-    default: return '✦';
-  }
+export function getTypeIcon(_type) {
+  return '';
+}
+
+export function getSeedDotColor(type) {
+  return DOMAIN_COLORS[type] || DOMAIN_COLORS.seed;
 }
 
 export function getTypeBadgeClass(type) {

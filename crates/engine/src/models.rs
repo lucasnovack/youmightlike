@@ -382,6 +382,7 @@ pub fn lookup_artist_meta(conn: &Connection, aid: i64) -> Option<(String, Option
 pub struct TopTrackRow {
     pub track_id: i64,
     pub title: String,
+    pub album_title: Option<String>,
     pub popularity: Option<i32>,
     pub tempo: Option<f64>,
     pub valence: Option<f64>,
@@ -390,20 +391,109 @@ pub struct TopTrackRow {
 
 pub fn lookup_top_track_full(conn: &Connection, aid: i64) -> Option<TopTrackRow> {
     conn.query_row(
-        "SELECT id, title, popularity, tempo, valence, energy FROM music_tracks WHERE artist_id = ? ORDER BY popularity DESC LIMIT 1",
+        "SELECT t.id, t.title, a.title, t.popularity, t.tempo, t.valence, t.energy
+         FROM music_tracks t
+         LEFT JOIN music_albums a ON a.id = t.album_id
+         WHERE t.artist_id = ?
+         ORDER BY t.popularity DESC NULLS LAST
+         LIMIT 1",
         params![aid],
         |r| {
             Ok(TopTrackRow {
                 track_id: r.get::<_, i64>(0)?,
                 title: r.get::<_, String>(1)?,
-                popularity: r.get::<_, Option<i32>>(2)?,
-                tempo: r.get::<_, Option<f64>>(3)?,
-                valence: r.get::<_, Option<f64>>(4)?,
-                energy: r.get::<_, Option<f64>>(5)?,
+                album_title: r.get::<_, Option<String>>(2)?,
+                popularity: r.get::<_, Option<i32>>(3)?,
+                tempo: r.get::<_, Option<f64>>(4)?,
+                valence: r.get::<_, Option<f64>>(5)?,
+                energy: r.get::<_, Option<f64>>(6)?,
             })
         },
     )
     .ok()
+}
+
+pub fn lookup_seed_top_tracks(conn: &Connection, aid: i64, limit: usize) -> Vec<TopTrackRow> {
+    let mut stmt = match conn.prepare(
+        "SELECT t.id, t.title, a.title, t.popularity, t.tempo, t.valence, t.energy
+         FROM music_tracks t
+         LEFT JOIN music_albums a ON a.id = t.album_id
+         WHERE t.artist_id = ?
+         ORDER BY t.popularity DESC NULLS LAST
+         LIMIT ?",
+    ) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+
+    let rows = stmt
+        .query_map(params![aid, limit as i64], |r| {
+            Ok(TopTrackRow {
+                track_id: r.get::<_, i64>(0)?,
+                title: r.get::<_, String>(1)?,
+                album_title: r.get::<_, Option<String>>(2)?,
+                popularity: r.get::<_, Option<i32>>(3)?,
+                tempo: r.get::<_, Option<f64>>(4)?,
+                valence: r.get::<_, Option<f64>>(5)?,
+                energy: r.get::<_, Option<f64>>(6)?,
+            })
+        })
+        .ok();
+
+    if let Some(r_iter) = rows {
+        r_iter.filter_map(|r| r.ok()).collect()
+    } else {
+        Vec::new()
+    }
+}
+
+pub fn lookup_artist_collaborative_track(
+    conn: &Connection,
+    candidate_aid: i64,
+    seed_album_titles: &std::collections::HashMap<String, (i64, String)>,
+) -> Option<(TopTrackRow, i64, String)> {
+    if seed_album_titles.is_empty() {
+        return None;
+    }
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT t.id, t.title, a.title, t.popularity, t.tempo, t.valence, t.energy
+             FROM music_tracks t
+             JOIN music_albums a ON a.id = t.album_id
+             WHERE t.artist_id = ?
+             ORDER BY t.popularity DESC NULLS LAST",
+        )
+        .ok()?;
+
+    let rows = stmt
+        .query_map(params![candidate_aid], |r| {
+            Ok(TopTrackRow {
+                track_id: r.get::<_, i64>(0)?,
+                title: r.get::<_, String>(1)?,
+                album_title: r.get::<_, Option<String>>(2)?,
+                popularity: r.get::<_, Option<i32>>(3)?,
+                tempo: r.get::<_, Option<f64>>(4)?,
+                valence: r.get::<_, Option<f64>>(5)?,
+                energy: r.get::<_, Option<f64>>(6)?,
+            })
+        })
+        .ok()?;
+
+    for row in rows.flatten() {
+        if let Some(ref alb) = row.album_title {
+            let norm = alb.trim().to_lowercase();
+            if norm.len() >= 3 && norm != "single" && norm != "ep" && norm != "greatest hits" {
+                if let Some((seed_aid, seed_name)) = seed_album_titles.get(&norm) {
+                    if *seed_aid != candidate_aid {
+                        return Some((row, *seed_aid, seed_name.clone()));
+                    }
+                }
+            }
+        }
+    }
+
+    None
 }
 
 pub fn collect_node_tags(

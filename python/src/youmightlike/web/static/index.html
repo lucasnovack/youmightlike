@@ -27,9 +27,10 @@
     <header class="h-14 border-b border-slate-200 bg-white/95 backdrop-blur px-5 py-2.5 flex items-center justify-between z-30 shrink-0">
       <div class="flex items-center gap-3">
         <span class="font-bold tracking-tight text-[13px] text-slate-900 flex items-center gap-2">
-          <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
-          youmightlike
-          <span class="text-[9px] text-indigo-700 uppercase font-bold border border-indigo-200 px-1.5 py-0.5 rounded-md bg-indigo-50">constellation v2</span>
+          <span class="w-2 h-2 rounded-full bg-slate-900"></span>
+          <span>youmightlike</span>
+          <span class="text-[10px] text-slate-400 font-normal">/</span>
+          <span class="text-[10px] text-slate-500 font-medium tracking-normal">graph engine</span>
         </span>
       </div>
 
@@ -90,10 +91,9 @@
             <div class="flex items-center gap-2.5 truncate">
               <span
                 :class="getTypeBadgeClass(item.type)"
-                class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border shrink-0 w-20 text-center flex items-center justify-center gap-1"
+                class="text-[9px] uppercase font-mono font-bold px-2 py-0.5 rounded border shrink-0 text-center"
               >
-                <span>{{ getTypeIcon(item.type) }}</span>
-                <span>{{ item.type }}</span>
+                {{ item.type }}
               </span>
               <div class="truncate">
                 <span class="text-xs font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">{{ item.name }}</span>
@@ -176,37 +176,37 @@
               <button
                 @click="setDomainFilter(null)"
                 :class="targetFilter === null ? 'bg-slate-800 text-white rounded' : 'text-slate-500 hover:text-slate-900'"
-                class="flex-1 py-1 text-center transition-colors cursor-pointer"
+                class="flex-1 py-1 text-center transition-colors cursor-pointer uppercase tracking-tight"
               >
                 {{ t('filterAll') }}
               </button>
               <button
                 @click="setDomainFilter('game')"
-                :class="targetFilter === 'game' ? 'bg-blue-600 text-white rounded' : 'text-slate-500 hover:text-slate-900'"
-                class="flex-1 py-1 border-l border-slate-100 text-center transition-colors cursor-pointer"
+                :class="targetFilter === 'game' ? 'bg-slate-800 text-white rounded' : 'text-slate-500 hover:text-slate-900'"
+                class="flex-1 py-1 border-l border-slate-100 text-center transition-colors cursor-pointer uppercase tracking-tight"
               >
-                🎮 ({{ domainCounts.game }})
+                Jogos ({{ domainCounts.game }})
               </button>
               <button
                 @click="setDomainFilter('music')"
-                :class="targetFilter === 'music' ? 'bg-teal-600 text-white rounded' : 'text-slate-500 hover:text-slate-900'"
-                class="flex-1 py-1 border-l border-slate-100 text-center transition-colors cursor-pointer"
+                :class="targetFilter === 'music' ? 'bg-slate-800 text-white rounded' : 'text-slate-500 hover:text-slate-900'"
+                class="flex-1 py-1 border-l border-slate-100 text-center transition-colors cursor-pointer uppercase tracking-tight"
               >
-                🎵 ({{ domainCounts.music }})
+                Música ({{ domainCounts.music }})
               </button>
               <button
                 @click="setDomainFilter('movie')"
-                :class="targetFilter === 'movie' ? 'bg-amber-600 text-white rounded' : 'text-slate-500 hover:text-slate-900'"
-                class="flex-1 py-1 border-l border-slate-100 text-center transition-colors cursor-pointer"
+                :class="targetFilter === 'movie' ? 'bg-slate-800 text-white rounded' : 'text-slate-500 hover:text-slate-900'"
+                class="flex-1 py-1 border-l border-slate-100 text-center transition-colors cursor-pointer uppercase tracking-tight"
               >
-                🎬 ({{ domainCounts.movie }})
+                Filmes ({{ domainCounts.movie }})
               </button>
               <button
                 @click="setDomainFilter('series')"
-                :class="targetFilter === 'series' ? 'bg-purple-600 text-white rounded' : 'text-slate-500 hover:text-slate-900'"
-                class="flex-1 py-1 border-l border-slate-100 text-center transition-colors cursor-pointer"
+                :class="targetFilter === 'series' ? 'bg-slate-800 text-white rounded' : 'text-slate-500 hover:text-slate-900'"
+                class="flex-1 py-1 border-l border-slate-100 text-center transition-colors cursor-pointer uppercase tracking-tight"
               >
-                📺 ({{ domainCounts.series }})
+                Séries ({{ domainCounts.series }})
               </button>
             </div>
           </div>
@@ -217,7 +217,9 @@
         <!-- =============================================================== -->
         <div v-if="sidebarMode === 'inspector'" class="flex-1 overflow-y-auto p-4 space-y-3.5">
           <div v-if="inspectedNodes.length === 0" class="text-center py-20 px-6 border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-            <div class="text-2xl mb-2">🔍</div>
+            <div class="w-6 h-6 mx-auto mb-2 rounded-full border border-slate-300 flex items-center justify-center text-slate-400 font-mono text-[10px]">
+              +
+            </div>
             <div class="text-xs font-bold text-slate-800 mb-1">{{ t('noNodeSelectedTitle') }}</div>
             <p class="text-[11px] text-slate-500 leading-relaxed">
               {{ t('noNodeSelectedDesc') }}
@@ -249,10 +251,9 @@
                     <div class="flex items-center gap-1.5">
                       <span
                         :class="getTypeBadgeClass(getRawType(node))"
-                        class="text-[8px] uppercase font-bold px-1.5 py-0.5 rounded border flex items-center gap-1"
+                        class="text-[8px] uppercase font-mono font-bold px-1.5 py-0.5 rounded border"
                       >
-                        <span>{{ getTypeIcon(getRawType(node)) }}</span>
-                        <span>{{ getRawType(node) }}</span>
+                        {{ getRawType(node) }}
                       </span>
                       <h4 class="font-bold text-slate-900 text-xs">{{ node.label }}</h4>
                     </div>
@@ -319,31 +320,31 @@
                 </button>
                 <button
                   @click="setInspectorFilter('game')"
-                  :class="inspectorFilter === 'game' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-900'"
-                  class="flex-1 py-1 border-l border-slate-200 text-center transition-colors cursor-pointer"
+                  :class="inspectorFilter === 'game' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-900'"
+                  class="flex-1 py-1 border-l border-slate-200 text-center transition-colors cursor-pointer font-mono"
                 >
-                  🎮
+                  jogos
                 </button>
                 <button
                   @click="setInspectorFilter('music')"
-                  :class="inspectorFilter === 'music' ? 'bg-teal-600 text-white' : 'text-slate-500 hover:text-slate-900'"
-                  class="flex-1 py-1 border-l border-slate-200 text-center transition-colors cursor-pointer"
+                  :class="inspectorFilter === 'music' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-900'"
+                  class="flex-1 py-1 border-l border-slate-200 text-center transition-colors cursor-pointer font-mono"
                 >
-                  🎵
+                  música
                 </button>
                 <button
                   @click="setInspectorFilter('movie')"
-                  :class="inspectorFilter === 'movie' ? 'bg-amber-600 text-white' : 'text-slate-500 hover:text-slate-900'"
-                  class="flex-1 py-1 border-l border-slate-200 text-center transition-colors cursor-pointer"
+                  :class="inspectorFilter === 'movie' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-900'"
+                  class="flex-1 py-1 border-l border-slate-200 text-center transition-colors cursor-pointer font-mono"
                 >
-                  🎬
+                  filmes
                 </button>
                 <button
                   @click="setInspectorFilter('series')"
-                  :class="inspectorFilter === 'series' ? 'bg-purple-600 text-white' : 'text-slate-500 hover:text-slate-900'"
-                  class="flex-1 py-1 border-l border-slate-200 text-center transition-colors cursor-pointer"
+                  :class="inspectorFilter === 'series' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-900'"
+                  class="flex-1 py-1 border-l border-slate-200 text-center transition-colors cursor-pointer font-mono"
                 >
-                  📺
+                  séries
                 </button>
               </div>
 
@@ -361,10 +362,9 @@
                       <div class="flex items-center gap-1.5">
                         <span
                           :class="getTypeBadgeClass(sug.type)"
-                          class="text-[8px] uppercase font-bold px-1.5 py-0.5 rounded border shrink-0 flex items-center gap-0.5"
+                          class="text-[8px] uppercase font-mono font-bold px-1.5 py-0.5 rounded border shrink-0"
                         >
-                          <span>{{ getTypeIcon(sug.type) }}</span>
-                          <span>{{ sug.type }}</span>
+                          {{ sug.type }}
                         </span>
                         <span class="text-xs font-bold text-slate-800 truncate">{{ sug.title }}</span>
                       </div>
@@ -429,10 +429,9 @@
                     <div class="flex items-center gap-1.5 flex-wrap">
                       <span
                         :class="getTypeBadgeClass(rec.type)"
-                        class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border tracking-wide flex items-center gap-1"
+                        class="text-[9px] uppercase font-mono font-bold px-1.5 py-0.5 rounded border tracking-wide"
                       >
-                        <span>{{ getTypeIcon(rec.type) }}</span>
-                        <span>{{ rec.type }}</span>
+                        {{ rec.type }}
                       </span>
                       <span
                         @click="focusNodeOnGraph(rec.id)"
@@ -597,22 +596,22 @@
         <!-- =============================================================== -->
         <!-- FLOATING TASTE PROFILE DOCK (Centered at Bottom of Canvas)       -->
         <!-- =============================================================== -->
-        <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-auto max-w-[88%]">
-          <div class="glass-panel border border-slate-200/90 shadow-2xl rounded-2xl px-4 py-2 flex items-center gap-3 backdrop-blur-md bg-white/95 transition-all">
+        <div class="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 pointer-events-auto max-w-[90%]">
+          <div class="border border-slate-200/90 shadow-xl rounded-xl px-3.5 py-2 flex items-center gap-3 backdrop-blur-md bg-white/95 transition-all">
 
             <!-- Profile Badge & Reset -->
-            <div class="flex items-center gap-2 shrink-0 pr-2 border-r border-slate-200">
-              <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
-                <span class="text-[11px] font-bold text-slate-800">{{ t('tasteProfile') }}</span>
-                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+            <div class="flex items-center gap-2 shrink-0 pr-3 border-r border-slate-200">
+              <div class="flex items-center gap-1.5 font-mono">
+                <span class="w-2 h-2 rounded-full bg-slate-900"></span>
+                <span class="text-[11px] font-bold text-slate-900 uppercase tracking-tight">{{ t('tasteProfile') }}</span>
+                <span class="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
                   {{ profileSeeds.length }}
                 </span>
               </div>
               <button
                 v-if="profileSeeds.length > 0"
                 @click="clearProfile"
-                class="text-[10px] font-bold text-slate-400 hover:text-rose-600 transition-colors cursor-pointer ml-1"
+                class="text-[10px] font-bold text-slate-400 hover:text-rose-600 transition-colors cursor-pointer ml-1 font-mono"
                 :title="t('reset')"
               >
                 [{{ t('reset') }}]
@@ -620,20 +619,20 @@
             </div>
 
             <!-- Active Profile Seeds List -->
-            <div class="flex items-center gap-2 overflow-x-auto max-w-[55vw] py-0.5 no-scrollbar">
+            <div class="flex items-center gap-1.5 overflow-x-auto max-w-[55vw] py-0.5 no-scrollbar">
               <div v-if="profileSeeds.length === 0" class="text-slate-400 text-[11px] flex items-center gap-2 shrink-0">
                 <span>{{ t('emptyProfile') }}</span>
-                <button @click="quickAdd('The Elder Scrolls V: Skyrim')" class="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 border border-slate-200 px-2.5 py-1 rounded-full text-slate-700 transition-colors cursor-pointer">
-                  🎮 + Skyrim
+                <button @click="quickAdd('The Elder Scrolls V: Skyrim')" class="text-[10px] font-mono font-bold bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 transition-colors cursor-pointer">
+                  + Skyrim
                 </button>
-                <button @click="quickAdd('Kanye West')" class="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 border border-slate-200 px-2.5 py-1 rounded-full text-slate-700 transition-colors cursor-pointer">
-                  👤 + Kanye West
+                <button @click="quickAdd('Kanye West')" class="text-[10px] font-mono font-bold bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 transition-colors cursor-pointer">
+                  + Kanye West
                 </button>
-                <button @click="quickAdd('Phantogram')" class="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 border border-slate-200 px-2.5 py-1 rounded-full text-slate-700 transition-colors cursor-pointer">
-                  👤 + Phantogram
+                <button @click="quickAdd('Phantogram')" class="text-[10px] font-mono font-bold bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 transition-colors cursor-pointer">
+                  + Phantogram
                 </button>
-                <button @click="quickAdd('Blade Runner')" class="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 border border-slate-200 px-2.5 py-1 rounded-full text-slate-700 transition-colors cursor-pointer">
-                  🎬 + Blade Runner
+                <button @click="quickAdd('Blade Runner')" class="text-[10px] font-mono font-bold bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 transition-colors cursor-pointer">
+                  + Blade Runner
                 </button>
               </div>
 
@@ -641,13 +640,13 @@
                 v-for="seed in profileSeeds"
                 :key="seed.id"
                 @click="focusNodeOnGraph(seed.id)"
-                class="flex items-center gap-1.5 px-3 py-1 bg-slate-50 hover:bg-slate-100 rounded-full border border-slate-200 transition-all shrink-0 text-[11px] cursor-pointer group shadow-2xs hover:border-indigo-300"
+                class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 hover:bg-slate-100 rounded-md border border-slate-200 transition-all shrink-0 text-[11px] cursor-pointer group shadow-2xs hover:border-slate-400"
               >
-                <span class="text-xs">{{ getTypeIcon(seed.type) }}</span>
-                <span class="font-bold text-slate-800">{{ seed.name }}</span>
+                <span class="w-1.5 h-1.5 rounded-full shrink-0" :style="{ backgroundColor: getSeedDotColor(seed.type) }"></span>
+                <span class="font-semibold text-slate-800">{{ seed.name }}</span>
                 <button
                   @click.stop="removeSeed(seed.id)"
-                  class="text-slate-400 hover:text-rose-600 font-bold ml-0.5 cursor-pointer text-xs"
+                  class="text-slate-400 hover:text-rose-600 font-bold ml-1 cursor-pointer text-xs"
                 >
                   ×
                 </button>
@@ -655,11 +654,11 @@
             </div>
 
             <!-- Action Button -->
-            <div class="shrink-0 pl-2 border-l border-slate-200">
+            <div class="shrink-0 pl-3 border-l border-slate-200">
               <button
                 @click="computeRecommendations"
                 :disabled="profileSeeds.length === 0 || isLoadingRecs"
-                class="bg-indigo-600 hover:bg-indigo-700 active:scale-98 disabled:opacity-40 disabled:pointer-events-none text-white font-bold text-xs py-1.5 px-4 rounded-xl transition-all flex items-center gap-2 shadow-sm cursor-pointer"
+                class="bg-slate-900 hover:bg-slate-800 active:scale-98 disabled:opacity-30 disabled:pointer-events-none text-white font-mono font-bold text-[11px] py-1.5 px-3.5 rounded-lg transition-all flex items-center gap-2 shadow-xs cursor-pointer tracking-tight"
               >
                 <span v-if="isLoadingRecs" class="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
                 <span>{{ isLoadingRecs ? t('computingPpr') : t('runDiffusion') }}</span>
