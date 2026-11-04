@@ -312,6 +312,40 @@ pub fn search_entities_sync(
         }
     }
 
+    // 5b. Keywords / Tags (if entity_type is 'keyword' or query starts with '#')
+    if entity_type == "keyword" || q_str.starts_with('#') {
+        let clean_tag = q_str.trim_start_matches('#').trim();
+        if !clean_tag.is_empty() {
+            let sql = "
+                SELECT id, name
+                FROM keywords
+                WHERE LOWER(name) = LOWER(?) OR name ILIKE ? || '%'
+                ORDER BY
+                    CASE WHEN LOWER(name) = LOWER(?) THEN 1 ELSE 2 END,
+                    LENGTH(name) ASC
+                LIMIT 6;
+            ";
+            if let Ok(mut stmt) = conn.prepare(sql) {
+                if let Ok(mut rows) = stmt.query(params![clean_tag, clean_tag, clean_tag]) {
+                    while let Ok(Some(r)) = rows.next() {
+                        let kid: i64 = r.get(0).unwrap_or_default();
+                        let kname: String = r.get(1).unwrap_or_default();
+                        let nid = format!("keyword:{}", kid);
+                        if seen.insert(nid.clone()) {
+                            items.push(EntityItem {
+                                id: nid,
+                                name: format!("#{}", kname),
+                                entity_type: "keyword".to_string(),
+                                subtitle: Some("Tag".to_string()),
+                                extra: None,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // 6. Music tracks (if entity_type is empty or 'track')
     if entity_type.is_empty() || entity_type == "track" {
         let needed = (limit.saturating_sub(items.len()) * 3).max(10) as i64;

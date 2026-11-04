@@ -329,7 +329,7 @@ pub fn run_recommendation_pipeline(
         &mut graph_links,
     );
 
-    // Domain-balanced quotas for transmedia discovery
+    // Domain-balanced quotas that adapt dynamically to the user's seed profile
     let (artist_quota, track_quota, movie_quota, series_quota, game_quota, book_quota) =
         match req.target_type.as_deref() {
             Some("music") => {
@@ -342,11 +342,61 @@ pub fn run_recommendation_pipeline(
             Some("game") => (0, 0, 0, 0, req.limit, 0),
             Some("book") => (0, 0, 0, 0, 0, req.limit),
             _ => {
-                let a_q = (req.limit * 28 / 100).max(3);
-                let t_q = (req.limit * 28 / 100).max(3);
-                let m_q = (req.limit * 20 / 100).max(2);
-                let s_q = (req.limit * 16 / 100).max(2);
-                let g_q = req.limit.saturating_sub(a_q + t_q + m_q + s_q).max(1);
+                let mut game_affinity_seeds = 0usize;
+                let mut music_affinity_seeds = 0usize;
+                let mut screen_affinity_seeds = 0usize;
+
+                for s in &seeds_resolved {
+                    match s.entity_type.as_str() {
+                        "game" | "developer" => game_affinity_seeds += 2,
+                        "artist" | "track" => music_affinity_seeds += 2,
+                        "movie" | "series" | "person" => screen_affinity_seeds += 2,
+                        "keyword" => {
+                            let edges = state.graph.out_edges_by_key(&s.id);
+                            if edges.iter().take(40).any(|e| e.target_key.starts_with("game:")) {
+                                game_affinity_seeds += 2;
+                            }
+                            if edges.iter().take(40).any(|e| e.target_key.starts_with("artist:")) {
+                                music_affinity_seeds += 1;
+                            }
+                            if edges
+                                .iter()
+                                .take(40)
+                                .any(|e| e.target_key.starts_with("movie:") || e.target_key.starts_with("series:"))
+                            {
+                                screen_affinity_seeds += 1;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                let total_slots = req.limit.max(16);
+                let g_q = if game_affinity_seeds >= 4 {
+                    (total_slots * 40 / 100).max(6)
+                } else if game_affinity_seeds >= 2 {
+                    (total_slots * 30 / 100).max(4)
+                } else {
+                    (total_slots * 15 / 100).max(2)
+                };
+
+                let rem = total_slots.saturating_sub(g_q);
+                let a_q = if music_affinity_seeds > 0 {
+                    (rem * 32 / 100).max(3)
+                } else {
+                    (rem * 24 / 100).max(2)
+                };
+                let t_q = if music_affinity_seeds > 0 {
+                    (rem * 28 / 100).max(2)
+                } else {
+                    (rem * 20 / 100).max(2)
+                };
+                let m_q = if screen_affinity_seeds > 0 {
+                    (rem * 25 / 100).max(3)
+                } else {
+                    (rem * 20 / 100).max(2)
+                };
+                let s_q = rem.saturating_sub(a_q + t_q + m_q).max(2);
                 (a_q, t_q, m_q, s_q, g_q, 1)
             }
         };

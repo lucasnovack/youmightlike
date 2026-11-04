@@ -10,15 +10,17 @@ use crate::ppr::top_k_from_scores;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 
-const MAX_GAMES_PER_DEV: usize = 2;
+const MAX_GAMES_PER_DEV_PASS1: usize = 1;
+const MAX_GAMES_PER_DEV_PASS2: usize = 2;
 
 struct CandidateGame<'a> {
     nkey: String,
     score: f32,
     game: &'a GameMeta,
     dev_ids: Vec<i64>,
+    composer_id: Option<i64>,
     explanation: String,
-    bridge: Option<(String, String, String)>,
+    bridges: Vec<(String, String, String)>,
 }
 
 pub fn extract_games(
@@ -43,7 +45,12 @@ pub fn extract_games(
         }
     }
 
-    let candidate_pool_size = (game_quota * 15).max(120);
+    let has_active_keyword_seeds = ctx
+        .active_seed_set
+        .iter()
+        .any(|s| s.starts_with("keyword:"));
+
+    let candidate_pool_size = (game_quota * 180).max(2500);
     let raw_games = top_k_from_scores(
         &ctx.state.graph,
         ctx.p,
@@ -55,7 +62,7 @@ pub fn extract_games(
     let mut scored_candidates: Vec<CandidateGame> = Vec::new();
 
     for item in raw_games {
-        if item.score < ctx.min_rec_score {
+        if item.score < ctx.min_rec_score * 0.2 {
             continue;
         }
         let nkey = &item.node_key;
@@ -75,15 +82,15 @@ pub fn extract_games(
         }
 
         let mut game_explanation: Vec<String> = Vec::new();
-        let mut found_composer: Option<String> = None;
+        let mut found_composer: Option<(i64, String, bool)> = None;
         let mut found_dev: Option<String> = None;
         let mut dev_ids: Vec<i64> = Vec::new();
         let mut active_seed_tags: Vec<String> = Vec::new();
         let mut specific_tags: Vec<String> = Vec::new();
         let mut fallback_tags: Vec<String> = Vec::new();
-        let mut best_game_bridge: Option<(String, String, String)> = None;
+        let mut candidate_bridges: Vec<(String, String, String)> = Vec::new();
 
-        let mut touches_seed_artist = false;
+        let mut touches_direct_seed_artist = false;
         let mut touches_seed_dev = false;
         let mut touches_seed_tag = false;
 
@@ -94,7 +101,10 @@ pub fn extract_games(
                         || e.relation_type == "soundtrack_for")
                     && ctx.seed_artists.contains(&tid)
                 {
-                    touches_seed_artist = true;
+                    let is_direct_artist_seed = ctx.active_seed_set.contains(e.target_key);
+                    if is_direct_artist_seed {
+                        touches_direct_seed_artist = true;
+                    }
                     if found_composer.is_none() {
                         let cname = ctx
                             .seed_artist_names
@@ -102,12 +112,7 @@ pub fn extract_games(
                             .cloned()
                             .or_else(|| lookup_artist_meta(ctx.conn, tid).map(|(n, _)| n));
                         if let Some(cname) = cname {
-                            best_game_bridge = Some((
-                                e.target_key.to_string(),
-                                cname.clone(),
-                                "artist".to_string(),
-                            ));
-                            found_composer = Some(cname);
+                            found_composer = Some((tid, cname, is_direct_artist_seed));
                         }
                     }
                 } else if tpfx == "developer" {
@@ -117,7 +122,7 @@ pub fn extract_games(
                         if found_dev.is_none() {
                             found_dev = ctx.state.catalog.developers.get(&tid).cloned();
                             if let Some(ref dname) = found_dev {
-                                best_game_bridge = Some((
+                                candidate_bridges.push((
                                     e.target_key.to_string(),
                                     dname.clone(),
                                     "developer".to_string(),
@@ -125,7 +130,6 @@ pub fn extract_games(
                             }
                         }
                     } else if found_dev.is_none() {
-                        // Capture studio name even if not seed for metadata display
                         found_dev = ctx.state.catalog.developers.get(&tid).cloned();
                     }
                 } else if tpfx == "keyword" && is_tag_relation(e.relation_type) {
@@ -143,18 +147,19 @@ pub fn extract_games(
                                 if is_active_seed {
                                     if !active_seed_tags.contains(&tfmt) {
                                         active_seed_tags.push(tfmt.clone());
+                                        candidate_bridges.insert(
+                                            0,
+                                            (
+                                                e.target_key.to_string(),
+                                                tfmt,
+                                                "keyword".to_string(),
+                                            ),
+                                        );
                                     }
-                                    if best_game_bridge.is_none() {
-                                        best_game_bridge = Some((
-                                            e.target_key.to_string(),
-                                            tfmt,
-                                            "keyword".to_string(),
-                                        ));
-                                    }
-                                } else if specific_tags.len() < 4 && !specific_tags.contains(&tfmt) {
+                                } else if specific_tags.len() < 5 && !specific_tags.contains(&tfmt) {
                                     specific_tags.push(tfmt.clone());
-                                    if best_game_bridge.is_none() {
-                                        best_game_bridge = Some((
+                                    if candidate_bridges.len() < 3 {
+                                        candidate_bridges.push((
                                             e.target_key.to_string(),
                                             tfmt,
                                             "keyword".to_string(),
@@ -170,45 +175,71 @@ pub fn extract_games(
             }
         }
 
-        // Multi-seed co-occurrence and thematic affinity boosting:
-        // When user explicitly selects tags/artists, promote items at the confluence of both seeds
-        let mut seed_hits = 0usize;
-        if touches_seed_artist {
-            seed_hits += 1;
-        }
-        if touches_seed_dev {
-            seed_hits += 1;
-        }
-        if touches_seed_tag {
-            seed_hits += 1;
+        let active_tag_hits = active_seed_tags.len();
+        let shared_tag_hits = specific_tags.len();
+        let total_shared_tags = active_tag_hits + shared_tag_hits;
+
+        // If a game only connected via an indirect game composer (e.g. Mikolai Stroinski -> Sniper Ghost Warrior 3)
+        // and has fewer than 3 shared thematic tags with the user's profile, skip it!
+        if found_composer.is_some()
+            && !touches_direct_seed_artist
+            && !touches_seed_dev
+            && total_shared_tags < 3
+        {
+            continue;
         }
 
         let mut boost = 1.0f32;
-        if touches_seed_tag {
-            // Direct hit on an active seed tag (e.g. open-world)
-            boost *= 2.4;
+        if active_tag_hits > 0 {
+            // Strong multi-tag confluence boost when user selects #rpg, #open-world, etc.
+            boost *= 1.0 + 3.5 * (active_tag_hits as f32).powi(2);
+        } else if has_active_keyword_seeds && shared_tag_hits < 4 {
+            boost *= 0.25;
         }
-        if touches_seed_artist {
-            boost *= 1.35;
-        }
-        if seed_hits >= 2 {
-            // High-value intersection: matches multiple distinct seed concepts simultaneously
-            boost *= 1.5;
-        }
-        let total_shared_tags = active_seed_tags.len() + specific_tags.len();
+
         if total_shared_tags > 0 {
-            boost *= 1.0 + (total_shared_tags as f32).min(5.0) * 0.12;
+            boost *= 1.0 + (total_shared_tags as f32).min(6.0) * 0.45;
         }
+        if touches_direct_seed_artist {
+            boost *= 1.8;
+        }
+        if touches_seed_dev && total_shared_tags >= 2 {
+            boost *= 1.25;
+        } else if found_composer.is_some() && !touches_direct_seed_artist && !touches_seed_dev {
+            // Dampen raw PPR inflation from high-weight soundtrack_for edges
+            boost *= 0.22;
+        }
+
+        // Popular acclaim weighting (prevents obscure 100-review games from outranking Elden Ring / Baldur's Gate 3)
+        let rev = g.positive_reviews.unwrap_or(50).max(1) as f32;
+        let pop_factor = if rev < 500.0 {
+            0.20
+        } else if rev < 2_500.0 {
+            0.55
+        } else {
+            1.0 + (rev.ln() - 7.5).max(0.0) * 0.55
+        };
+        boost *= pop_factor;
 
         let boosted_score = item.score * boost;
 
-        // Compose explanation prioritizing active seed tags
-        if let Some(cname) = found_composer {
-            game_explanation.push(if ctx.is_pt {
-                format!("Trilha sonora por {}", cname)
-            } else {
-                format!("Soundtrack by {}", cname)
-            });
+        let mut composer_id_opt = None;
+        if let Some((cid, cname, is_direct)) = found_composer {
+            composer_id_opt = Some(cid);
+            if is_direct || touches_seed_dev {
+                game_explanation.push(if ctx.is_pt {
+                    format!("Trilha sonora por {}", cname)
+                } else {
+                    format!("Soundtrack by {}", cname)
+                });
+                if candidate_bridges.len() < 3 {
+                    candidate_bridges.push((
+                        format!("artist:{}", cid),
+                        cname,
+                        "artist".to_string(),
+                    ));
+                }
+            }
         }
         if let Some(dname) = found_dev {
             if touches_seed_dev {
@@ -220,7 +251,6 @@ pub fn extract_games(
             }
         }
 
-        // Combine tags placing active seed tags first
         let mut display_tags: Vec<String> = active_seed_tags;
         for t in specific_tags {
             if display_tags.len() < 4 && !display_tags.contains(&t) {
@@ -254,8 +284,9 @@ pub fn extract_games(
             score: boosted_score,
             game: g,
             dev_ids,
+            composer_id: composer_id_opt,
             explanation: full_game_reason,
-            bridge: best_game_bridge,
+            bridges: candidate_bridges,
         });
     }
 
@@ -267,9 +298,10 @@ pub fn extract_games(
 
     let mut game_recs_added = 0usize;
     let mut dev_counts: HashMap<i64, usize> = HashMap::new();
+    let mut composer_counts: HashMap<i64, usize> = HashMap::new();
     let mut deferred_candidates: Vec<CandidateGame> = Vec::new();
 
-    // First pass: Select diverse games respecting developer studio capping
+    // First pass: High studio & composer diversity (max 1 per studio/composer)
     for cand in scored_candidates {
         if game_recs_added >= game_quota {
             break;
@@ -280,13 +312,16 @@ pub fn extract_games(
             continue;
         }
 
-        // Check if any associated developer studio reached the diversity limit
         let dev_capped = cand
             .dev_ids
             .iter()
-            .any(|&did| dev_counts.get(&did).copied().unwrap_or(0) >= MAX_GAMES_PER_DEV);
+            .any(|&did| dev_counts.get(&did).copied().unwrap_or(0) >= MAX_GAMES_PER_DEV_PASS1);
+        let comp_capped = cand
+            .composer_id
+            .map(|cid| composer_counts.get(&cid).copied().unwrap_or(0) >= 1)
+            .unwrap_or(false);
 
-        if dev_capped {
+        if dev_capped || comp_capped {
             deferred_candidates.push(cand);
             continue;
         }
@@ -294,6 +329,9 @@ pub fn extract_games(
         seen_titles.insert(norm_title);
         for &did in &cand.dev_ids {
             *dev_counts.entry(did).or_insert(0) += 1;
+        }
+        if let Some(cid) = cand.composer_id {
+            *composer_counts.entry(cid).or_insert(0) += 1;
         }
 
         let year_str = cand
@@ -324,7 +362,7 @@ pub fn extract_games(
             desc: String::new(),
         });
 
-        if let Some((b_id, b_label, b_type)) = cand.bridge {
+        for (b_id, b_label, b_type) in cand.bridges.into_iter().take(2) {
             if !graph_nodes.iter().any(|n| n.id == b_id) {
                 graph_nodes.push(GraphNodePayload {
                     id: b_id,
@@ -339,7 +377,7 @@ pub fn extract_games(
         game_recs_added += 1;
     }
 
-    // Second pass: If quota not filled yet, allow deferred games
+    // Second pass: Allow up to MAX_GAMES_PER_DEV_PASS2 if quota not filled yet
     if game_recs_added < game_quota {
         for cand in deferred_candidates {
             if game_recs_added >= game_quota {
@@ -349,7 +387,17 @@ pub fn extract_games(
             if seen_titles.contains(&norm_title) {
                 continue;
             }
+            let dev_capped = cand
+                .dev_ids
+                .iter()
+                .any(|&did| dev_counts.get(&did).copied().unwrap_or(0) >= MAX_GAMES_PER_DEV_PASS2);
+            if dev_capped {
+                continue;
+            }
             seen_titles.insert(norm_title);
+            for &did in &cand.dev_ids {
+                *dev_counts.entry(did).or_insert(0) += 1;
+            }
 
             let year_str = cand
                 .game
@@ -379,7 +427,7 @@ pub fn extract_games(
                 desc: String::new(),
             });
 
-            if let Some((b_id, b_label, b_type)) = cand.bridge {
+            for (b_id, b_label, b_type) in cand.bridges.into_iter().take(2) {
                 if !graph_nodes.iter().any(|n| n.id == b_id) {
                     graph_nodes.push(GraphNodePayload {
                         id: b_id,

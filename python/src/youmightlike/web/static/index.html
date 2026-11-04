@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>youmightlike</title>
+  <title>youmightlike — Constellation Graph Engine</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
@@ -20,18 +20,19 @@
           },
           colors: {
             canvas: {
-              bg: '#fbfbfb',
+              bg: '#f8fafc',
               panel: '#ffffff',
-              sidebar: '#f6f6f7',
-              border: '#e4e4e7',
-              borderDark: '#d4d4d8',
-              text: '#182825',
-              muted: '#71717a',
-              pine: '#182825',
-              sage: '#4e937a',
-              coral: '#e84855',
-              denim: '#2660a4',
-              accent: '#182825',
+              sidebar: '#f1f5f9',
+              border: '#e2e8f0',
+              borderDark: '#cbd5e1',
+              text: '#0f172a',
+              muted: '#64748b',
+              pine: '#0f172a',
+              sage: '#0d9488',
+              coral: '#e11d48',
+              denim: '#2563eb',
+              amber: '#d97706',
+              violet: '#7c3aed',
             }
           }
         }
@@ -41,55 +42,53 @@
   <style>
     * { font-feature-settings: "zero" 1; }
     body {
-      background-color: #fbfbfb;
-      color: #182825;
+      background-color: #f8fafc;
+      color: #0f172a;
       font-family: 'JetBrains Mono', monospace;
       -webkit-font-smoothing: antialiased;
     }
     ::selection {
-      background: #182825;
+      background: #0f172a;
       color: #ffffff;
     }
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #e4e4e7; border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
   </style>
 </head>
 <body class="h-screen overflow-hidden flex flex-col font-mono text-[12px] leading-relaxed antialiased">
   <div id="app" class="flex flex-col h-full">
 
-    <!-- Top Minimalist Header -->
-    <header class="h-13 border-b border-canvas-border bg-white/95 backdrop-blur px-6 py-2.5 flex items-center justify-between z-30 shrink-0">
+    <!-- Top Header -->
+    <header class="h-13 border-b border-canvas-border bg-white/95 backdrop-blur px-5 py-2 flex items-center justify-between z-30 shrink-0">
       <div class="flex items-center gap-3">
         <span class="font-bold tracking-tight text-[13px] text-canvas-text flex items-center gap-2">
           youmightlike
-          <span class="text-[9px] text-canvas-sage uppercase font-bold border border-canvas-sage/30 px-1.5 py-0.5 rounded bg-canvas-sage/10">graph engine</span>
+          <span class="text-[9px] text-canvas-sage uppercase font-bold border border-canvas-sage/30 px-1.5 py-0.5 rounded bg-canvas-sage/10">constellation v2</span>
         </span>
       </div>
 
-      <!-- Spotlight Search Input with Type Selector -->
-      <div class="relative w-[480px]">
-        <div class="relative flex items-center border border-canvas-border focus-within:border-canvas-text rounded-md bg-canvas-sidebar focus-within:bg-white shadow-xs transition-all overflow-hidden">
-          
-          <!-- Category Quick Selector Dropdown/Tabs inside input -->
-          <select 
-            v-model="searchType" 
+      <!-- Search Bar -->
+      <div class="relative w-[500px]">
+        <div class="relative flex items-center border border-canvas-border focus-within:border-canvas-text rounded-md bg-canvas-sidebar focus-within:bg-white transition-all overflow-hidden">
+          <select
+            v-model="searchType"
             @change="onSearchInput"
-            class="bg-transparent border-r border-canvas-border px-2.5 py-1.5 text-[11px] font-bold text-canvas-muted focus:outline-none cursor-pointer"
+            class="bg-transparent border-r border-canvas-border px-2.5 py-1.5 text-[10px] font-bold text-canvas-muted focus:outline-none cursor-pointer"
           >
             <option value="">{{ t('allTypes') }}</option>
-            <option value="movie">{{ t('typeMovies') }}</option>
-            <option value="series">{{ t('typeSeries') }}</option>
             <option value="game">{{ t('typeGames') }}</option>
             <option value="artist">{{ t('typeArtists') }}</option>
             <option value="track">{{ t('typeTracks') }}</option>
+            <option value="movie">{{ t('typeMovies') }}</option>
+            <option value="series">{{ t('typeSeries') }}</option>
           </select>
 
           <span class="pl-3 text-canvas-muted text-[11px] font-bold">›</span>
-          <input 
-            type="text" 
-            v-model="searchQuery" 
+          <input
+            type="text"
+            v-model="searchQuery"
             @input="onSearchInput"
             :placeholder="getSearchPlaceholder()"
             class="w-full bg-transparent px-2.5 py-1.5 text-xs text-canvas-text placeholder-canvas-muted/60 focus:outline-none"
@@ -97,16 +96,16 @@
           <span v-if="isSearching" class="w-1.5 h-1.5 rounded-full bg-canvas-coral animate-ping mr-3"></span>
         </div>
 
-        <!-- Search Results Dropdown -->
+        <!-- Search Dropdown -->
         <div v-if="searchResults.length > 0" class="absolute top-10 left-0 right-0 bg-white border border-canvas-border rounded-lg shadow-xl p-1.5 z-50 max-h-80 overflow-y-auto">
-          <div 
-            v-for="item in searchResults" 
+          <div
+            v-for="item in searchResults"
             :key="item.id"
             @click="addSeed(item)"
             class="flex items-center justify-between px-3 py-2 hover:bg-canvas-sidebar rounded cursor-pointer transition-colors group"
           >
             <div class="flex items-center gap-2.5 truncate">
-              <span 
+              <span
                 :class="getTypeBadgeClass(item.type)"
                 class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border shrink-0 w-16 text-center"
               >
@@ -122,19 +121,18 @@
         </div>
       </div>
 
-      <!-- Stats / Right Controls -->
-      <div class="flex items-center gap-4 text-xs text-canvas-muted">
-        <!-- Language Switcher Pill -->
+      <!-- Right Controls -->
+      <div class="flex items-center gap-3 text-xs text-canvas-muted">
         <div class="flex items-center border border-canvas-border rounded bg-canvas-sidebar overflow-hidden text-[10px] font-mono font-bold">
-          <button 
-            @click="setLang('pt')" 
+          <button
+            @click="setLang('pt')"
             :class="{'bg-canvas-text text-white': currentLang === 'pt', 'text-canvas-muted hover:text-canvas-text': currentLang !== 'pt'}"
             class="px-2 py-0.5 transition-colors"
           >
             PT
           </button>
-          <button 
-            @click="setLang('en')" 
+          <button
+            @click="setLang('en')"
             :class="{'bg-canvas-text text-white': currentLang === 'en', 'text-canvas-muted hover:text-canvas-text': currentLang !== 'en'}"
             class="px-2 py-0.5 border-l border-canvas-border transition-colors"
           >
@@ -142,308 +140,425 @@
           </button>
         </div>
 
-        <span class="text-[10px] font-mono font-medium hidden sm:inline">61.9M {{ t('nodes') }} • 99.2M {{ t('edges') }}</span>
-        <button 
-          @click="clearProfile" 
+        <button
+          @click="clearProfile"
           v-if="profileSeeds.length > 0"
-          class="text-[10px] font-bold text-canvas-coral hover:underline transition-colors"
+          class="text-[10px] font-bold text-canvas-coral hover:underline transition-colors cursor-pointer"
         >
           [{{ t('reset') }}]
         </button>
       </div>
     </header>
 
-
-    <!-- Main Workspace: Results Left + Topology Map Right -->
+    <!-- Main Split Workspace: Dual-Mode Sidebar Left + Radial Constellation Right -->
     <div class="flex-1 flex overflow-hidden">
 
-      <!-- LEFT: Discovery Feed (460px) -->
-      <main class="w-[460px] border-r border-canvas-border flex flex-col bg-white z-10 shrink-0">
-        <!-- Filter Header -->
-        <div class="h-10 border-b border-canvas-border px-4 flex items-center justify-between bg-canvas-sidebar shrink-0">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-canvas-muted">
-            {{ t('discoveries') }} ({{ recommendations.length }})
-          </span>
-          <div class="flex items-center border border-canvas-border rounded bg-white overflow-hidden text-[9px] font-bold">
-            <button 
-              @click="targetFilter = null; computeRecommendations()" 
-              :class="{'bg-canvas-text text-white': targetFilter === null, 'text-canvas-muted hover:text-canvas-text': targetFilter !== null}"
-              class="px-2.5 py-0.5 transition-colors"
-            >
-              {{ t('filterAll') }}
-            </button>
-            <button 
-              @click="targetFilter = 'music'; computeRecommendations()" 
-              :class="{'bg-canvas-text text-white': targetFilter === 'music', 'text-canvas-muted hover:text-canvas-text': targetFilter !== 'music'}"
-              class="px-2.5 py-0.5 border-l border-canvas-border transition-colors"
-            >
-              {{ t('filterMusic') }}
-            </button>
-            <button 
-              @click="targetFilter = 'movie'; computeRecommendations()" 
-              :class="{'bg-canvas-text text-white': targetFilter === 'movie', 'text-canvas-muted hover:text-canvas-text': targetFilter !== 'movie'}"
-              class="px-2.5 py-0.5 border-l border-canvas-border transition-colors"
-            >
-              {{ t('filterFilms') }}
-            </button>
-            <button 
-              @click="targetFilter = 'series'; computeRecommendations()" 
-              :class="{'bg-canvas-text text-white': targetFilter === 'series', 'text-canvas-muted hover:text-canvas-text': targetFilter !== 'series'}"
-              class="px-2.5 py-0.5 border-l border-canvas-border transition-colors"
-            >
-              {{ t('filterSeries') }}
-            </button>
-            <button 
-              @click="targetFilter = 'game'; computeRecommendations()" 
-              :class="{'bg-canvas-text text-white': targetFilter === 'game', 'text-canvas-muted hover:text-canvas-text': targetFilter !== 'game'}"
-              class="px-2.5 py-0.5 border-l border-canvas-border transition-colors"
-            >
-              {{ t('filterGames') }}
-            </button>
-          </div>
-        </div>
+      <!-- LEFT SIDEBAR (490px): Mode 1 (Live Node Inspector & Expansion) + Mode 2 (Categorized Discoveries) -->
+      <aside class="w-[490px] border-r border-canvas-border flex flex-col bg-white z-10 shrink-0">
 
-        <!-- Contextual Focus Banner for Selected Node -->
-        <div v-if="inspectedNodes.length > 0" class="bg-canvas-sidebar border-b border-canvas-border p-3 shrink-0">
-          <div class="flex items-center justify-between gap-2 mb-2">
-            <div class="flex items-center gap-1.5 truncate">
-              <span class="w-2 h-2 rounded-full bg-canvas-coral animate-pulse shrink-0"></span>
-              <span class="text-[10px] font-bold text-canvas-text uppercase tracking-wide truncate">
-                {{ t('focus') }}: {{ inspectedNodes[0].label }}
+        <!-- Primary Sidebar Mode Switcher -->
+        <div class="border-b border-canvas-border bg-canvas-sidebar px-3 pt-2.5 pb-2 shrink-0">
+          <div class="grid grid-cols-2 gap-1.5 bg-white p-1 rounded-lg border border-canvas-border">
+            <button
+              @click="sidebarMode = 'discoveries'"
+              :class="sidebarMode === 'discoveries' ? 'bg-canvas-text text-white shadow-xs' : 'text-canvas-muted hover:text-canvas-text'"
+              class="py-1.5 px-2.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <span>{{ t('modeDiscoveries') }}</span>
+              <span class="px-1.5 py-0.2 rounded text-[9px]" :class="sidebarMode === 'discoveries' ? 'bg-white/20 text-white' : 'bg-canvas-sidebar text-canvas-text'">
+                {{ recommendations.length }}
               </span>
-              <span class="text-[9px] text-canvas-muted shrink-0">({{ inspectedNodes[0].type }})</span>
-            </div>
-            <div class="flex items-center gap-2 shrink-0">
-              <button 
-                v-if="!isNodeInProfile(inspectedNodes[0].id)"
-                @click="addNodeToProfile(inspectedNodes[0])"
-                class="px-2 py-0.5 bg-canvas-coral hover:opacity-90 text-white rounded text-[9px] font-bold transition-opacity cursor-pointer"
-              >
-                {{ t('addNodeToLikes') }}
-              </button>
-              <button @click="clearSelection" class="text-[8px] font-bold text-canvas-muted hover:text-canvas-coral uppercase tracking-wider shrink-0 cursor-pointer">
-                [{{ t('seeAll') }}]
-              </button>
-            </div>
-          </div>
-
-          <!-- Tags rápidas do nó focado -->
-          <div v-if="inspectedNodes[0].tags && inspectedNodes[0].tags.length > 0" class="flex flex-wrap gap-1 mb-2.5">
-            <span v-for="t in inspectedNodes[0].tags.slice(0, 6)" :key="t" class="px-1.5 py-0.5 bg-white border border-canvas-border rounded text-[9px] text-canvas-text font-mono">
-              {{ t }}
-            </span>
-          </div>
-
-          <!-- Sugestões recomendadas para este nó específico -->
-          <div v-if="focusedNodeSuggestions.length > 0" class="space-y-1.5">
-            <span class="text-[9px] uppercase font-bold text-canvas-muted tracking-wider block">
-              {{ t('relatedSuggestions') }}
-            </span>
-            <div 
-              v-for="sug in focusedNodeSuggestions.slice(0, 3)" 
-              :key="sug.id"
-              class="bg-white border border-canvas-border/80 hover:border-canvas-coral p-2 rounded flex items-center justify-between gap-2 shadow-2xs transition-all"
+            </button>
+            <button
+              @click="sidebarMode = 'inspector'"
+              :class="sidebarMode === 'inspector' ? 'bg-canvas-coral text-white shadow-xs' : 'text-canvas-muted hover:text-canvas-text'"
+              class="py-1.5 px-2.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <div class="truncate">
-                <span class="text-[10px] font-bold text-canvas-text block truncate">{{ sug.title }}</span>
-                <span class="text-[8px] text-canvas-sage block truncate" :title="sug.reason">{{ sug.reason }}</span>
-              </div>
-              <button 
-                @click="addSeed({ id: sug.id, name: sug.title, type: sug.type, subtitle: sug.subtitle })"
-                class="px-2 py-1 bg-canvas-coral text-white rounded text-[9px] font-bold shrink-0 hover:opacity-90 transition-opacity"
+              <span v-if="selectedNodeIds.size > 0" class="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></span>
+              <span>{{ t('modeInspector') }}</span>
+              <span v-if="selectedNodeIds.size > 0" class="px-1.5 py-0.2 rounded text-[9px]" :class="sidebarMode === 'inspector' ? 'bg-white/20 text-white' : 'bg-canvas-coral/15 text-canvas-coral'">
+                {{ selectedNodeIds.size }}
+              </span>
+            </button>
+          </div>
+
+          <!-- Domain Filter Bar (Visible in Discoveries mode) -->
+          <div v-if="sidebarMode === 'discoveries'" class="mt-2 flex items-center justify-between gap-1">
+            <div class="flex items-center border border-canvas-border rounded-md bg-white overflow-hidden text-[9px] font-bold w-full">
+              <button
+                @click="setDomainFilter(null)"
+                :class="targetFilter === null ? 'bg-canvas-text text-white' : 'text-canvas-muted hover:text-canvas-text'"
+                class="flex-1 py-1 text-center transition-colors cursor-pointer"
               >
-                {{ t('addBtn') }}
+                {{ t('filterAll') }}
+              </button>
+              <button
+                @click="setDomainFilter('game')"
+                :class="targetFilter === 'game' ? 'bg-canvas-denim text-white' : 'text-canvas-muted hover:text-canvas-text'"
+                class="flex-1 py-1 border-l border-canvas-border text-center transition-colors cursor-pointer"
+              >
+                {{ t('filterGames') }} ({{ domainCounts.game }})
+              </button>
+              <button
+                @click="setDomainFilter('music')"
+                :class="targetFilter === 'music' ? 'bg-canvas-sage text-white' : 'text-canvas-muted hover:text-canvas-text'"
+                class="flex-1 py-1 border-l border-canvas-border text-center transition-colors cursor-pointer"
+              >
+                {{ t('filterMusic') }} ({{ domainCounts.music }})
+              </button>
+              <button
+                @click="setDomainFilter('movie')"
+                :class="targetFilter === 'movie' ? 'bg-canvas-amber text-white' : 'text-canvas-muted hover:text-canvas-text'"
+                class="flex-1 py-1 border-l border-canvas-border text-center transition-colors cursor-pointer"
+              >
+                {{ t('filterFilms') }} ({{ domainCounts.movie }})
+              </button>
+              <button
+                @click="setDomainFilter('series')"
+                :class="targetFilter === 'series' ? 'bg-canvas-violet text-white' : 'text-canvas-muted hover:text-canvas-text'"
+                class="flex-1 py-1 border-l border-canvas-border text-center transition-colors cursor-pointer"
+              >
+                {{ t('filterSeries') }} ({{ domainCounts.series }})
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Feed List -->
-        <div class="flex-1 overflow-y-auto p-3 space-y-2.5">
-          <div v-if="recommendations.length === 0 && !isLoadingRecs" class="text-center py-24 text-canvas-muted text-xs">
-            {{ t('emptyFeed') }}
+        <!-- =============================================================== -->
+        <!-- MODE 1: LIVE NODE INSPECTOR & REAL-TIME SUBGRAPH EXPANSION      -->
+        <!-- =============================================================== -->
+        <div v-if="sidebarMode === 'inspector'" class="flex-1 overflow-y-auto p-3.5 space-y-3.5">
+          <div v-if="inspectedNodes.length === 0" class="text-center py-20 px-6 border border-dashed border-canvas-border rounded-xl bg-canvas-sidebar/40">
+            <div class="text-xs font-bold text-canvas-text mb-1">{{ t('noNodeSelectedTitle') }}</div>
+            <p class="text-[11px] text-canvas-muted leading-relaxed">
+              {{ t('noNodeSelectedDesc') }}
+            </p>
           </div>
 
-
-
-          <!-- Card Item with Mathematical Explanation Details -->
-          <div 
-            v-for="rec in recommendations" 
-            :key="rec.id"
-            class="bg-white hover:bg-canvas-sidebar border border-canvas-border hover:border-canvas-sage p-3 rounded-lg shadow-xs transition-all group"
-          >
-            <div class="flex items-start justify-between gap-2 mb-1">
-              <div>
-                <span 
-                  :class="getTypeBadgeClass(rec.type)"
-                  class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border tracking-wide mr-1.5"
-                >
-                  {{ rec.type }}
-                </span>
-                <span class="text-xs font-bold text-canvas-text group-hover:text-canvas-denim transition-colors">
-                  {{ rec.title }}
-                </span>
-                <p class="text-[10px] text-canvas-muted mt-0.5">{{ rec.subtitle }}</p>
-              </div>
-              <!-- Qualitative Affinity Badge & PPR Score -->
-              <div class="flex flex-col items-end shrink-0 text-right">
-                <span 
-                  :class="getAffinityBadgeClass(rec.score)"
-                  :title="t('scoreTooltip')"
-                  class="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border cursor-help tracking-tight inline-flex items-center gap-1"
-                >
-                  <span>{{ getAffinityLabel(rec.score) }}</span>
-                  <span class="opacity-40">·</span>
-                  <span>{{ rec.score }} pts</span>
-                </span>
-                <span class="text-[8px] text-canvas-muted font-mono mt-0.5" :title="t('scoreTooltip')">
-                  {{ t('affinityScoreLabel') }}
-                </span>
-              </div>
-            </div>
-
-            <!-- Mathematical / Graph Explanation (Why this is here) -->
-            <div v-if="rec.reason" class="mt-2 text-[10px] text-canvas-sage bg-canvas-sage/10 px-2.5 py-1.5 rounded border border-canvas-sage/20 flex items-start gap-1.5 leading-relaxed">
-              <span class="font-bold shrink-0 mt-0.5">↳ {{ t('path') }}</span>
-              <span class="font-medium break-words">{{ rec.reason }}</span>
-            </div>
-
-            <!-- Popular Track Preview -->
-            <div v-if="rec.top_track" class="mt-1.5 pt-1.5 border-t border-canvas-border/60 flex items-center justify-between text-[10px] text-canvas-muted">
-              <span class="truncate text-canvas-text font-medium">{{ rec.top_track.title }}</span>
-              <span class="text-canvas-sage font-mono font-bold shrink-0">{{ t('pop') }} {{ rec.top_track.popularity }}</span>
-            </div>
-
-            <div class="mt-2 flex justify-end">
-              <button 
-                @click="addSeed({ id: rec.id, name: rec.title, type: rec.type, subtitle: rec.subtitle })"
-                class="text-[9px] font-bold text-canvas-coral hover:underline"
+          <template v-else>
+            <!-- Selected Nodes Header & Clear -->
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-canvas-muted">
+                {{ inspectedNodes.length === 1 ? t('inspecting1') : inspectedNodes.length + ' ' + t('inspectingMulti') }}
+              </span>
+              <button
+                @click="clearSelection"
+                class="text-[9px] font-bold text-canvas-coral hover:underline uppercase cursor-pointer"
               >
-                {{ t('addToProfile') }}
+                [{{ t('clearSelectionBtn') }}]
               </button>
             </div>
-          </div>
-        </div>
-      </main>
 
-      <!-- RIGHT: Interactive Clean Topology Map -->
-      <section class="flex-1 relative bg-canvas-bg flex flex-col overflow-hidden">
-        <!-- Legend Pill -->
-        <div class="absolute top-4 left-4 z-20 bg-white/95 backdrop-blur border border-canvas-border rounded-lg p-3 shadow-md max-w-xs text-[10px]">
-          <div class="font-bold text-canvas-text text-[11px] mb-0.5">{{ t('topologicalField') }}</div>
-          <p class="text-canvas-muted leading-tight mb-2">
-            {{ t('topologyDesc') }}
-          </p>
-          <div class="flex flex-wrap items-center gap-2 font-bold text-[9px]">
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-coral"></span> {{ t('seed') }}</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-sage"></span> {{ t('music') }}</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-denim"></span> {{ t('game') }}</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#1d4ed8]"></span> {{ t('studio') }}</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#b25900]"></span> {{ t('movie') }}</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#8b5cf6]"></span> {{ t('series') }}</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#a1a1aa]"></span> {{ t('tag') }}</span>
-          </div>
-          <div class="border-t border-canvas-border/80 pt-1.5 mt-2 flex justify-end">
-            <button @click="fitGraphView" class="text-[9px] font-bold text-canvas-denim hover:underline cursor-pointer">
-              [ {{ t('fitView') }} ]
-            </button>
-          </div>
-        </div>
+            <!-- Selected Node Cards with Clickable Tags -->
+            <div class="space-y-2">
+              <div
+                v-for="node in inspectedNodes"
+                :key="node.id"
+                class="p-3 rounded-lg bg-canvas-sidebar/70 border border-canvas-borderDark/80"
+              >
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <div class="flex items-center gap-1.5">
+                      <span
+                        :class="getTypeBadgeClass(getRawType(node))"
+                        class="text-[8px] uppercase font-bold px-1.5 py-0.5 rounded border"
+                      >
+                        {{ getRawType(node) }}
+                      </span>
+                      <h4 class="font-bold text-canvas-text text-xs">{{ node.label }}</h4>
+                    </div>
+                    <p v-if="node.desc" class="text-[10px] text-canvas-muted mt-0.5">{{ node.desc }}</p>
+                  </div>
 
-        <!-- Inspector Card for Selected Node(s) -->
-        <div v-if="selectedNodeIds.size > 0" class="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur border border-canvas-text/20 rounded-lg p-3.5 shadow-xl text-[10px] w-80 max-h-[85vh] overflow-y-auto transition-all font-mono">
-          <div class="flex items-center justify-between gap-3 mb-2 border-b border-canvas-border/80 pb-2">
-            <span class="font-bold text-canvas-text text-[11px] flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-canvas-coral animate-pulse"></span>
-              <span>{{ selectedNodeIds.size === 1 ? t('inspecting1') : selectedNodeIds.size + ' ' + t('inspectingMulti') }}</span>
-            </span>
-            <button @click="clearSelection" class="text-[9px] font-bold text-canvas-muted hover:text-canvas-coral uppercase tracking-wider transition-colors">
-              [esc / {{ t('close') }}]
-            </button>
-          </div>
-
-          <!-- Lista de nós inspecionados -->
-          <div class="space-y-3">
-            <div v-for="node in inspectedNodes" :key="node.id" class="p-2.5 rounded bg-canvas-border/20 border border-canvas-border/60">
-              <div class="flex items-start justify-between gap-2 mb-1">
-                <div>
-                  <h4 class="font-bold text-canvas-text text-xs leading-tight">{{ node.label }}</h4>
-                  <p v-if="node.desc" class="text-[9px] text-canvas-muted mt-0.5">{{ node.desc }}</p>
-                </div>
-                <span class="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold shrink-0"
-                      :class="node.type === 'seed' || isNodeInProfile(node.id) ? 'bg-canvas-coral text-white' : 'bg-canvas-text text-white'">
-                  {{ node.type }}
-                </span>
-              </div>
-
-              <!-- Ação direta para adicionar/remover o nó selecionado dos gostos -->
-              <div class="mt-2">
-                <button
-                  v-if="!isNodeInProfile(node.id)"
-                  @click="addNodeToProfile(node)"
-                  class="w-full py-1.5 px-2.5 bg-canvas-coral hover:opacity-90 text-white rounded text-[10px] font-bold transition-opacity flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
-                >
-                  <span>{{ t('addNodeToLikes') }}</span>
-                </button>
-                <div
-                  v-else
-                  class="flex items-center justify-between gap-2 px-2 py-1 bg-canvas-coral/10 border border-canvas-coral/30 rounded text-[9px]"
-                >
-                  <span class="font-bold text-canvas-coral">{{ t('alreadyInLikes') }}</span>
                   <button
-                    @click="removeSeed(node.id)"
-                    class="text-canvas-muted hover:text-canvas-coral font-bold underline cursor-pointer"
+                    v-if="!isNodeInProfile(node.id)"
+                    @click="addNodeToProfile(node)"
+                    class="px-2.5 py-1 bg-canvas-coral hover:opacity-90 text-white rounded text-[9px] font-bold shrink-0 cursor-pointer transition-opacity"
                   >
-                    {{ t('removeFromLikes') }}
+                    {{ t('addNodeToLikes') }}
+                  </button>
+                  <button
+                    v-else
+                    @click="removeSeed(node.id)"
+                    class="px-2 py-1 bg-canvas-coral/10 border border-canvas-coral/30 text-canvas-coral rounded text-[9px] font-bold shrink-0 cursor-pointer hover:bg-canvas-coral hover:text-white transition-colors"
+                  >
+                    {{ t('removeFromLikes') }} ×
                   </button>
                 </div>
-              </div>
 
-              <!-- Tags do Nó -->
-              <div v-if="node.tags && node.tags.length > 0" class="mt-2 pt-2 border-t border-canvas-border/40">
-                <span class="text-[8px] uppercase font-bold text-canvas-muted tracking-wider block mb-1">
-                  {{ t('tagsAndAttrs') }} ({{ node.tags.length }})
-                </span>
-                <div class="flex flex-wrap gap-1">
-                  <span v-for="t in node.tags" :key="t" class="px-1.5 py-0.5 bg-canvas-border/50 text-canvas-text rounded text-[9px]">
-                    {{ t }}
+                <!-- Clickable Tags on Inspected Node (Click to add tag to profile!) -->
+                <div v-if="node.tags && node.tags.length > 0" class="mt-2.5 pt-2 border-t border-canvas-border">
+                  <span class="text-[8px] uppercase font-bold text-canvas-muted tracking-wider block mb-1.5">
+                    {{ t('clickableTagsHint') }}
                   </span>
-                </div>
-              </div>
-
-              <!-- Conexões diretas no subgrafo -->
-              <div v-if="node.neighbors && node.neighbors.length > 0" class="mt-2 pt-2 border-t border-canvas-border/40">
-                <span class="text-[8px] uppercase font-bold text-canvas-muted tracking-wider block mb-1">
-                  {{ t('graphConnections') }} ({{ node.neighbors.length }})
-                </span>
-                <div class="space-y-1 max-h-24 overflow-y-auto pr-1">
-                  <div v-for="(nbr, idx) in node.neighbors" :key="idx" class="flex items-center justify-between text-[9px] text-canvas-muted">
-                    <span class="text-canvas-text truncate font-semibold">{{ nbr.label }}</span>
-                    <span class="text-[8px] text-canvas-muted shrink-0 ml-2">({{ nbr.rel }})</span>
+                  <div class="flex flex-wrap gap-1">
+                    <button
+                      v-for="tagStr in node.tags"
+                      :key="tagStr"
+                      @click="searchAndAddTag(tagStr)"
+                      class="px-2 py-0.5 bg-white hover:bg-canvas-text hover:text-white border border-canvas-border rounded text-[9px] text-canvas-text font-mono transition-colors cursor-pointer"
+                    >
+                      {{ tagStr }} +
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
+
+            <!-- Live Expansion Results from Engine for Selected Node(s) -->
+            <div class="pt-2 border-t border-canvas-border">
+              <div class="flex items-center justify-between mb-2">
+                <div>
+                  <span class="text-[10px] uppercase font-bold text-canvas-text tracking-wider block">
+                    {{ t('liveExpansionTitle') }}
+                  </span>
+                  <span class="text-[9px] text-canvas-muted">
+                    {{ t('liveExpansionSubtitle') }}
+                  </span>
+                </div>
+                <span v-if="isLoadingInspectorRecs" class="w-3 h-3 border-2 border-canvas-coral/30 border-t-canvas-coral rounded-full animate-spin"></span>
+              </div>
+
+              <!-- Domain Filter inside Live Inspector -->
+              <div class="flex items-center border border-canvas-border rounded-md bg-canvas-sidebar overflow-hidden text-[9px] font-bold mb-2.5">
+                <button
+                  @click="setInspectorFilter(null)"
+                  :class="inspectorFilter === null ? 'bg-canvas-text text-white' : 'text-canvas-muted hover:text-canvas-text'"
+                  class="flex-1 py-1 text-center transition-colors cursor-pointer"
+                >
+                  {{ t('filterAll') }}
+                </button>
+                <button
+                  @click="setInspectorFilter('game')"
+                  :class="inspectorFilter === 'game' ? 'bg-canvas-denim text-white' : 'text-canvas-muted hover:text-canvas-text'"
+                  class="flex-1 py-1 border-l border-canvas-border text-center transition-colors cursor-pointer"
+                >
+                  {{ t('filterGames') }}
+                </button>
+                <button
+                  @click="setInspectorFilter('music')"
+                  :class="inspectorFilter === 'music' ? 'bg-canvas-sage text-white' : 'text-canvas-muted hover:text-canvas-text'"
+                  class="flex-1 py-1 border-l border-canvas-border text-center transition-colors cursor-pointer"
+                >
+                  {{ t('filterMusic') }}
+                </button>
+                <button
+                  @click="setInspectorFilter('movie')"
+                  :class="inspectorFilter === 'movie' ? 'bg-canvas-amber text-white' : 'text-canvas-muted hover:text-canvas-text'"
+                  class="flex-1 py-1 border-l border-canvas-border text-center transition-colors cursor-pointer"
+                >
+                  {{ t('filterFilms') }}
+                </button>
+                <button
+                  @click="setInspectorFilter('series')"
+                  :class="inspectorFilter === 'series' ? 'bg-canvas-violet text-white' : 'text-canvas-muted hover:text-canvas-text'"
+                  class="flex-1 py-1 border-l border-canvas-border text-center transition-colors cursor-pointer"
+                >
+                  {{ t('filterSeries') }}
+                </button>
+              </div>
+
+              <!-- Live Expansion Cards -->
+              <div class="space-y-2">
+                <div
+                  v-for="sug in filteredInspectorRecs"
+                  :key="sug.id"
+                  @mouseenter="hoveredNodeId = sug.id; refreshGraph()"
+                  @mouseleave="hoveredNodeId = null; refreshGraph()"
+                  class="bg-white border border-canvas-border hover:border-canvas-coral p-2.5 rounded-lg transition-all shadow-2xs"
+                >
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="truncate">
+                      <div class="flex items-center gap-1.5">
+                        <span
+                          :class="getTypeBadgeClass(sug.type)"
+                          class="text-[8px] uppercase font-bold px-1.5 py-0.5 rounded border shrink-0"
+                        >
+                          {{ sug.type }}
+                        </span>
+                        <span class="text-xs font-bold text-canvas-text truncate">{{ sug.title }}</span>
+                      </div>
+                      <p class="text-[10px] text-canvas-muted mt-0.5">{{ sug.subtitle }}</p>
+                    </div>
+                    <button
+                      v-if="!isNodeInProfile(sug.id)"
+                      @click="addSeed({ id: sug.id, name: sug.title, type: sug.type, subtitle: sug.subtitle })"
+                      class="px-2.5 py-1 bg-canvas-coral text-white rounded text-[9px] font-bold shrink-0 hover:opacity-90 transition-opacity cursor-pointer"
+                    >
+                      {{ t('addBtn') }}
+                    </button>
+                    <span v-else class="text-[9px] font-bold text-canvas-sage shrink-0">
+                      {{ t('alreadyInLikes') }}
+                    </span>
+                  </div>
+                  <div v-if="sug.reason" class="mt-1.5 text-[9px] text-canvas-sage bg-canvas-sage/10 px-2 py-1 rounded border border-canvas-sage/20">
+                    ↳ {{ sug.reason }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- =============================================================== -->
+        <!-- MODE 2: CATEGORIZED DISCOVERIES FEED                            -->
+        <!-- =============================================================== -->
+        <div v-else class="flex-1 overflow-y-auto p-3.5 space-y-4">
+          <div v-if="recommendations.length === 0 && !isLoadingRecs" class="text-center py-24 text-canvas-muted text-xs">
+            {{ t('emptyFeed') }}
           </div>
 
-          <div class="mt-2.5 pt-2 border-t border-canvas-border/60 text-[9px] text-canvas-muted leading-tight">
-            <span v-if="selectedNodeIds.size === 1">
-              {{ t('holdShift') }}
-            </span>
-            <span v-else>
-              {{ t('sharedBridgesHighlighted') }}
-            </span>
+          <template v-for="group in groupedRecommendations" :key="group.key">
+            <div v-if="group.items.length > 0" class="space-y-2">
+              <!-- Category Section Header -->
+              <div class="flex items-center justify-between border-b border-canvas-border pb-1.5">
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: group.color }"></span>
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-canvas-text">
+                    {{ group.label }} ({{ group.items.length }})
+                  </span>
+                </div>
+                <button
+                  v-if="targetFilter === null && group.filterType"
+                  @click="setDomainFilter(group.filterType)"
+                  class="text-[9px] font-bold text-canvas-denim hover:underline cursor-pointer"
+                >
+                  {{ t('seeMoreDomain') }} →
+                </button>
+              </div>
+
+              <!-- Cards in Category -->
+              <div
+                v-for="rec in group.items"
+                :key="rec.id"
+                @mouseenter="hoveredNodeId = rec.id; refreshGraph()"
+                @mouseleave="hoveredNodeId = null; refreshGraph()"
+                class="bg-white hover:bg-canvas-sidebar/60 border border-canvas-border hover:border-canvas-text/40 p-3 rounded-lg shadow-2xs transition-all group"
+              >
+                <div class="flex items-start justify-between gap-2 mb-1">
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <span
+                        :class="getTypeBadgeClass(rec.type)"
+                        class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border tracking-wide"
+                      >
+                        {{ rec.type }}
+                      </span>
+                      <span
+                        @click="focusNodeOnGraph(rec.id)"
+                        class="text-xs font-bold text-canvas-text group-hover:text-canvas-denim transition-colors cursor-pointer hover:underline"
+                      >
+                        {{ rec.title }}
+                      </span>
+                    </div>
+                    <p class="text-[10px] text-canvas-muted mt-0.5">{{ rec.subtitle }}</p>
+                  </div>
+
+                  <!-- Affinity Badge -->
+                  <div class="flex flex-col items-end shrink-0 text-right">
+                    <span
+                      :class="getAffinityBadgeClass(rec.score)"
+                      :title="t('scoreTooltip')"
+                      class="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border cursor-help tracking-tight inline-flex items-center gap-1"
+                    >
+                      <span>{{ getAffinityLabel(rec.score) }}</span>
+                      <span class="opacity-40">·</span>
+                      <span>{{ rec.score }}</span>
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Mathematical / Graph Path Explanation -->
+                <div v-if="rec.reason" class="mt-2 text-[10px] text-canvas-sage bg-canvas-sage/10 px-2.5 py-1.5 rounded border border-canvas-sage/20 flex items-start gap-1.5 leading-relaxed">
+                  <span class="font-bold shrink-0 mt-0.5">↳ {{ t('path') }}</span>
+                  <span class="font-medium break-words">{{ rec.reason }}</span>
+                </div>
+
+                <!-- Popular Track Preview -->
+                <div v-if="rec.top_track" class="mt-1.5 pt-1.5 border-t border-canvas-border/60 flex items-center justify-between text-[10px] text-canvas-muted">
+                  <span class="truncate text-canvas-text font-medium">♪ {{ rec.top_track.title }}</span>
+                  <span class="text-canvas-sage font-mono font-bold shrink-0">{{ t('pop') }} {{ rec.top_track.popularity }}</span>
+                </div>
+
+                <!-- Card Footer Actions -->
+                <div class="mt-2.5 flex items-center justify-between pt-1.5 border-t border-canvas-border/50">
+                  <button
+                    @click="focusNodeOnGraph(rec.id)"
+                    class="text-[9px] font-bold text-canvas-muted hover:text-canvas-text cursor-pointer"
+                  >
+                    ◎ {{ t('focusInGraph') }}
+                  </button>
+                  <button
+                    @click="addSeed({ id: rec.id, name: rec.title, type: rec.type, subtitle: rec.subtitle })"
+                    class="px-2.5 py-1 bg-canvas-coral/10 hover:bg-canvas-coral text-canvas-coral hover:text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
+                  >
+                    {{ t('addToProfile') }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </aside>
+
+      <!-- ================================================================= -->
+      <!-- RIGHT: STRUCTURED 3-RING RADIAL CONSTELLATION MAP                 -->
+      <!-- ================================================================= -->
+      <section class="flex-1 relative bg-canvas-bg flex flex-col overflow-hidden">
+
+        <!-- Top-Left Constellation HUD & Layer Filters -->
+        <div class="absolute top-4 left-4 z-20 bg-white/95 backdrop-blur border border-canvas-border rounded-xl p-3.5 shadow-md max-w-sm text-[10px]">
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-bold text-canvas-text text-[11px]">{{ t('topologicalField') }}</span>
+            <button @click="fitGraphView" class="text-[9px] font-bold text-canvas-denim hover:underline cursor-pointer">
+              [ {{ t('fitView') }} ]
+            </button>
+          </div>
+          <p class="text-canvas-muted leading-tight mb-2.5 text-[9px]">
+            {{ t('constellationDesc') }}
+          </p>
+
+          <!-- Ring Legend -->
+          <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-bold text-[9px] mb-2.5">
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-canvas-coral ring-2 ring-canvas-coral/30"></span> {{ t('seed') }}</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-denim"></span> {{ t('game') }}</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-sage"></span> {{ t('music') }}</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-amber"></span> {{ t('movie') }}</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-violet"></span> {{ t('series') }}</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rotate-45 bg-slate-500"></span> {{ t('bridgeTag') }}</span>
+          </div>
+
+          <!-- Visual Declutter Controls -->
+          <div class="pt-2 border-t border-canvas-border flex items-center gap-1.5">
+            <button
+              @click="onlySharedBridges = !onlySharedBridges; rebuildConstellation()"
+              :class="onlySharedBridges ? 'bg-canvas-text text-white border-canvas-text' : 'bg-canvas-sidebar text-canvas-muted border-canvas-border'"
+              class="px-2 py-0.5 rounded border text-[9px] font-bold transition-colors cursor-pointer"
+            >
+              {{ t('toggleSharedBridges') }}
+            </button>
+            <button
+              @click="hideTrackNodes = !hideTrackNodes; rebuildConstellation()"
+              :class="hideTrackNodes ? 'bg-canvas-text text-white border-canvas-text' : 'bg-canvas-sidebar text-canvas-muted border-canvas-border'"
+              class="px-2 py-0.5 rounded border text-[9px] font-bold transition-colors cursor-pointer"
+            >
+              {{ t('toggleHideTracks') }}
+            </button>
           </div>
         </div>
 
+        <!-- Bottom-Right Quick Help Pill -->
+        <div class="absolute bottom-4 right-4 z-20 bg-white/90 backdrop-blur border border-canvas-border rounded-lg px-3 py-1.5 text-[9px] text-canvas-muted shadow-xs">
+          {{ t('graphInteractionHint') }}
+        </div>
 
         <div id="graph-container" class="flex-1 w-full h-full"></div>
       </section>
 
     </div>
 
-    <!-- BOTTOM HORIZONTAL TASTE PROFILE BAR -->
-    <footer class="h-20 border-t border-canvas-border bg-white px-6 py-2.5 flex items-center justify-between gap-5 z-30 shrink-0 shadow-lg">
+    <!-- BOTTOM TASTE PROFILE BAR -->
+    <footer class="h-18 border-t border-canvas-border bg-white px-5 py-2 flex items-center justify-between gap-4 z-30 shrink-0 shadow-lg">
       <div class="flex items-center gap-4 overflow-hidden flex-1">
         <div class="shrink-0">
           <span class="text-[9px] uppercase font-bold text-canvas-muted tracking-wider block">{{ t('tasteProfile') }}</span>
@@ -452,40 +567,40 @@
 
         <div class="h-8 w-px bg-canvas-border shrink-0"></div>
 
-        <!-- Horizontal Chips Slider -->
+        <!-- Active Profile Seeds -->
         <div class="flex items-center gap-2 overflow-x-auto py-1 flex-1">
           <div v-if="profileSeeds.length === 0" class="text-canvas-muted text-[11px] flex items-center gap-2">
             <span>{{ t('emptyProfile') }}</span>
-            <button @click="quickAdd('The Elder Scrolls V: Skyrim')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text">
-              {{ t('quickSkyrim') }}
+            <button @click="quickAdd('The Elder Scrolls V: Skyrim')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text cursor-pointer">
+              + Skyrim
             </button>
-            <button @click="quickAdd('The Cure')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text">
-              {{ t('quickTheCure') }}
+            <button @click="quickAdd('The Witcher 3: Wild Hunt')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text cursor-pointer">
+              + The Witcher 3
             </button>
-            <button @click="quickAdd('LCD Soundsystem')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text">
-              {{ t('quickLcd') }}
+            <button @click="quickAdd('Kanye West')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text cursor-pointer">
+              + Kanye West
             </button>
-            <button @click="quickAdd('Blade Runner')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text">
-              {{ t('quickBladeRunner') }}
+            <button @click="quickAdd('Blade Runner')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text cursor-pointer">
+              + Blade Runner
             </button>
           </div>
 
-          <!-- Active Chips -->
-          <div 
-            v-for="seed in profileSeeds" 
-            :key="seed.id" 
-            class="flex items-center gap-1.5 px-3 py-1 bg-canvas-sidebar hover:bg-canvas-border/80 rounded-full border border-canvas-border transition-colors shrink-0 group text-[11px]"
+          <div
+            v-for="seed in profileSeeds"
+            :key="seed.id"
+            @click="focusNodeOnGraph(seed.id)"
+            class="flex items-center gap-1.5 px-3 py-1 bg-canvas-sidebar hover:bg-canvas-border/80 rounded-full border border-canvas-border transition-colors shrink-0 group text-[11px] cursor-pointer"
           >
-            <span 
+            <span
               :class="getTypeBadgeClass(seed.type)"
               class="text-[9px] font-bold uppercase px-1 rounded border"
             >
               {{ seed.type }}
             </span>
             <span class="font-bold text-canvas-text">{{ seed.name }}</span>
-            <button 
-              @click="removeSeed(seed.id)" 
-              class="text-canvas-muted hover:text-canvas-coral font-bold ml-1"
+            <button
+              @click.stop="removeSeed(seed.id)"
+              class="text-canvas-muted hover:text-canvas-coral font-bold ml-1 cursor-pointer"
             >
               ×
             </button>
@@ -493,12 +608,12 @@
         </div>
       </div>
 
-      <!-- Action Button -->
+      <!-- Run Diffusion Button -->
       <div class="shrink-0">
-        <button 
+        <button
           @click="computeRecommendations"
           :disabled="profileSeeds.length === 0 || isLoadingRecs"
-          class="bg-canvas-pine hover:bg-black disabled:opacity-30 disabled:pointer-events-none text-white font-bold text-xs py-2.5 px-5 rounded-lg transition-all flex items-center gap-2 shadow-sm"
+          class="bg-canvas-pine hover:bg-black disabled:opacity-30 disabled:pointer-events-none text-white font-bold text-xs py-2 px-4 rounded-lg transition-all flex items-center gap-2 shadow-sm cursor-pointer"
         >
           <span v-if="isLoadingRecs" class="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
           <span>{{ isLoadingRecs ? t('computingPpr') : t('runDiffusion') }}</span>
@@ -514,133 +629,125 @@
     const I18N = {
       pt: {
         nodes: "nós",
-        edges: "arestas",
-        reset: "limpar",
-        discoveries: "Descobertas",
+        reset: "limpar perfil",
+        modeDiscoveries: "Descobertas",
+        modeInspector: "Inspeção ao Vivo",
         filterAll: "TODOS",
         filterMusic: "MÚSICA",
         filterFilms: "FILMES",
         filterSeries: "SÉRIES",
         filterGames: "JOGOS",
-        emptyFeed: "Adicione itens na barra inferior e clique em \"Calcular Difusão\".",
-        addToProfile: "+ Adicionar ao perfil",
+        emptyFeed: "Adicione sementes na barra inferior para gerar a constelação.",
+        addToProfile: "+ Perfil",
         path: "Caminho:",
         pop: "pop",
-        topologicalField: "Campo Topológico",
-        topologyDesc: "Rotas de Personalized PageRank conectando os nós do seu perfil às recomendações.",
+        topologicalField: "Constelação Radial de Afinidade",
+        constellationDesc: "Anel Central: Suas Sementes • Anel Médio: Pontes & Tags em Comum • Anel Externo: Descobertas.",
         seed: "Semente",
         music: "Música",
         game: "Jogo",
-        studio: "Estúdio",
         movie: "Filme",
         series: "Série",
-        tag: "Tag",
-        inspecting1: "Nó Selecionado",
-        inspectingMulti: "Nós Selecionados",
-        close: "fechar",
-        tagsAndAttrs: "Tags & Atributos",
-        graphConnections: "Conexões no Grafo",
-        holdShift: "Segure Shift e clique em outro nó para destacar o caminho entre eles.",
-        sharedBridgesHighlighted: "Arestas diretas e pontes mútuas estão realçadas em coral no grafo.",
-        tasteProfile: "Perfil de Afinidade",
-        emptyProfile: "Perfil vazio. Adição rápida:",
-        computingPpr: "Calculando Difusão...",
-        runDiffusion: "Calcular Difusão →",
-        focus: "Foco",
-        seeAll: "ver todos",
-        relatedSuggestions: "Sugestões relacionadas para adicionar ao perfil:",
-        addBtn: "+ Adicionar",
+        bridgeTag: "Ponte / #Tag",
+        inspecting1: "1 Nó em Foco",
+        inspectingMulti: "Nós Combinados em Foco",
+        clearSelectionBtn: "limpar seleção",
+        noNodeSelectedTitle: "Clique em qualquer nó ou #tag no grafo",
+        noNodeSelectedDesc: "Ao clicar em um nó (ou segurar Shift e clicar em vários, como #rpg + #open-world), este painel consulta o motor em tempo real e traz novos jogos, músicas e filmes específicos para essa seleção.",
+        clickableTagsHint: "Tags deste nó (clique para adicionar ao perfil):",
+        liveExpansionTitle: "Expansão ao Vivo para esta Seleção",
+        liveExpansionSubtitle: "Sugestões calculadas diretamente a partir dos nós selecionados acima:",
+        addBtn: "+ Perfil",
         searchAll: "buscar jogos, artistas, faixas, filmes, séries...",
-        searchGame: "buscar jogos (ex: skyrim, cyberpunk)...",
-        searchArtist: "buscar artistas (ex: daft punk, the cure)...",
-        searchTrack: "buscar faixas (ex: many rivers, killing moon)...",
+        searchGame: "buscar jogos (ex: skyrim, elden ring, witcher)...",
+        searchArtist: "buscar artistas (ex: kanye west, daft punk, the cure)...",
+        searchTrack: "buscar faixas...",
         searchMovie: "buscar filmes (ex: blade runner, dune)...",
-        searchSeries: "buscar séries (ex: breaking bad, dark, twin peaks)...",
-        allTypes: "Todos os Tipos",
+        searchSeries: "buscar séries (ex: dark, breaking bad)...",
+        allTypes: "Todos",
         typeGames: "Jogos",
         typeArtists: "Artistas",
         typeTracks: "Faixas",
         typeMovies: "Filmes",
         typeSeries: "Séries",
-        quickSkyrim: "+ Skyrim (Jogo)",
-        quickTheCure: "+ The Cure (Música)",
-        quickLcd: "+ LCD Soundsystem",
-        quickBladeRunner: "+ Blade Runner (Filme)",
-        addNodeToLikes: "+ Adicionar aos gostos",
-        alreadyInLikes: "Nos seus gostos",
-        removeFromLikes: "remover",
-        affinityScoreLabel: "afinidade topológica",
+        addNodeToLikes: "+ Adicionar ao Perfil",
+        alreadyInLikes: "No Perfil",
+        removeFromLikes: "Remover",
         affinityVeryHigh: "Muito Alta",
         affinityHigh: "Alta",
         affinityModerate: "Moderada",
         affinityThematic: "Temática",
-        scoreTooltip: "Score de Ressonância (PPR): probabilidade de difusão a partir das sementes do seu perfil. Não é nota de avaliação (0-10).",
+        scoreTooltip: "Score de Ressonância (PPR + Interseção Temática)",
         fitView: "recentralizar",
+        focusInGraph: "Focar no Grafo",
+        seeMoreDomain: "Ver mais desta categoria",
+        sectionGames: "Jogos Recomendados",
+        sectionMusic: "Artistas & Faixas",
+        sectionScreen: "Filmes & Séries",
+        toggleSharedBridges: "Focar Pontes Comuns",
+        toggleHideTracks: "Ocultar Faixas",
+        graphInteractionHint: "Clique: inspecionar ao vivo • Shift+Clique: combinar nós • Duplo-Clique: adicionar ao perfil",
       },
       en: {
         nodes: "nodes",
-        edges: "edges",
-        reset: "reset",
-        discoveries: "Discoveries",
+        reset: "clear profile",
+        modeDiscoveries: "Discoveries",
+        modeInspector: "Live Inspector",
         filterAll: "ALL",
         filterMusic: "MUSIC",
         filterFilms: "FILMS",
         filterSeries: "SERIES",
         filterGames: "GAMES",
-        emptyFeed: "Add entities in the bottom bar and click \"Run Diffusion\".",
-        addToProfile: "+ Add to profile",
+        emptyFeed: "Add seeds in the bottom bar to generate your constellation.",
+        addToProfile: "+ Profile",
         path: "Path:",
         pop: "pop",
-        topologicalField: "Topological Field",
-        topologyDesc: "Personalized PageRank paths linking your profile nodes to recommendations.",
+        topologicalField: "Radial Affinity Constellation",
+        constellationDesc: "Inner Ring: Profile Seeds • Middle Ring: Shared Bridges & Tags • Outer Ring: Discoveries.",
         seed: "Seed",
         music: "Music",
         game: "Game",
-        studio: "Studio",
         movie: "Movie",
         series: "Series",
-        tag: "Tag",
-        inspecting1: "Inspecting 1 Node",
-        inspectingMulti: "Nodes Inspected",
-        close: "close",
-        tagsAndAttrs: "Tags & Attributes",
-        graphConnections: "Graph Connections",
-        holdShift: "Hold Shift and click another node to highlight bridges between them.",
-        sharedBridgesHighlighted: "Direct links and shared bridges are highlighted in coral.",
-        tasteProfile: "Taste Profile",
-        emptyProfile: "Empty profile. Quick add:",
-        computingPpr: "Computing Diffusion...",
-        runDiffusion: "Run Diffusion →",
-        focus: "Focus",
-        seeAll: "see all",
-        relatedSuggestions: "Related recommendations to add to profile:",
-        addBtn: "+ Add",
+        bridgeTag: "Bridge / #Tag",
+        inspecting1: "1 Node Focused",
+        inspectingMulti: "Combined Nodes Focused",
+        clearSelectionBtn: "clear selection",
+        noNodeSelectedTitle: "Click any node or #tag on the graph",
+        noNodeSelectedDesc: "Clicking a node (or Shift+clicking multiple nodes like #rpg + #open-world) queries the engine in real time for new games, music, and films matching that exact selection.",
+        clickableTagsHint: "Node tags (click to add to profile):",
+        liveExpansionTitle: "Live Expansion for Selection",
+        liveExpansionSubtitle: "Recommendations computed directly from the selected nodes above:",
+        addBtn: "+ Profile",
         searchAll: "search games, artists, tracks, movies, series...",
-        searchGame: "search games (e.g. skyrim, cyberpunk)...",
-        searchArtist: "search artists (e.g. daft punk, the cure)...",
-        searchTrack: "search tracks (e.g. many rivers, killing moon)...",
+        searchGame: "search games (e.g. skyrim, elden ring, witcher)...",
+        searchArtist: "search artists (e.g. kanye west, daft punk, the cure)...",
+        searchTrack: "search tracks...",
         searchMovie: "search movies (e.g. blade runner, dune)...",
-        searchSeries: "search series (e.g. breaking bad, dark, twin peaks)...",
-        allTypes: "All Types",
+        searchSeries: "search series (e.g. dark, breaking bad)...",
+        allTypes: "All",
         typeGames: "Games",
         typeArtists: "Artists",
         typeTracks: "Tracks",
         typeMovies: "Movies",
         typeSeries: "Series",
-        quickSkyrim: "+ Skyrim (Game)",
-        quickTheCure: "+ The Cure (Music)",
-        quickLcd: "+ LCD Soundsystem",
-        quickBladeRunner: "+ Blade Runner (Movie)",
-        addNodeToLikes: "+ Add to likes",
-        alreadyInLikes: "In your likes",
-        removeFromLikes: "remove",
-        affinityScoreLabel: "topological affinity",
+        addNodeToLikes: "+ Add to Profile",
+        alreadyInLikes: "In Profile",
+        removeFromLikes: "Remove",
         affinityVeryHigh: "Very High",
         affinityHigh: "High",
         affinityModerate: "Moderate",
         affinityThematic: "Thematic",
-        scoreTooltip: "Resonance Score (PPR): diffusion probability based on your profile seeds. Not a quality rating (0-10).",
+        scoreTooltip: "Resonance Score (PPR + Thematic Confluence)",
         fitView: "recenter",
+        focusInGraph: "Focus in Graph",
+        seeMoreDomain: "See more in category",
+        sectionGames: "Recommended Games",
+        sectionMusic: "Artists & Tracks",
+        sectionScreen: "Movies & Series",
+        toggleSharedBridges: "Focus Shared Bridges",
+        toggleHideTracks: "Hide Tracks",
+        graphInteractionHint: "Click: live inspect • Shift+Click: combine nodes • Double-Click: add to profile",
       }
     };
 
@@ -649,24 +756,42 @@
         const currentLang = ref(localStorage.getItem('ym_lang') || 'pt');
         const t = (key) => I18N[currentLang.value]?.[key] || I18N.en[key] || key;
 
-        const setLang = (lang) => {
-          currentLang.value = lang;
-          localStorage.setItem('ym_lang', lang);
-          if (profileSeeds.value.length > 0) {
-            computeRecommendations();
-          }
-        };
-
+        const sidebarMode = ref('discoveries'); // 'discoveries' | 'inspector'
         const searchQuery = ref('');
-        const searchType = ref(''); // '', 'game', 'artist', 'track', 'movie'
+        const searchType = ref('');
         const searchResults = ref([]);
         const isSearching = ref(false);
         const profileSeeds = ref([]);
         const recommendations = ref([]);
         const isLoadingRecs = ref(false);
         const targetFilter = ref(null);
+
+        // Live Inspector state
+        const selectedNodeIds = ref(new Set());
+        const hoveredNodeId = ref(null);
+        const inspectorRecs = ref([]);
+        const inspectorFilter = ref(null);
+        const isLoadingInspectorRecs = ref(false);
+
+        // Constellation filter toggles
+        const onlySharedBridges = ref(false);
+        const hideTrackNodes = ref(false);
+
         let graphInstance = null;
         let searchTimeout = null;
+        let currentGraphRaw = { nodes: [], links: [] };
+        let fullServerGraph = { nodes: [], links: [] };
+
+        const setLang = (lang) => {
+          currentLang.value = lang;
+          localStorage.setItem('ym_lang', lang);
+          if (profileSeeds.value.length > 0) {
+            computeRecommendations();
+          }
+          if (selectedNodeIds.value.size > 0) {
+            fetchLiveInspectorRecommendations();
+          }
+        };
 
         const loadSavedProfile = () => {
           const saved = localStorage.getItem('ym_taste_profile');
@@ -692,32 +817,89 @@
           return t('searchAll');
         };
 
+        const getRawType = (node) => {
+          if (!node) return 'item';
+          if (node.id && node.id.includes(':')) return node.id.split(':')[0];
+          return node.type || 'item';
+        };
 
         const getTypeBadgeClass = (type) => {
           switch(type) {
-            case 'game': return 'text-canvas-denim bg-canvas-denim/10 border-canvas-denim/20';
+            case 'game': return 'text-canvas-denim bg-canvas-denim/10 border-canvas-denim/25';
             case 'artist':
-            case 'track': return 'text-canvas-sage bg-canvas-sage/10 border-canvas-sage/20';
-            case 'movie': return 'text-[#b25900] bg-[#b25900]/10 border-[#b25900]/20';
-            case 'series': return 'text-[#8b5cf6] bg-[#8b5cf6]/10 border-[#8b5cf6]/20';
+            case 'track': return 'text-canvas-sage bg-canvas-sage/10 border-canvas-sage/25';
+            case 'movie': return 'text-canvas-amber bg-canvas-amber/10 border-canvas-amber/25';
+            case 'series': return 'text-canvas-violet bg-canvas-violet/10 border-canvas-violet/25';
+            case 'keyword': return 'text-slate-700 bg-slate-200/70 border-slate-300';
             default: return 'text-canvas-muted bg-canvas-sidebar border-canvas-border';
           }
         };
 
         const getAffinityLabel = (score) => {
           const val = Number(score) || 0;
-          if (val >= 3.0) return t('affinityVeryHigh');
-          if (val >= 1.5) return t('affinityHigh');
-          if (val >= 0.5) return t('affinityModerate');
+          if (val >= 5.0) return t('affinityVeryHigh');
+          if (val >= 2.0) return t('affinityHigh');
+          if (val >= 0.6) return t('affinityModerate');
           return t('affinityThematic');
         };
 
         const getAffinityBadgeClass = (score) => {
           const val = Number(score) || 0;
-          if (val >= 3.0) return 'text-canvas-sage bg-canvas-sage/15 border-canvas-sage/30';
-          if (val >= 1.5) return 'text-canvas-denim bg-canvas-denim/10 border-canvas-denim/30';
-          if (val >= 0.5) return 'text-canvas-text bg-canvas-sidebar border-canvas-borderDark';
+          if (val >= 5.0) return 'text-canvas-sage bg-canvas-sage/15 border-canvas-sage/30';
+          if (val >= 2.0) return 'text-canvas-denim bg-canvas-denim/10 border-canvas-denim/30';
+          if (val >= 0.6) return 'text-canvas-text bg-canvas-sidebar border-canvas-borderDark';
           return 'text-canvas-muted bg-canvas-sidebar border-canvas-border';
+        };
+
+        const domainCounts = computed(() => {
+          const counts = { game: 0, music: 0, movie: 0, series: 0 };
+          for (const r of recommendations.value) {
+            if (r.type === 'game') counts.game++;
+            else if (r.type === 'artist' || r.type === 'track') counts.music++;
+            else if (r.type === 'movie') counts.movie++;
+            else if (r.type === 'series') counts.series++;
+          }
+          return counts;
+        });
+
+        const groupedRecommendations = computed(() => {
+          if (targetFilter.value !== null) {
+            return [{
+              key: 'filtered',
+              label: targetFilter.value.toUpperCase(),
+              color: '#0f172a',
+              filterType: null,
+              items: recommendations.value,
+            }];
+          }
+          const games = recommendations.value.filter(r => r.type === 'game');
+          const music = recommendations.value.filter(r => r.type === 'artist' || r.type === 'track');
+          const screen = recommendations.value.filter(r => r.type === 'movie' || r.type === 'series' || r.type === 'book');
+          return [
+            { key: 'games', label: t('sectionGames'), color: '#2563eb', filterType: 'game', items: games },
+            { key: 'music', label: t('sectionMusic'), color: '#0d9488', filterType: 'music', items: music },
+            { key: 'screen', label: t('sectionScreen'), color: '#d97706', filterType: 'movie', items: screen },
+          ];
+        });
+
+        const filteredInspectorRecs = computed(() => {
+          const profileSet = new Set(profileSeeds.value.map(s => s.id));
+          return inspectorRecs.value.filter(r => {
+            if (profileSet.has(r.id) || selectedNodeIds.value.has(r.id)) return false;
+            if (!inspectorFilter.value) return true;
+            if (inspectorFilter.value === 'music') return r.type === 'artist' || r.type === 'track';
+            return r.type === inspectorFilter.value;
+          });
+        });
+
+        const setDomainFilter = (flt) => {
+          targetFilter.value = flt;
+          computeRecommendations();
+        };
+
+        const setInspectorFilter = (flt) => {
+          inspectorFilter.value = flt;
+          fetchLiveInspectorRecommendations();
         };
 
         const onSearchInput = () => {
@@ -740,7 +922,7 @@
             } finally {
               isSearching.value = false;
             }
-          }, 180);
+          }, 160);
         };
 
         const isNodeInProfile = (nodeId) => {
@@ -759,13 +941,33 @@
 
         const addNodeToProfile = (node) => {
           if (!node || !node.id || isNodeInProfile(node.id)) return;
-          const rawType = node.id.includes(':') ? node.id.split(':')[0] : (node.type || 'item');
+          const rawType = getRawType(node);
           addSeed({
             id: node.id,
             name: node.label,
             type: rawType,
             subtitle: node.desc || rawType,
           });
+        };
+
+        const searchAndAddTag = async (tagStr) => {
+          const existing = fullServerGraph.nodes.find(
+            n => n.label && n.label.toLowerCase() === tagStr.toLowerCase()
+          );
+          if (existing) {
+            addNodeToProfile(existing);
+            return;
+          }
+          try {
+            const clean = tagStr.replace(/^#/, '');
+            const res = await fetch(`/api/search?q=${encodeURIComponent(clean)}&entity_type=keyword`);
+            const data = await res.json();
+            if (data.length > 0) {
+              addSeed(data[0]);
+            }
+          } catch (e) {
+            console.error(e);
+          }
         };
 
         const quickAdd = async (name) => {
@@ -787,15 +989,58 @@
             computeRecommendations();
           } else {
             recommendations.value = [];
-            updateGraph({ nodes: [], links: [] });
+            fullServerGraph = { nodes: [], links: [] };
+            rebuildConstellation();
           }
         };
 
         const clearProfile = () => {
           profileSeeds.value = [];
           recommendations.value = [];
+          selectedNodeIds.value.clear();
+          inspectorRecs.value = [];
           saveProfile();
-          updateGraph({ nodes: [], links: [] });
+          fullServerGraph = { nodes: [], links: [] };
+          rebuildConstellation();
+        };
+
+        // Live query to /api/recommend for the currently selected node(s) on the graph!
+        let inspectorAbortController = null;
+        const fetchLiveInspectorRecommendations = async () => {
+          if (selectedNodeIds.value.size === 0) {
+            inspectorRecs.value = [];
+            return;
+          }
+          if (inspectorAbortController) {
+            inspectorAbortController.abort();
+          }
+          inspectorAbortController = new AbortController();
+          isLoadingInspectorRecs.value = true;
+
+          try {
+            // Combine selected nodes with any game/music context if user selected pure tags
+            const selectedArr = Array.from(selectedNodeIds.value);
+            const payload = {
+              seeds: selectedArr,
+              target_type: inspectorFilter.value,
+              limit: 16,
+              lang: currentLang.value,
+            };
+            const res = await fetch('/api/recommend', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+              signal: inspectorAbortController.signal,
+            });
+            const data = await res.json();
+            inspectorRecs.value = data.results || [];
+          } catch (e) {
+            if (e.name !== 'AbortError') {
+              console.error(e);
+            }
+          } finally {
+            isLoadingInspectorRecs.value = false;
+          }
         };
 
         let recsAbortController = null;
@@ -804,13 +1049,13 @@
         const computeRecommendations = () => {
           if (profileSeeds.value.length === 0) {
             recommendations.value = [];
-            updateGraph({ nodes: [], links: [] });
+            fullServerGraph = { nodes: [], links: [] };
+            rebuildConstellation();
             return;
           }
 
           clearTimeout(recsDebounceTimer);
           recsDebounceTimer = setTimeout(async () => {
-            // Cancela requisição anterior em andamento se o usuário alterou sementes rapidamente
             if (recsAbortController) {
               recsAbortController.abort();
             }
@@ -821,19 +1066,19 @@
               const payload = {
                 seeds: profileSeeds.value.map(s => s.id),
                 target_type: targetFilter.value,
-                limit: 15,
+                limit: 20,
                 lang: currentLang.value
               };
               const res = await fetch('/api/recommend', {
-
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
                 signal: recsAbortController.signal
               });
               const data = await res.json();
-              recommendations.value = data.results;
-              updateGraph(data.graph);
+              recommendations.value = data.results || [];
+              fullServerGraph = data.graph || { nodes: [], links: [] };
+              rebuildConstellation();
             } catch (err) {
               if (err.name !== 'AbortError') {
                 console.error('Falha ao calcular recomendações:', err);
@@ -841,125 +1086,235 @@
             } finally {
               isLoadingRecs.value = false;
             }
-          }, 250);
+          }, 180);
         };
-
-
-        const selectedNodeIds = ref(new Set());
-        let currentGraphRaw = { nodes: [], links: [] };
 
         const inspectedNodes = computed(() => {
           if (selectedNodeIds.value.size === 0) return [];
           const list = [];
           for (const nid of selectedNodeIds.value) {
-            const node = currentGraphRaw.nodes.find(n => n.id === nid);
+            const node = fullServerGraph.nodes.find(n => n.id === nid) || currentGraphRaw.nodes.find(n => n.id === nid);
             if (node) {
-              // Descobre conexões diretas desse nó dentro do grafo atual
-              const neighbors = [];
-              for (const l of currentGraphRaw.links) {
-                const sId = typeof l.source === 'object' ? l.source.id : l.source;
-                const tId = typeof l.target === 'object' ? l.target.id : l.target;
-                if (sId === nid) {
-                  const targetNode = currentGraphRaw.nodes.find(n => n.id === tId);
-                  if (targetNode) neighbors.push({ id: targetNode.id, label: targetNode.label, rel: l.label, type: targetNode.type, weight: l.weight });
-                } else if (tId === nid) {
-                  const sourceNode = currentGraphRaw.nodes.find(n => n.id === sId);
-                  if (sourceNode) neighbors.push({ id: sourceNode.id, label: sourceNode.label, rel: l.label, type: sourceNode.type, weight: l.weight });
-                }
-              }
-              list.push({
-                ...node,
-                neighbors
-              });
+              list.push(node);
             }
           }
           return list;
         });
 
-        // Sugestões inteligentes de expansão de perfil para o nó selecionado
-        const focusedNodeSuggestions = computed(() => {
-          if (inspectedNodes.value.length === 0) return [];
-          const primary = inspectedNodes.value[0];
-          const profileIds = new Set(profileSeeds.value.map(s => s.id));
-          const suggestions = [];
-
-          // 1. Sugestões a partir de recomendações que compartilham rota ou tags com este nó
-          recommendations.value.forEach(rec => {
-            if (!profileIds.has(rec.id) && rec.id !== primary.id) {
-              let affinityScore = 0;
-              // Se há link direto no grafo
-              const hasDirectLink = currentGraphRaw.links.some(l => {
-                const sId = typeof l.source === 'object' ? l.source.id : l.source;
-                const tId = typeof l.target === 'object' ? l.target.id : l.target;
-                return (sId === primary.id && tId === rec.id) || (sId === rec.id && tId === primary.id);
-              });
-              if (hasDirectLink) affinityScore += 50;
-
-              // Se compartilha vizinho comum (ponte/tag)
-              primary.neighbors.forEach(nbr => {
-                const sharesNeighbor = currentGraphRaw.links.some(l => {
-                  const sId = typeof l.source === 'object' ? l.source.id : l.source;
-                  const tId = typeof l.target === 'object' ? l.target.id : l.target;
-                  return (sId === nbr.id && tId === rec.id) || (sId === rec.id && tId === nbr.id);
-                });
-                if (sharesNeighbor) affinityScore += 25;
-              });
-
-              const isPt = currentLang.value === 'pt';
-              if (affinityScore > 0 || rec.score > 0) {
-                const reasonStr = hasDirectLink 
-                  ? (isPt ? `Ligação direta com ${primary.label}` : `Direct link with ${primary.label}`)
-                  : (isPt ? `Conectado via vizinhos e tags de ${primary.label}` : `Connected via neighbors & tags of ${primary.label}`);
-                suggestions.push({
-                  id: rec.id,
-                  title: rec.title,
-                  type: rec.type,
-                  subtitle: rec.subtitle,
-                  score: rec.score,
-                  affinityScore: affinityScore + Math.round(rec.score || 0),
-                  reason: reasonStr,
-                });
-              }
-            }
-          });
-
-          // 2. Vizinhos do próprio nó que não sejam apenas keywords e não estejam no perfil
-          const isPt = currentLang.value === 'pt';
-          primary.neighbors.forEach(nbr => {
-            if (!profileIds.has(nbr.id) && nbr.id !== primary.id && nbr.type !== 'keyword' && nbr.type !== 'tag') {
-              if (!suggestions.some(s => s.id === nbr.id)) {
-                suggestions.push({
-                  id: nbr.id,
-                  title: nbr.label,
-                  type: nbr.type,
-                  subtitle: isPt ? `Vizinho direto (${nbr.rel})` : `Direct neighbor (${nbr.rel})`,
-                  score: Math.round((nbr.weight || 1) * 10),
-                  affinityScore: 90,
-                  reason: isPt ? `Aresta direta '${nbr.rel}' com ${primary.label}` : `Direct edge '${nbr.rel}' with ${primary.label}`,
-                });
-              }
-            }
-          });
-
-          return suggestions.sort((a, b) => b.affinityScore - a.affinityScore).slice(0, 10);
-
-        });
-
         const clearSelection = () => {
           selectedNodeIds.value.clear();
+          inspectorRecs.value = [];
+          refreshGraph();
+        };
+
+        const focusNodeOnGraph = (nodeId) => {
+          if (!graphInstance) return;
+          const node = currentGraphRaw.nodes.find(n => n.id === nodeId);
+          if (node) {
+            selectedNodeIds.value.clear();
+            selectedNodeIds.value.add(nodeId);
+            sidebarMode.value = 'inspector';
+            fetchLiveInspectorRecommendations();
+            graphInstance.centerAt(node.x, node.y, 450);
+            graphInstance.zoom(1.8, 450);
+            refreshGraph();
+          }
+        };
+
+        const refreshGraph = () => {
           if (graphInstance) graphInstance.refresh();
         };
 
+        // ===================================================================
+        // 3-RING RADIAL CONSTELLATION BUILDER
+        // ===================================================================
+        const rebuildConstellation = () => {
+          if (!graphInstance) return;
+          const rawNodes = fullServerGraph.nodes || [];
+          const rawLinks = fullServerGraph.links || [];
 
+          if (rawNodes.length === 0) {
+            currentGraphRaw = { nodes: [], links: [] };
+            graphInstance.graphData(currentGraphRaw);
+            return;
+          }
+
+          const profileIdSet = new Set(profileSeeds.value.map(s => s.id));
+          const adj = new Map();
+          const seedNeighbors = new Map();
+
+          rawNodes.forEach(n => {
+            adj.set(n.id, new Set());
+            seedNeighbors.set(n.id, new Set());
+          });
+
+          rawLinks.forEach(l => {
+            const sId = typeof l.source === 'object' ? l.source.id : l.source;
+            const tId = typeof l.target === 'object' ? l.target.id : l.target;
+            if (adj.has(sId) && adj.has(tId) && sId !== tId) {
+              adj.get(sId).add(tId);
+              adj.get(tId).add(sId);
+              if (profileIdSet.has(sId)) seedNeighbors.get(tId).add(sId);
+              if (profileIdSet.has(tId)) seedNeighbors.get(sId).add(tId);
+            }
+          });
+
+          // Filter nodes according to user's visual declutter toggles
+          const filteredNodes = rawNodes.filter(n => {
+            const isSeed = n.type === 'seed' || profileIdSet.has(n.id);
+            if (isSeed) return true;
+            if (hideTrackNodes.value && n.type === 'track') return false;
+            const isBridge = ['keyword', 'developer', 'person', 'author'].includes(n.type);
+            if (onlySharedBridges.value && isBridge) {
+              const deg = (adj.get(n.id) || new Set()).size;
+              return deg >= 2;
+            }
+            return true;
+          });
+
+          const keptIds = new Set(filteredNodes.map(n => n.id));
+          const seenLinks = new Set();
+          const cleanLinks = [];
+
+          rawLinks.forEach(l => {
+            const sId = typeof l.source === 'object' ? l.source.id : l.source;
+            const tId = typeof l.target === 'object' ? l.target.id : l.target;
+            if (sId && tId && sId !== tId && keptIds.has(sId) && keptIds.has(tId)) {
+              const key = [sId, tId].sort().join('__');
+              if (!seenLinks.has(key)) {
+                seenLinks.add(key);
+                cleanLinks.push({
+                  source: sId,
+                  target: tId,
+                  label: l.label,
+                  weight: l.weight || 1,
+                });
+              }
+            }
+          });
+
+          // Assign Ring Tier & Initial Radial Coordinates for deterministic Constellation structure:
+          // Ring 0: Profile Seeds (Inner Core, radius = 0 if 1 seed else 95px)
+          // Ring 1: Shared Bridges (#tags, studios, directors) positioned between connected seeds (radius ~ 55..175px)
+          // Ring 2: Recommended Discoveries (Outer Orbit, radius = 290px)
+          const seedsList = filteredNodes.filter(n => n.type === 'seed' || profileIdSet.has(n.id));
+          const seedAngles = new Map();
+          const innerRadius = seedsList.length <= 1 ? 0 : Math.min(115, 65 + seedsList.length * 12);
+
+          seedsList.forEach((sNode, idx) => {
+            const angle = (2 * Math.PI * idx) / Math.max(1, seedsList.length) - Math.PI / 2;
+            seedAngles.set(sNode.id, angle);
+            sNode.ring = 0;
+            sNode.targetR = innerRadius;
+            sNode.x = Math.cos(angle) * innerRadius;
+            sNode.y = Math.sin(angle) * innerRadius;
+          });
+
+          let bridgeIdx = 0;
+          let recIdx = 0;
+          const totalRecs = Math.max(1, filteredNodes.length - seedsList.length);
+
+          filteredNodes.forEach(n => {
+            const isSeed = n.type === 'seed' || profileIdSet.has(n.id);
+            const deg = (adj.get(n.id) || new Set()).size;
+            const seedNbrs = Array.from(seedNeighbors.get(n.id) || []);
+            n.degree = deg;
+            n.sharedSeedsCount = seedNbrs.length;
+
+            if (isSeed) return;
+
+            const isBridge = ['keyword', 'developer', 'person', 'author'].includes(n.type);
+            if (isBridge) {
+              n.ring = 1;
+              if (seedNbrs.length >= 2) {
+                // Shared bridge between multiple seeds: place near the centroid of those seeds!
+                let sx = 0, sy = 0;
+                seedNbrs.forEach(sid => {
+                  const a = seedAngles.get(sid) || 0;
+                  sx += Math.cos(a);
+                  sy += Math.sin(a);
+                });
+                const jitter = ((bridgeIdx % 5) - 2) * 18;
+                n.targetR = 55;
+                n.x = (sx / seedNbrs.length) * 65 + jitter;
+                n.y = (sy / seedNbrs.length) * 65 - jitter;
+              } else if (seedNbrs.length === 1) {
+                const baseAngle = (seedAngles.get(seedNbrs[0]) || 0) + ((bridgeIdx % 7) - 3) * 0.18;
+                n.targetR = 175;
+                n.x = Math.cos(baseAngle) * 175;
+                n.y = Math.sin(baseAngle) * 175;
+              } else {
+                const angle = (2 * Math.PI * bridgeIdx) / 16;
+                n.targetR = 190;
+                n.x = Math.cos(angle) * 190;
+                n.y = Math.sin(angle) * 190;
+              }
+              bridgeIdx++;
+            } else {
+              // Outer Ring Discovery
+              n.ring = 2;
+              n.targetR = 295;
+              const angle = (2 * Math.PI * recIdx) / totalRecs;
+              n.x = Math.cos(angle) * 295;
+              n.y = Math.sin(angle) * 295;
+              recIdx++;
+            }
+          });
+
+          currentGraphRaw = {
+            nodes: filteredNodes.map(n => ({ ...n })),
+            links: cleanLinks,
+          };
+
+          graphInstance.graphData(currentGraphRaw);
+
+          // Apply radial constellation forces
+          if (window.d3 && window.d3.forceRadial) {
+            graphInstance.d3Force('radial', window.d3.forceRadial(
+              node => node.targetR ?? 240,
+              0,
+              0
+            ).strength(node => {
+              if (node.ring === 0) return 0.85;
+              if (node.ring === 1 && node.sharedSeedsCount >= 2) return 0.35;
+              if (node.ring === 1) return 0.55;
+              return 0.65;
+            }));
+          }
+
+          setTimeout(() => {
+            if (graphInstance && currentGraphRaw.nodes.length > 0) {
+              graphInstance.zoomToFit(450, 65);
+            }
+          }, 320);
+        };
+
+        let lastClickTime = 0;
+        let lastClickedNodeId = null;
 
         const initGraph = () => {
           const elem = document.getElementById('graph-container');
           graphInstance = ForceGraph()(elem)
-            .backgroundColor('#fbfbfb')
+            .backgroundColor('#f8fafc')
             .nodeId('id')
             .nodeVal('val')
-            .nodeLabel(node => `${node.label} (${node.type})`)
+            .nodeLabel(node => `${node.label} (${getRawType(node)})`)
+            .onNodeHover(node => {
+              hoveredNodeId.value = node ? node.id : null;
+              elem.style.cursor = node ? 'pointer' : 'default';
+              refreshGraph();
+            })
             .onNodeClick((node, event) => {
+              const now = Date.now();
+              if (lastClickedNodeId === node.id && (now - lastClickTime) < 320) {
+                // Double-click adds node directly to profile seeds!
+                addNodeToProfile(node);
+                lastClickTime = 0;
+                return;
+              }
+              lastClickTime = now;
+              lastClickedNodeId = node.id;
+
               if (event.ctrlKey || event.metaKey || event.shiftKey) {
                 if (selectedNodeIds.value.has(node.id)) {
                   selectedNodeIds.value.delete(node.id);
@@ -967,207 +1322,164 @@
                   selectedNodeIds.value.add(node.id);
                 }
               } else {
-                if (selectedNodeIds.value.size === 1 && selectedNodeIds.value.has(node.id)) {
-                  selectedNodeIds.value.clear();
-                } else {
-                  selectedNodeIds.value.clear();
-                  selectedNodeIds.value.add(node.id);
-                }
+                selectedNodeIds.value.clear();
+                selectedNodeIds.value.add(node.id);
               }
-              graphInstance.refresh();
+
+              if (selectedNodeIds.value.size > 0) {
+                sidebarMode.value = 'inspector';
+                fetchLiveInspectorRecommendations();
+              }
+              refreshGraph();
             })
             .onBackgroundClick(() => {
               clearSelection();
             })
             .nodeCanvasObject((node, ctx, globalScale) => {
-              const label = node.label;
-              const fontSize = 11 / globalScale;
-              ctx.font = `600 ${fontSize}px "JetBrains Mono", monospace`;
+              if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
 
-              const hasSelection = selectedNodeIds.value.size > 0;
-              const isSelected = selectedNodeIds.value.has(node.id);
+              const activeFocusSet = new Set(selectedNodeIds.value);
+              if (hoveredNodeId.value) activeFocusSet.add(hoveredNodeId.value);
+              const hasFocus = activeFocusSet.size > 0;
+              const isSelected = activeFocusSet.has(node.id);
 
-              // Determina se o nó é vizinho de algum nó selecionado
               let isNeighbor = false;
-              if (hasSelection && !isSelected) {
+              if (hasFocus && !isSelected) {
                 for (const link of currentGraphRaw.links) {
                   const sId = typeof link.source === 'object' ? link.source.id : link.source;
                   const tId = typeof link.target === 'object' ? link.target.id : link.target;
-                  if ((selectedNodeIds.value.has(sId) && tId === node.id) || 
-                      (selectedNodeIds.value.has(tId) && sId === node.id)) {
+                  if ((activeFocusSet.has(sId) && tId === node.id) ||
+                      (activeFocusSet.has(tId) && sId === node.id)) {
                     isNeighbor = true;
                     break;
                   }
                 }
               }
 
-              const isHighlighted = !hasSelection || isSelected || isNeighbor;
+              const isHighlighted = !hasFocus || isSelected || isNeighbor;
+              const rawType = getRawType(node);
+              const isSeed = node.type === 'seed' || isNodeInProfile(node.id);
+              const isBridge = ['keyword', 'developer', 'person', 'author'].includes(node.type);
 
-              // Cores por tipo
-              let fill = '#a1a1aa';
-              if (node.type === 'seed') fill = '#e84855';      // Coral
-              else if (node.type === 'artist' || node.type === 'track') fill = '#4e937a'; // Sage
-              else if (node.type === 'movie') fill = '#b25900';   // Warm amber
-              else if (node.type === 'series') fill = '#8b5cf6';  // Violet
-              else if (node.type === 'game') fill = '#2660a4';    // Denim
-              else if (node.type === 'developer') fill = '#1d4ed8'; // Studio / Developer
-              else if (node.type === 'author') fill = '#7c3aed';    // Author
-              else if (node.type === 'keyword' || node.type === 'tag') fill = '#a1a1aa'; // Neutral
-              else if (node.type === 'person') fill = '#182825';  // Pine
+              let fill = '#64748b';
+              if (isSeed) fill = '#e11d48';
+              else if (rawType === 'game') fill = '#2563eb';
+              else if (rawType === 'artist' || rawType === 'track') fill = '#0d9488';
+              else if (rawType === 'movie') fill = '#d97706';
+              else if (rawType === 'series') fill = '#7c3aed';
+              else if (rawType === 'developer') fill = '#1d4ed8';
+              else if (rawType === 'keyword') fill = node.sharedSeedsCount >= 2 ? '#334155' : '#64748b';
 
-              const r = (node.val || 7) / 2;
+              const baseR = isSeed ? 10.5 : (isBridge ? (node.sharedSeedsCount >= 2 ? 7.5 : 5.8) : 7.5);
 
               ctx.save();
-
-              // Se há nós selecionados e este nó não está em foco direto
-              if (hasSelection && !isHighlighted) {
-                ctx.globalAlpha = 0.45;
+              if (hasFocus && !isHighlighted) {
+                ctx.globalAlpha = 0.22;
               }
 
-              // Anel de foco para nó selecionado
-              if (isSelected) {
+              // Outer Halo for Seeds & Selected Nodes
+              if (isSelected || isSeed) {
                 ctx.beginPath();
-                ctx.arc(node.x, node.y, r + 5 / globalScale, 0, 2 * Math.PI, false);
-                ctx.fillStyle = 'rgba(232, 72, 85, 0.28)';
+                ctx.arc(node.x, node.y, baseR + 4.5 / globalScale, 0, 2 * Math.PI, false);
+                ctx.fillStyle = isSelected ? 'rgba(225, 29, 72, 0.24)' : 'rgba(225, 29, 72, 0.14)';
                 ctx.fill();
-                ctx.strokeStyle = '#e84855';
-                ctx.lineWidth = 2.0 / globalScale;
-                ctx.stroke();
-              } else if (node.type === 'seed') {
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, r + 2.5 / globalScale, 0, 2 * Math.PI, false);
-                ctx.fillStyle = 'rgba(232, 72, 85, 0.18)';
-                ctx.fill();
-              } else if (hasSelection && isNeighbor) {
-                // Anel sutil para vizinhos imediatos
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, r + 2 / globalScale, 0, 2 * Math.PI, false);
-                ctx.strokeStyle = 'rgba(24, 40, 37, 0.45)';
-                ctx.lineWidth = 1.2 / globalScale;
+                ctx.strokeStyle = '#e11d48';
+                ctx.lineWidth = (isSelected ? 2.0 : 1.2) / globalScale;
                 ctx.stroke();
               }
 
-              // Círculo principal do nó
-              ctx.beginPath();
-              ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
-              ctx.fillStyle = fill;
-              ctx.fill();
+              // Draw Diamond for Shared Bridge Nodes vs Circle for Entities
+              if (isBridge && !isSeed) {
+                const d = baseR * 1.15;
+                ctx.beginPath();
+                ctx.moveTo(node.x, node.y - d);
+                ctx.lineTo(node.x + d, node.y);
+                ctx.lineTo(node.x, node.y + d);
+                ctx.lineTo(node.x - d, node.y);
+                ctx.closePath();
+                ctx.fillStyle = fill;
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1.3 / globalScale;
+                ctx.stroke();
+              } else {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, baseR, 0, 2 * Math.PI, false);
+                ctx.fillStyle = fill;
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1.5 / globalScale;
+                ctx.stroke();
+              }
 
-              ctx.strokeStyle = isSelected ? '#182825' : '#ffffff';
-              ctx.lineWidth = (isSelected ? 2.0 : 1.2) / globalScale;
-              ctx.stroke();
+              // Node Label with pill backdrop for crisp legibility
+              const fontSize = Math.max(9.5, (isSeed ? 11.5 : 10.2) / Math.sqrt(globalScale));
+              ctx.font = `${isSeed || isSelected ? '700' : '600'} ${fontSize}px "JetBrains Mono", monospace`;
+              const labelText = node.sharedSeedsCount >= 2 && isBridge
+                ? `${node.label} (${node.sharedSeedsCount})`
+                : node.label;
 
-              // Rótulo do nó - sempre legível para facilitar multi-seleção
               ctx.textAlign = 'center';
               ctx.textBaseline = 'top';
-              if (isSelected) {
-                ctx.fillStyle = '#e84855';
-                ctx.font = `bold ${Math.max(fontSize, 12 / globalScale)}px "JetBrains Mono", monospace`;
-              } else if (hasSelection && !isHighlighted) {
-                ctx.fillStyle = '#52525b';
-                ctx.font = `500 ${fontSize}px "JetBrains Mono", monospace`;
-              } else {
-                ctx.fillStyle = '#182825';
-                ctx.font = `600 ${fontSize}px "JetBrains Mono", monospace`;
-              }
-              
-              ctx.fillText(label, node.x, node.y + r + (isSelected ? 4 : 3));
+              const labelY = node.y + baseR + 3 / globalScale;
+              ctx.fillStyle = isSelected ? '#e11d48' : (isSeed ? '#0f172a' : '#1e293b');
+              ctx.fillText(labelText, node.x, labelY);
+
               ctx.restore();
             })
             .linkDirectionalParticles(link => {
-              if (selectedNodeIds.value.size === 0) return 2;
               const sId = typeof link.source === 'object' ? link.source.id : link.source;
               const tId = typeof link.target === 'object' ? link.target.id : link.target;
-              if (selectedNodeIds.value.has(sId) || selectedNodeIds.value.has(tId)) {
-                return 4;
-              }
+              if (hoveredNodeId.value === sId || hoveredNodeId.value === tId) return 4;
+              if (selectedNodeIds.value.has(sId) || selectedNodeIds.value.has(tId)) return 3;
               return 0;
             })
-            .linkDirectionalParticleSpeed(0.004)
+            .linkDirectionalParticleSpeed(0.005)
             .linkColor(link => {
-              if (selectedNodeIds.value.size === 0) return '#e4e4e7';
+              const activeFocusSet = new Set(selectedNodeIds.value);
+              if (hoveredNodeId.value) activeFocusSet.add(hoveredNodeId.value);
               const sId = typeof link.source === 'object' ? link.source.id : link.source;
               const tId = typeof link.target === 'object' ? link.target.id : link.target;
-              
-              // Se o link conecta diretamente dois nós selecionados
-              if (selectedNodeIds.value.has(sId) && selectedNodeIds.value.has(tId)) {
-                return '#e84855'; // Coral vibrante
+
+              if (activeFocusSet.size === 0) {
+                return 'rgba(148, 163, 184, 0.45)';
               }
-              // Se o link conecta a um nó selecionado
-              if (selectedNodeIds.value.has(sId) || selectedNodeIds.value.has(tId)) {
-                return '#182825'; // Pine escuro contrastante
+              if (activeFocusSet.has(sId) && activeFocusSet.has(tId)) {
+                return '#e11d48';
               }
-              // Fora da seleção: visível de forma suave sem poluir
-              return 'rgba(212, 212, 216, 0.4)';
+              if (activeFocusSet.has(sId) || activeFocusSet.has(tId)) {
+                return '#0f172a';
+              }
+              return 'rgba(203, 213, 225, 0.22)';
             })
             .linkWidth(link => {
-              if (selectedNodeIds.value.size === 0) return Math.min(link.weight || 1, 2);
+              const activeFocusSet = new Set(selectedNodeIds.value);
+              if (hoveredNodeId.value) activeFocusSet.add(hoveredNodeId.value);
               const sId = typeof link.source === 'object' ? link.source.id : link.source;
               const tId = typeof link.target === 'object' ? link.target.id : link.target;
-              if (selectedNodeIds.value.has(sId) && selectedNodeIds.value.has(tId)) {
-                return 3.5;
-              }
-              if (selectedNodeIds.value.has(sId) || selectedNodeIds.value.has(tId)) {
-                return 2.2;
-              }
-              return 0.8;
+              if (activeFocusSet.has(sId) && activeFocusSet.has(tId)) return 3.2;
+              if (activeFocusSet.has(sId) || activeFocusSet.has(tId)) return 2.0;
+              return 1.1;
             });
 
-          // Física aprimorada: expansão de layout, link distance maior e repulsão anti-colisão
           if (graphInstance.d3Force('charge')) {
-            graphInstance.d3Force('charge')
-              .strength(-420)
-              .distanceMax(900);
+            graphInstance.d3Force('charge').strength(-360).distanceMax(700);
           }
           if (graphInstance.d3Force('link')) {
-            graphInstance.d3Force('link')
-              .distance(link => Math.max(80, 125 - (link.weight || 1) * 8));
+            graphInstance.d3Force('link').distance(link => Math.max(70, 115 - (link.weight || 1) * 8));
           }
           if (window.d3 && window.d3.forceCollide) {
             graphInstance.d3Force('collide', window.d3.forceCollide(node => {
-              const r = (node.val || 7) / 2;
-              return r + 30; // Margem física circular impedindo nós e rótulos de se sobreporem
+              return (node.ring === 0 ? 38 : 28);
             }).iterations(3));
           }
-          graphInstance.d3VelocityDecay(0.35);
-          graphInstance.cooldownTicks(150);
-        };
-
-        const updateGraph = (graphData) => {
-          if (!graphInstance || !graphData || !graphData.nodes) return;
-          const nodeMap = new Map();
-          graphData.nodes.forEach(n => nodeMap.set(n.id, n));
-          
-          const seenLinks = new Set();
-          const cleanLinks = [];
-          (graphData.links || []).forEach(l => {
-            const sId = typeof l.source === 'object' ? l.source.id : l.source;
-            const tId = typeof l.target === 'object' ? l.target.id : l.target;
-            if (sId && tId && sId !== tId && nodeMap.has(sId) && nodeMap.has(tId)) {
-              const linkKey = [sId, tId].sort().join('__');
-              if (!seenLinks.has(linkKey)) {
-                seenLinks.add(linkKey);
-                cleanLinks.push({
-                  source: sId,
-                  target: tId,
-                  label: l.label,
-                  weight: l.weight || 1
-                });
-              }
-            }
-          });
-          currentGraphRaw = { nodes: Array.from(nodeMap.values()), links: cleanLinks };
-          graphInstance.graphData(currentGraphRaw);
-          setTimeout(() => {
-            if (graphInstance && currentGraphRaw.nodes.length > 0) {
-              graphInstance.zoomToFit(500, 70);
-            }
-          }, 350);
+          graphInstance.d3VelocityDecay(0.38);
+          graphInstance.cooldownTicks(140);
         };
 
         const fitGraphView = () => {
-          if (graphInstance && currentGraphRaw && currentGraphRaw.nodes && currentGraphRaw.nodes.length > 0) {
-            graphInstance.zoomToFit(500, 70);
+          if (graphInstance && currentGraphRaw.nodes.length > 0) {
+            graphInstance.zoomToFit(450, 65);
           }
         };
 
@@ -1180,6 +1492,10 @@
         });
 
         return {
+          currentLang,
+          setLang,
+          t,
+          sidebarMode,
           searchQuery,
           searchType,
           searchResults,
@@ -1188,26 +1504,38 @@
           recommendations,
           isLoadingRecs,
           targetFilter,
+          domainCounts,
+          groupedRecommendations,
+          setDomainFilter,
           onSearchInput,
           isNodeInProfile,
           addSeed,
           addNodeToProfile,
+          searchAndAddTag,
           quickAdd,
           removeSeed,
           clearProfile,
           computeRecommendations,
           getSearchPlaceholder,
+          getRawType,
           getTypeBadgeClass,
           getAffinityLabel,
           getAffinityBadgeClass,
           selectedNodeIds,
+          hoveredNodeId,
           inspectedNodes,
-          focusedNodeSuggestions,
+          inspectorRecs,
+          inspectorFilter,
+          filteredInspectorRecs,
+          isLoadingInspectorRecs,
+          setInspectorFilter,
           clearSelection,
+          focusNodeOnGraph,
+          refreshGraph,
+          onlySharedBridges,
+          hideTrackNodes,
+          rebuildConstellation,
           fitGraphView,
-          currentLang,
-          setLang,
-          t,
         };
       }
     }).mount('#app');

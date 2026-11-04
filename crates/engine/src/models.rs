@@ -30,6 +30,7 @@ pub struct SeriesMeta {
 pub struct GameMeta {
     pub title: String,
     pub release_year: Option<i32>,
+    pub positive_reviews: Option<i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -127,7 +128,8 @@ impl CatalogCache {
 
         let mut games = HashMap::with_capacity(22_000);
         {
-            let mut stmt = conn.prepare("SELECT id, title, release_year FROM games")?;
+            let mut stmt =
+                conn.prepare("SELECT id, title, release_year, positive_reviews FROM games")?;
             let mut rows = stmt.query([])?;
             while let Some(r) = rows.next()? {
                 games.insert(
@@ -135,6 +137,7 @@ impl CatalogCache {
                     GameMeta {
                         title: r.get(1)?,
                         release_year: r.get(2).ok(),
+                        positive_reviews: r.get(3).ok(),
                     },
                 );
             }
