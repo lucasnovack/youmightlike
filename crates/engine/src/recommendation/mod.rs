@@ -245,7 +245,7 @@ pub fn run_recommendation_pipeline(
     }
 
     let top_diffused_artists =
-        top_k_from_scores(&state.graph, &p, &exclude_ids, "artist:", Some(20));
+        top_k_from_scores(&state.graph, &p, &exclude_ids, "artist:", Some(100));
 
     let active_seed_set: HashSet<String> = active_seeds.iter().map(|s| s.to_string()).collect();
     let mut affinitive_artist_keys: HashSet<String> = active_seed_set
@@ -253,7 +253,7 @@ pub fn run_recommendation_pipeline(
         .filter(|s| s.starts_with("artist:"))
         .cloned()
         .collect();
-    for a in top_diffused_artists.iter().take(12) {
+    for a in top_diffused_artists.iter().take(50) {
         affinitive_artist_keys.insert(a.node_key.clone());
     }
 

@@ -156,15 +156,23 @@ pub fn search_entities_sync(
                 CASE WHEN LOWER(title) = LOWER(?) THEN 1 
                      WHEN LOWER(title) LIKE LOWER(?) || '%' THEN 2 
                      ELSE 3 END,
-                positive_reviews DESC NULLS LAST
-            LIMIT 6;
+                CASE WHEN title ILIKE '%Special Edition%' OR title ILIKE '% VR%' OR title ILIKE '%Remaster%' OR title ILIKE '%Deluxe%' THEN 2 ELSE 1 END,
+                positive_reviews DESC NULLS LAST,
+                LENGTH(title) ASC
+            LIMIT 20;
         ";
         if let Ok(mut stmt) = conn.prepare(sql) {
             if let Ok(mut rows) = stmt.query(params![&q_str, &q_str, &q_str, &q_str, &q_str]) {
+                let mut seen_game_titles: HashSet<String> = HashSet::new();
+                let mut games_added = 0usize;
                 while let Ok(Some(r)) = rows.next() {
                     let gid: i64 = r.get(0).unwrap_or_default();
                     let gtitle: String = r.get(1).unwrap_or_default();
                     let gyear: Option<i32> = r.get(2).ok();
+                    let norm_gtitle = crate::recommendation::context::normalize_game_title(&gtitle);
+                    if !seen_game_titles.insert(norm_gtitle) {
+                        continue;
+                    }
                     let nid = format!("game:{}", gid);
                     if seen.insert(nid.clone()) {
                         let year_str = gyear.map(|y| format!(" ({})", y)).unwrap_or_default();
@@ -175,6 +183,10 @@ pub fn search_entities_sync(
                             subtitle: Some(format!("Game{}", year_str)),
                             extra: None,
                         });
+                        games_added += 1;
+                        if games_added >= 6 {
+                            break;
+                        }
                     }
                 }
             }

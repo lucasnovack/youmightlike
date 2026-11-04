@@ -26,8 +26,11 @@ pub struct RecContext<'a> {
 
 pub const MIN_REC_SCORE: f32 = 5e-5;
 
-/// Filter list of generic Steam infrastructure and accessibility tags
+/// Filter list of generic Steam infrastructure, accessibility, hardware platform, and nationality metadata tags
 pub fn is_steam_noise_tag(tag: &str) -> bool {
+    if tag.starts_with("console-") {
+        return true;
+    }
     matches!(
         tag,
         "adjustable difficulty"
@@ -84,6 +87,30 @@ pub fn is_steam_noise_tag(tag: &str) -> bool {
             | "vr support"
             | "vr supported"
             | "valve anti-cheat enabled"
+            | "american"
+            | "united states"
+            | "usa"
+            | "u.s.a."
+            | "british"
+            | "uk"
+            | "united kingdom"
+            | "english"
+            | "england"
+            | "canadian"
+            | "canada"
+            | "australian"
+            | "australia"
+            | "german"
+            | "germany"
+            | "french"
+            | "france"
+            | "japanese"
+            | "japan"
+            | "swedish"
+            | "sweden"
+            | "polish"
+            | "poland"
+            | "european"
     )
 }
 

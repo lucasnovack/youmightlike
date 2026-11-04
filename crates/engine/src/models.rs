@@ -426,6 +426,9 @@ pub fn collect_node_tags(
     for (kid, _) in tag_edges {
         if seen.insert(kid) {
             if let Some(name) = catalog.keywords.get(&kid) {
+                if crate::recommendation::context::is_steam_noise_tag(name.as_str()) {
+                    continue;
+                }
                 tags.push(format!("#{}", name));
                 if tags.len() >= max_tags {
                     break;

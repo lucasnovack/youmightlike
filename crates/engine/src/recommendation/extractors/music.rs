@@ -32,8 +32,20 @@ pub fn extract_music(
             seen_artist_names.insert("ye".to_string());
         }
 
+        let has_music_seeds = ctx
+            .active_seed_set
+            .iter()
+            .any(|s| s.starts_with("artist:") || s.starts_with("track:"));
+        let max_ost_composers = if has_music_seeds {
+            1usize
+        } else {
+            (artist_quota / 2).max(2)
+        };
+        let mut ost_composers_added = 0usize;
+        let mut ost_games_covered: HashSet<i64> = HashSet::new();
+
         let top_diffused_artists =
-            top_k_from_scores(&ctx.state.graph, ctx.p, ctx.exclude_ids, "artist:", Some(30));
+            top_k_from_scores(&ctx.state.graph, ctx.p, ctx.exclude_ids, "artist:", Some(250));
 
         for item in &top_diffused_artists {
             if item.score < ctx.min_rec_score {
@@ -63,7 +75,7 @@ pub fn extract_music(
                 .to_lowercase()
                 .replace('’', "'")
                 .replace(['\u{2010}', '\u{2011}', '\u{2012}', '\u{2013}', '\u{2014}'], "-");
-            if !seen_artist_names.insert(aname_norm) {
+            if seen_artist_names.contains(&aname_norm) {
                 continue;
             }
 
@@ -72,13 +84,17 @@ pub fn extract_music(
             let mut direct_co_listening = false;
             let mut shared_tags: Vec<String> = Vec::new();
             let mut best_artist_bridge: Option<(String, String, String, f32)> = None;
+            let mut matched_seed_game: Option<i64> = None;
 
-            for e in out_edges {
+            for e in &out_edges {
                 if (e.relation_type == "soundtrack_composer" || e.relation_type == "soundtrack_for")
                     && ctx.seed_games.contains(&parse_node_key(e.target_key).map(|(_, id)| id).unwrap_or(0))
                 {
                     if let Some(("game", gid)) = parse_node_key(e.target_key) {
                         if let Some(g) = ctx.state.catalog.games.get(&gid) {
+                            if matched_seed_game.is_none() {
+                                matched_seed_game = Some(gid);
+                            }
                             explanation_parts.push(if ctx.is_pt {
                                 format!("Compositor da trilha de {}", g.title)
                             } else {
@@ -126,23 +142,42 @@ pub fn extract_music(
                     if let Some(("keyword", kid)) = parse_node_key(e.target_key) {
                         if ctx.seed_tag_counts.contains_key(&kid) && shared_tags.len() < 3 {
                             if let Some(kname) = ctx.state.catalog.keywords.get(&kid) {
-                                let tfmt = format!("#{}", kname);
-                                if !shared_tags.contains(&tfmt) {
-                                    shared_tags.push(tfmt);
-                                }
-                                if best_artist_bridge.is_none() && !is_steam_noise_tag(kname.as_str()) {
-                                    best_artist_bridge = Some((
-                                        e.target_key.to_string(),
-                                        format!("#{}", kname),
-                                        "keyword".to_string(),
-                                        e.base_weight,
-                                    ));
+                                if !is_steam_noise_tag(kname.as_str()) {
+                                    let tfmt = format!("#{}", kname);
+                                    if !shared_tags.contains(&tfmt) {
+                                        shared_tags.push(tfmt);
+                                    }
+                                    if best_artist_bridge.is_none() {
+                                        best_artist_bridge = Some((
+                                            e.target_key.to_string(),
+                                            format!("#{}", kname),
+                                            "keyword".to_string(),
+                                            e.base_weight,
+                                        ));
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
+
+            let is_vgm_composer = out_edges.iter().any(|e| {
+                e.relation_type == "soundtrack_for" || e.relation_type == "soundtrack_composer"
+            });
+
+            // Prevent 1-hop or 2-hop game soundtrack composers from starving music seeds
+            if is_vgm_composer && !direct_co_listening {
+                if let Some(gid) = matched_seed_game {
+                    if ost_composers_added >= max_ost_composers || !ost_games_covered.insert(gid) {
+                        continue;
+                    }
+                    ost_composers_added += 1;
+                } else if has_music_seeds || !ctx.seed_games.is_empty() {
+                    continue;
+                }
+            }
+            seen_artist_names.insert(aname_norm);
 
             if !shared_tags.is_empty() {
                 let tags_joined = shared_tags.join(", ");
