@@ -20,25 +20,26 @@
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/constellation.css">
 </head>
-<body class="h-screen overflow-hidden flex flex-col font-mono text-[12px] leading-relaxed antialiased">
-  <div id="app" class="flex flex-col h-full">
+<body class="h-screen overflow-hidden flex flex-col font-mono text-[12px] leading-relaxed antialiased bg-slate-50 text-slate-800">
+  <div id="app" class="flex flex-col h-full relative">
 
     <!-- Top Header -->
-    <header class="h-13 border-b border-canvas-border bg-white/95 backdrop-blur px-5 py-2 flex items-center justify-between z-30 shrink-0">
+    <header class="h-14 border-b border-slate-200 bg-white/95 backdrop-blur px-5 py-2.5 flex items-center justify-between z-30 shrink-0">
       <div class="flex items-center gap-3">
-        <span class="font-bold tracking-tight text-[13px] text-canvas-text flex items-center gap-2">
+        <span class="font-bold tracking-tight text-[13px] text-slate-900 flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
           youmightlike
-          <span class="text-[9px] text-canvas-sage uppercase font-bold border border-canvas-sage/30 px-1.5 py-0.5 rounded bg-canvas-sage/10">constellation v2</span>
+          <span class="text-[9px] text-indigo-700 uppercase font-bold border border-indigo-200 px-1.5 py-0.5 rounded-md bg-indigo-50">constellation v2</span>
         </span>
       </div>
 
-      <!-- Explicit Search Bar -->
-      <div id="search-box-wrapper" class="relative w-[540px]">
-        <form @submit.prevent="executeSearch" class="relative flex items-center border border-canvas-border focus-within:border-canvas-text rounded-md bg-canvas-sidebar focus-within:bg-white transition-all overflow-hidden">
+      <!-- Search Bar -->
+      <div id="search-box-wrapper" class="relative w-[520px]">
+        <form @submit.prevent="executeSearch" class="relative flex items-center border border-slate-200 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 rounded-xl bg-slate-50 focus-within:bg-white transition-all overflow-hidden shadow-2xs">
           <select
             v-model="searchType"
             @change="onSearchTypeChange"
-            class="bg-transparent border-r border-canvas-border px-2.5 py-1.5 text-[10px] font-bold text-canvas-muted focus:outline-none cursor-pointer"
+            class="bg-transparent border-r border-slate-200 px-3 py-1.5 text-[10px] font-bold text-slate-500 focus:outline-none cursor-pointer"
           >
             <option value="">{{ t('allTypes') }}</option>
             <option value="game">{{ t('typeGames') }}</option>
@@ -49,20 +50,20 @@
             <option value="keyword">#Tags</option>
           </select>
 
-          <span class="pl-3 text-canvas-muted text-[11px] font-bold">›</span>
+          <span class="pl-3 text-slate-400 text-[11px] font-bold">›</span>
           <input
             type="text"
             v-model="searchQuery"
             @keydown.escape="clearSearch"
             :placeholder="getSearchPlaceholder()"
-            class="w-full bg-transparent px-2.5 py-1.5 text-xs text-canvas-text placeholder-canvas-muted/60 focus:outline-none"
+            class="w-full bg-transparent px-2.5 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none"
           />
 
           <button
             v-if="searchQuery.length > 0 || searchResults.length > 0 || hasSearched"
             type="button"
             @click="clearSearch"
-            class="px-2 text-canvas-muted hover:text-canvas-coral font-bold text-xs cursor-pointer"
+            class="px-2 text-slate-400 hover:text-rose-600 font-bold text-xs cursor-pointer"
             :title="t('clearSearchBtn')"
           >
             ×
@@ -71,7 +72,7 @@
           <button
             type="submit"
             :disabled="isSearching || searchQuery.trim().length === 0"
-            class="bg-canvas-text hover:bg-black disabled:opacity-40 text-white font-bold text-[10px] uppercase tracking-wider px-3.5 py-1.5 transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer"
+            class="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-[10px] uppercase tracking-wider px-3.5 py-2 transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer"
           >
             <span v-if="isSearching" class="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
             <span>{{ t('searchBtn') }}</span>
@@ -79,48 +80,49 @@
         </form>
 
         <!-- Search Dropdown -->
-        <div v-if="searchResults.length > 0" class="absolute top-10 left-0 right-0 bg-white border border-canvas-border rounded-lg shadow-xl p-1.5 z-50 max-h-80 overflow-y-auto">
+        <div v-if="searchResults.length > 0" class="absolute top-11 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl p-1.5 z-50 max-h-80 overflow-y-auto">
           <div
             v-for="item in searchResults"
             :key="item.id"
             @click="addSeed(item)"
-            class="flex items-center justify-between px-3 py-2 hover:bg-canvas-sidebar rounded cursor-pointer transition-colors group"
+            class="flex items-center justify-between px-3 py-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors group"
           >
             <div class="flex items-center gap-2.5 truncate">
               <span
                 :class="getTypeBadgeClass(item.type)"
-                class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border shrink-0 w-16 text-center"
+                class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border shrink-0 w-20 text-center flex items-center justify-center gap-1"
               >
-                {{ item.type }}
+                <span>{{ getTypeIcon(item.type) }}</span>
+                <span>{{ item.type }}</span>
               </span>
               <div class="truncate">
-                <span class="text-xs font-semibold text-canvas-text group-hover:text-canvas-denim transition-colors">{{ item.name }}</span>
-                <span v-if="item.subtitle" class="text-[10px] text-canvas-muted ml-1.5">({{ item.subtitle }})</span>
+                <span class="text-xs font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">{{ item.name }}</span>
+                <span v-if="item.subtitle" class="text-[10px] text-slate-400 ml-1.5">({{ item.subtitle }})</span>
               </div>
             </div>
-            <span class="text-[10px] font-bold text-canvas-coral opacity-0 group-hover:opacity-100 transition-opacity shrink-0">{{ t('addBtn') }}</span>
+            <span class="text-[10px] font-bold text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">{{ t('addBtn') }}</span>
           </div>
         </div>
-        <div v-else-if="hasSearched && !isSearching" class="absolute top-10 left-0 right-0 bg-white border border-canvas-border rounded-lg shadow-xl px-4 py-3 z-50 text-xs text-canvas-muted flex items-center justify-between">
+        <div v-else-if="hasSearched && !isSearching" class="absolute top-11 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl px-4 py-3 z-50 text-xs text-slate-500 flex items-center justify-between">
           <span>{{ t('noSearchResults') }}</span>
-          <button @click="clearSearch" class="text-[10px] font-bold text-canvas-coral hover:underline cursor-pointer">[fechar]</button>
+          <button @click="clearSearch" class="text-[10px] font-bold text-rose-600 hover:underline cursor-pointer">[fechar]</button>
         </div>
       </div>
 
       <!-- Right Controls -->
-      <div class="flex items-center gap-3 text-xs text-canvas-muted">
-        <div class="flex items-center border border-canvas-border rounded bg-canvas-sidebar overflow-hidden text-[10px] font-mono font-bold">
+      <div class="flex items-center gap-3 text-xs text-slate-500">
+        <div class="flex items-center border border-slate-200 rounded-lg bg-slate-50 overflow-hidden text-[10px] font-mono font-bold">
           <button
             @click="setLang('pt')"
-            :class="{'bg-canvas-text text-white': currentLang === 'pt', 'text-canvas-muted hover:text-canvas-text': currentLang !== 'pt'}"
-            class="px-2 py-0.5 transition-colors cursor-pointer"
+            :class="{'bg-slate-800 text-white': currentLang === 'pt', 'text-slate-500 hover:text-slate-900': currentLang !== 'pt'}"
+            class="px-2.5 py-1 transition-colors cursor-pointer"
           >
             PT
           </button>
           <button
             @click="setLang('en')"
-            :class="{'bg-canvas-text text-white': currentLang === 'en', 'text-canvas-muted hover:text-canvas-text': currentLang !== 'en'}"
-            class="px-2 py-0.5 border-l border-canvas-border transition-colors cursor-pointer"
+            :class="{'bg-slate-800 text-white': currentLang === 'en', 'text-slate-500 hover:text-slate-900': currentLang !== 'en'}"
+            class="px-2.5 py-1 border-l border-slate-200 transition-colors cursor-pointer"
           >
             EN
           </button>
@@ -129,151 +131,153 @@
         <button
           @click="clearProfile"
           v-if="profileSeeds.length > 0"
-          class="text-[10px] font-bold text-canvas-coral hover:underline transition-colors cursor-pointer"
+          class="text-[10px] font-bold text-rose-600 hover:underline transition-colors cursor-pointer"
         >
           [{{ t('reset') }}]
         </button>
       </div>
     </header>
 
-    <!-- Main Split Workspace: Dual-Mode Sidebar Left + Native Radial Constellation Right -->
-    <div class="flex-1 flex overflow-hidden">
+    <!-- Main Split Workspace: Left Discoveries/Inspector + Full Height Canvas Right -->
+    <div class="flex-1 flex overflow-hidden relative">
 
-      <!-- LEFT SIDEBAR (480px) -->
-      <aside class="w-[480px] border-r border-canvas-border flex flex-col bg-white z-10 shrink-0">
+      <!-- LEFT SIDEBAR -->
+      <aside class="w-[430px] border-r border-slate-200 flex flex-col bg-white z-10 shrink-0 shadow-sm">
 
-        <!-- Primary Sidebar Mode Switcher -->
-        <div class="border-b border-canvas-border bg-canvas-sidebar px-3 pt-2.5 pb-2 shrink-0">
-          <div class="grid grid-cols-2 gap-1.5 bg-white p-1 rounded-lg border border-canvas-border">
+        <!-- Sidebar Tab Switcher -->
+        <div class="border-b border-slate-200 bg-slate-50 px-3.5 pt-2.5 pb-2 shrink-0">
+          <div class="grid grid-cols-2 gap-1.5 bg-slate-200/60 p-1 rounded-xl border border-slate-200">
             <button
               @click="sidebarMode = 'discoveries'"
-              :class="sidebarMode === 'discoveries' ? 'bg-canvas-text text-white shadow-xs' : 'text-canvas-muted hover:text-canvas-text'"
-              class="py-1.5 px-2.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              :class="sidebarMode === 'discoveries' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'"
+              class="py-1.5 px-2.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <span>{{ t('modeDiscoveries') }}</span>
-              <span class="px-1.5 py-0.2 rounded text-[9px]" :class="sidebarMode === 'discoveries' ? 'bg-white/20 text-white' : 'bg-canvas-sidebar text-canvas-text'">
+              <span class="px-1.5 py-0.2 rounded-full text-[9px]" :class="sidebarMode === 'discoveries' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'bg-slate-200 text-slate-600'">
                 {{ recommendations.length }}
               </span>
             </button>
             <button
               @click="sidebarMode = 'inspector'"
-              :class="sidebarMode === 'inspector' ? 'bg-canvas-coral text-white shadow-xs' : 'text-canvas-muted hover:text-canvas-text'"
-              class="py-1.5 px-2.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              :class="sidebarMode === 'inspector' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'"
+              class="py-1.5 px-2.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <span v-if="selectedNodeIds.length > 0" class="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></span>
+              <span v-if="selectedNodeIds.length > 0" class="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span>
               <span>{{ t('modeInspector') }}</span>
-              <span v-if="selectedNodeIds.length > 0" class="px-1.5 py-0.2 rounded text-[9px]" :class="sidebarMode === 'inspector' ? 'bg-white/20 text-white' : 'bg-canvas-coral/15 text-canvas-coral'">
+              <span v-if="selectedNodeIds.length > 0" class="px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-50 text-indigo-700 font-bold">
                 {{ selectedNodeIds.length }}
               </span>
             </button>
           </div>
 
-          <!-- Domain Filter Bar (Visible in Discoveries mode) -->
-          <div v-if="sidebarMode === 'discoveries'" class="mt-2 flex items-center justify-between gap-1">
-            <div class="flex items-center border border-canvas-border rounded-md bg-white overflow-hidden text-[9px] font-bold w-full">
+          <!-- Domain Filter Bar (Discoveries Mode) -->
+          <div v-if="sidebarMode === 'discoveries'" class="mt-2.5 flex items-center justify-between gap-1">
+            <div class="flex items-center border border-slate-200 rounded-lg bg-white overflow-hidden text-[9px] font-bold w-full p-0.5">
               <button
                 @click="setDomainFilter(null)"
-                :class="targetFilter === null ? 'bg-canvas-text text-white' : 'text-canvas-muted hover:text-canvas-text'"
+                :class="targetFilter === null ? 'bg-slate-800 text-white rounded' : 'text-slate-500 hover:text-slate-900'"
                 class="flex-1 py-1 text-center transition-colors cursor-pointer"
               >
                 {{ t('filterAll') }}
               </button>
               <button
                 @click="setDomainFilter('game')"
-                :class="targetFilter === 'game' ? 'bg-canvas-denim text-white' : 'text-canvas-muted hover:text-canvas-text'"
-                class="flex-1 py-1 border-l border-canvas-border text-center transition-colors cursor-pointer"
+                :class="targetFilter === 'game' ? 'bg-blue-600 text-white rounded' : 'text-slate-500 hover:text-slate-900'"
+                class="flex-1 py-1 border-l border-slate-100 text-center transition-colors cursor-pointer"
               >
-                {{ t('filterGames') }} ({{ domainCounts.game }})
+                🎮 ({{ domainCounts.game }})
               </button>
               <button
                 @click="setDomainFilter('music')"
-                :class="targetFilter === 'music' ? 'bg-canvas-sage text-white' : 'text-canvas-muted hover:text-canvas-text'"
-                class="flex-1 py-1 border-l border-canvas-border text-center transition-colors cursor-pointer"
+                :class="targetFilter === 'music' ? 'bg-teal-600 text-white rounded' : 'text-slate-500 hover:text-slate-900'"
+                class="flex-1 py-1 border-l border-slate-100 text-center transition-colors cursor-pointer"
               >
-                {{ t('filterMusic') }} ({{ domainCounts.music }})
+                🎵 ({{ domainCounts.music }})
               </button>
               <button
                 @click="setDomainFilter('movie')"
-                :class="targetFilter === 'movie' ? 'bg-canvas-amber text-white' : 'text-canvas-muted hover:text-canvas-text'"
-                class="flex-1 py-1 border-l border-canvas-border text-center transition-colors cursor-pointer"
+                :class="targetFilter === 'movie' ? 'bg-amber-600 text-white rounded' : 'text-slate-500 hover:text-slate-900'"
+                class="flex-1 py-1 border-l border-slate-100 text-center transition-colors cursor-pointer"
               >
-                {{ t('filterFilms') }} ({{ domainCounts.movie }})
+                🎬 ({{ domainCounts.movie }})
               </button>
               <button
                 @click="setDomainFilter('series')"
-                :class="targetFilter === 'series' ? 'bg-canvas-violet text-white' : 'text-canvas-muted hover:text-canvas-text'"
-                class="flex-1 py-1 border-l border-canvas-border text-center transition-colors cursor-pointer"
+                :class="targetFilter === 'series' ? 'bg-purple-600 text-white rounded' : 'text-slate-500 hover:text-slate-900'"
+                class="flex-1 py-1 border-l border-slate-100 text-center transition-colors cursor-pointer"
               >
-                {{ t('filterSeries') }} ({{ domainCounts.series }})
+                📺 ({{ domainCounts.series }})
               </button>
             </div>
           </div>
         </div>
 
         <!-- =============================================================== -->
-        <!-- MODE 1: LIVE NODE INSPECTOR & REAL-TIME SUBGRAPH EXPANSION      -->
+        <!-- MODE 1: LIVE NODE INSPECTOR                                     -->
         <!-- =============================================================== -->
-        <div v-if="sidebarMode === 'inspector'" class="flex-1 overflow-y-auto p-3.5 space-y-3.5">
-          <div v-if="inspectedNodes.length === 0" class="text-center py-20 px-6 border border-dashed border-canvas-border rounded-xl bg-canvas-sidebar/40">
-            <div class="text-xs font-bold text-canvas-text mb-1">{{ t('noNodeSelectedTitle') }}</div>
-            <p class="text-[11px] text-canvas-muted leading-relaxed">
+        <div v-if="sidebarMode === 'inspector'" class="flex-1 overflow-y-auto p-4 space-y-3.5">
+          <div v-if="inspectedNodes.length === 0" class="text-center py-20 px-6 border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+            <div class="text-2xl mb-2">🔍</div>
+            <div class="text-xs font-bold text-slate-800 mb-1">{{ t('noNodeSelectedTitle') }}</div>
+            <p class="text-[11px] text-slate-500 leading-relaxed">
               {{ t('noNodeSelectedDesc') }}
             </p>
           </div>
 
           <template v-else>
             <div class="flex items-center justify-between">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-canvas-muted">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 {{ inspectedNodes.length === 1 ? t('inspecting1') : inspectedNodes.length + ' ' + t('inspectingMulti') }}
               </span>
               <button
                 @click="clearSelection"
-                class="text-[9px] font-bold text-canvas-coral hover:underline uppercase cursor-pointer"
+                class="text-[9px] font-bold text-rose-600 hover:underline uppercase cursor-pointer"
               >
                 [{{ t('clearSelectionBtn') }}]
               </button>
             </div>
 
-            <!-- Selected Node Cards with Clickable Tags -->
-            <div class="space-y-2">
+            <!-- Selected Node Cards -->
+            <div class="space-y-2.5">
               <div
                 v-for="node in inspectedNodes"
                 :key="node.id"
-                class="p-3 rounded-lg bg-canvas-sidebar/70 border border-canvas-borderDark/80"
+                class="p-3.5 rounded-xl bg-slate-50 border border-slate-200"
               >
                 <div class="flex items-start justify-between gap-2">
                   <div>
                     <div class="flex items-center gap-1.5">
                       <span
                         :class="getTypeBadgeClass(getRawType(node))"
-                        class="text-[8px] uppercase font-bold px-1.5 py-0.5 rounded border"
+                        class="text-[8px] uppercase font-bold px-1.5 py-0.5 rounded border flex items-center gap-1"
                       >
-                        {{ getRawType(node) }}
+                        <span>{{ getTypeIcon(getRawType(node)) }}</span>
+                        <span>{{ getRawType(node) }}</span>
                       </span>
-                      <h4 class="font-bold text-canvas-text text-xs">{{ node.label }}</h4>
+                      <h4 class="font-bold text-slate-900 text-xs">{{ node.label }}</h4>
                     </div>
-                    <p v-if="node.desc" class="text-[10px] text-canvas-muted mt-0.5">{{ node.desc }}</p>
+                    <p v-if="node.desc" class="text-[10px] text-slate-500 mt-1">{{ node.desc }}</p>
                   </div>
 
                   <button
                     v-if="!isNodeInProfile(node.id)"
                     @click="addNodeToProfile(node)"
-                    class="px-2.5 py-1 bg-canvas-coral hover:opacity-90 text-white rounded text-[9px] font-bold shrink-0 cursor-pointer transition-opacity"
+                    class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[9px] font-bold shrink-0 cursor-pointer transition-colors"
                   >
                     {{ t('addNodeToLikes') }}
                   </button>
                   <button
                     v-else
                     @click="removeSeed(node.id)"
-                    class="px-2 py-1 bg-canvas-coral/10 border border-canvas-coral/30 text-canvas-coral rounded text-[9px] font-bold shrink-0 cursor-pointer hover:bg-canvas-coral hover:text-white transition-colors"
+                    class="px-2 py-1 bg-rose-50 border border-rose-200 text-rose-600 rounded-lg text-[9px] font-bold shrink-0 cursor-pointer hover:bg-rose-600 hover:text-white transition-colors"
                   >
                     {{ t('removeFromLikes') }} ×
                   </button>
                 </div>
 
-                <!-- Clickable Tags on Inspected Node -->
-                <div v-if="node.tags && node.tags.length > 0" class="mt-2.5 pt-2 border-t border-canvas-border">
-                  <span class="text-[8px] uppercase font-bold text-canvas-muted tracking-wider block mb-1.5">
+                <!-- Clickable Tags -->
+                <div v-if="node.tags && node.tags.length > 0" class="mt-2.5 pt-2 border-t border-slate-200">
+                  <span class="text-[8px] uppercase font-bold text-slate-400 tracking-wider block mb-1.5">
                     {{ t('clickableTagsHint') }}
                   </span>
                   <div class="flex flex-wrap gap-1">
@@ -281,7 +285,7 @@
                       v-for="tagStr in node.tags"
                       :key="tagStr"
                       @click="searchAndAddTag(tagStr)"
-                      class="px-2 py-0.5 bg-white hover:bg-canvas-text hover:text-white border border-canvas-border rounded text-[9px] text-canvas-text font-mono transition-colors cursor-pointer"
+                      class="px-2 py-0.5 bg-white hover:bg-indigo-600 hover:text-white border border-slate-200 rounded text-[9px] text-slate-700 font-mono transition-colors cursor-pointer"
                     >
                       {{ tagStr }} +
                     </button>
@@ -290,56 +294,56 @@
               </div>
             </div>
 
-            <!-- Live Expansion Results from Engine for Selected Node(s) -->
-            <div class="pt-2 border-t border-canvas-border">
+            <!-- Live Expansion Results -->
+            <div class="pt-3 border-t border-slate-200">
               <div class="flex items-center justify-between mb-2">
                 <div>
-                  <span class="text-[10px] uppercase font-bold text-canvas-text tracking-wider block">
+                  <span class="text-[10px] uppercase font-bold text-slate-800 tracking-wider block">
                     {{ t('liveExpansionTitle') }}
                   </span>
-                  <span class="text-[9px] text-canvas-muted">
+                  <span class="text-[9px] text-slate-500">
                     {{ t('liveExpansionSubtitle') }}
                   </span>
                 </div>
-                <span v-if="isLoadingInspectorRecs" class="w-3 h-3 border-2 border-canvas-coral/30 border-t-canvas-coral rounded-full animate-spin"></span>
+                <span v-if="isLoadingInspectorRecs" class="w-3 h-3 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></span>
               </div>
 
-              <!-- Domain Filter inside Live Inspector -->
-              <div class="flex items-center border border-canvas-border rounded-md bg-canvas-sidebar overflow-hidden text-[9px] font-bold mb-2.5">
+              <!-- Domain Filter in Inspector -->
+              <div class="flex items-center border border-slate-200 rounded-lg bg-slate-50 overflow-hidden text-[9px] font-bold mb-2.5">
                 <button
                   @click="setInspectorFilter(null)"
-                  :class="inspectorFilter === null ? 'bg-canvas-text text-white' : 'text-canvas-muted hover:text-canvas-text'"
+                  :class="inspectorFilter === null ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-900'"
                   class="flex-1 py-1 text-center transition-colors cursor-pointer"
                 >
                   {{ t('filterAll') }}
                 </button>
                 <button
                   @click="setInspectorFilter('game')"
-                  :class="inspectorFilter === 'game' ? 'bg-canvas-denim text-white' : 'text-canvas-muted hover:text-canvas-text'"
-                  class="flex-1 py-1 border-l border-canvas-border text-center transition-colors cursor-pointer"
+                  :class="inspectorFilter === 'game' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-900'"
+                  class="flex-1 py-1 border-l border-slate-200 text-center transition-colors cursor-pointer"
                 >
-                  {{ t('filterGames') }}
+                  🎮
                 </button>
                 <button
                   @click="setInspectorFilter('music')"
-                  :class="inspectorFilter === 'music' ? 'bg-canvas-sage text-white' : 'text-canvas-muted hover:text-canvas-text'"
-                  class="flex-1 py-1 border-l border-canvas-border text-center transition-colors cursor-pointer"
+                  :class="inspectorFilter === 'music' ? 'bg-teal-600 text-white' : 'text-slate-500 hover:text-slate-900'"
+                  class="flex-1 py-1 border-l border-slate-200 text-center transition-colors cursor-pointer"
                 >
-                  {{ t('filterMusic') }}
+                  🎵
                 </button>
                 <button
                   @click="setInspectorFilter('movie')"
-                  :class="inspectorFilter === 'movie' ? 'bg-canvas-amber text-white' : 'text-canvas-muted hover:text-canvas-text'"
-                  class="flex-1 py-1 border-l border-canvas-border text-center transition-colors cursor-pointer"
+                  :class="inspectorFilter === 'movie' ? 'bg-amber-600 text-white' : 'text-slate-500 hover:text-slate-900'"
+                  class="flex-1 py-1 border-l border-slate-200 text-center transition-colors cursor-pointer"
                 >
-                  {{ t('filterFilms') }}
+                  🎬
                 </button>
                 <button
                   @click="setInspectorFilter('series')"
-                  :class="inspectorFilter === 'series' ? 'bg-canvas-violet text-white' : 'text-canvas-muted hover:text-canvas-text'"
-                  class="flex-1 py-1 border-l border-canvas-border text-center transition-colors cursor-pointer"
+                  :class="inspectorFilter === 'series' ? 'bg-purple-600 text-white' : 'text-slate-500 hover:text-slate-900'"
+                  class="flex-1 py-1 border-l border-slate-200 text-center transition-colors cursor-pointer"
                 >
-                  {{ t('filterSeries') }}
+                  📺
                 </button>
               </div>
 
@@ -350,33 +354,34 @@
                   :key="sug.id"
                   @mouseenter="setHoveredNode(sug.id)"
                   @mouseleave="setHoveredNode(null)"
-                  class="bg-white border border-canvas-border hover:border-canvas-coral p-2.5 rounded-lg transition-all shadow-2xs"
+                  class="bg-white border border-slate-200 hover:border-indigo-500 p-2.5 rounded-xl transition-all shadow-2xs"
                 >
                   <div class="flex items-start justify-between gap-2">
                     <div class="truncate">
                       <div class="flex items-center gap-1.5">
                         <span
                           :class="getTypeBadgeClass(sug.type)"
-                          class="text-[8px] uppercase font-bold px-1.5 py-0.5 rounded border shrink-0"
+                          class="text-[8px] uppercase font-bold px-1.5 py-0.5 rounded border shrink-0 flex items-center gap-0.5"
                         >
-                          {{ sug.type }}
+                          <span>{{ getTypeIcon(sug.type) }}</span>
+                          <span>{{ sug.type }}</span>
                         </span>
-                        <span class="text-xs font-bold text-canvas-text truncate">{{ sug.title }}</span>
+                        <span class="text-xs font-bold text-slate-800 truncate">{{ sug.title }}</span>
                       </div>
-                      <p class="text-[10px] text-canvas-muted mt-0.5">{{ sug.subtitle }}</p>
+                      <p class="text-[10px] text-slate-400 mt-0.5">{{ sug.subtitle }}</p>
                     </div>
                     <button
                       v-if="!isNodeInProfile(sug.id)"
                       @click="addSeed({ id: sug.id, name: sug.title, type: sug.type, subtitle: sug.subtitle })"
-                      class="px-2.5 py-1 bg-canvas-coral text-white rounded text-[9px] font-bold shrink-0 hover:opacity-90 transition-opacity cursor-pointer"
+                      class="px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-[9px] font-bold shrink-0 hover:bg-indigo-700 transition-colors cursor-pointer"
                     >
                       {{ t('addBtn') }}
                     </button>
-                    <span v-else class="text-[9px] font-bold text-canvas-sage shrink-0">
+                    <span v-else class="text-[9px] font-bold text-teal-600 shrink-0">
                       {{ t('alreadyInLikes') }}
                     </span>
                   </div>
-                  <div v-if="sug.reason" class="mt-1.5 text-[9px] text-canvas-sage bg-canvas-sage/10 px-2 py-1 rounded border border-canvas-sage/20">
+                  <div v-if="sug.reason" class="mt-1.5 text-[9px] text-slate-600 bg-slate-50 px-2 py-1 rounded border border-slate-200">
                     ↳ {{ sug.reason }}
                   </div>
                 </div>
@@ -388,53 +393,55 @@
         <!-- =============================================================== -->
         <!-- MODE 2: CATEGORIZED DISCOVERIES FEED                            -->
         <!-- =============================================================== -->
-        <div v-else class="flex-1 overflow-y-auto p-3.5 space-y-4">
-          <div v-if="recommendations.length === 0 && !isLoadingRecs" class="text-center py-24 text-canvas-muted text-xs">
+        <div v-else class="flex-1 overflow-y-auto p-4 space-y-4">
+          <div v-if="recommendations.length === 0 && !isLoadingRecs" class="text-center py-28 text-slate-400 text-xs">
             {{ t('emptyFeed') }}
           </div>
 
           <template v-for="group in groupedRecommendations" :key="group.key">
-            <div v-if="group.items.length > 0" class="space-y-2">
-              <div class="flex items-center justify-between border-b border-canvas-border pb-1.5">
+            <div v-if="group.items.length > 0" class="space-y-2.5">
+              <div class="flex items-center justify-between border-b border-slate-200 pb-1.5">
                 <div class="flex items-center gap-2">
                   <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: group.color }"></span>
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-canvas-text">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-slate-800">
                     {{ group.label }} ({{ group.items.length }})
                   </span>
                 </div>
                 <button
                   v-if="targetFilter === null && group.filterType"
                   @click="setDomainFilter(group.filterType)"
-                  class="text-[9px] font-bold text-canvas-denim hover:underline cursor-pointer"
+                  class="text-[9px] font-bold text-indigo-600 hover:underline cursor-pointer"
                 >
                   {{ t('seeMoreDomain') }} →
                 </button>
               </div>
 
+              <!-- Recommendation Card -->
               <div
                 v-for="rec in group.items"
                 :key="rec.id"
                 @mouseenter="setHoveredNode(rec.id)"
                 @mouseleave="setHoveredNode(null)"
-                class="bg-white hover:bg-canvas-sidebar/60 border border-canvas-border hover:border-canvas-text/40 p-3 rounded-lg shadow-2xs transition-all group"
+                class="bg-white hover:bg-slate-50 border border-slate-200 hover:border-indigo-400 p-3 rounded-xl shadow-2xs transition-all group relative"
               >
                 <div class="flex items-start justify-between gap-2 mb-1">
                   <div class="min-w-0">
                     <div class="flex items-center gap-1.5 flex-wrap">
                       <span
                         :class="getTypeBadgeClass(rec.type)"
-                        class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border tracking-wide"
+                        class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border tracking-wide flex items-center gap-1"
                       >
-                        {{ rec.type }}
+                        <span>{{ getTypeIcon(rec.type) }}</span>
+                        <span>{{ rec.type }}</span>
                       </span>
                       <span
                         @click="focusNodeOnGraph(rec.id)"
-                        class="text-xs font-bold text-canvas-text group-hover:text-canvas-denim transition-colors cursor-pointer hover:underline"
+                        class="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors cursor-pointer hover:underline"
                       >
                         {{ rec.title }}
                       </span>
                     </div>
-                    <p class="text-[10px] text-canvas-muted mt-0.5">{{ rec.subtitle }}</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5">{{ rec.subtitle }}</p>
                   </div>
 
                   <div class="flex flex-col items-end shrink-0 text-right">
@@ -450,29 +457,38 @@
                   </div>
                 </div>
 
-                <div v-if="rec.reason" class="mt-2 text-[10px] text-canvas-sage bg-canvas-sage/10 px-2.5 py-1.5 rounded border border-canvas-sage/20 flex items-start gap-1.5 leading-relaxed">
-                  <span class="font-bold shrink-0 mt-0.5">↳ {{ t('path') }}</span>
-                  <span class="font-medium break-words">{{ rec.reason }}</span>
+                <!-- Explanation / Reason (Confluence Bridges highlighted!) -->
+                <div
+                  v-if="rec.reason"
+                  class="mt-2 text-[10px] px-2.5 py-1.5 rounded-lg border flex items-start gap-1.5 leading-relaxed"
+                  :class="isBridgeReason(rec.reason) ? 'bg-indigo-50/80 border-indigo-200 text-indigo-900 font-semibold' : 'bg-slate-50 border-slate-200/80 text-slate-600'"
+                >
+                  <span class="font-bold shrink-0 mt-0.5" :class="isBridgeReason(rec.reason) ? 'text-indigo-600' : 'text-slate-400'">↳</span>
+                  <span class="break-words">{{ rec.reason }}</span>
                 </div>
 
-                <div v-if="rec.top_track" class="mt-1.5 pt-1.5 border-t border-canvas-border/60 flex items-center justify-between text-[10px] text-canvas-muted">
-                  <span class="truncate text-canvas-text font-medium">♪ {{ rec.top_track.title }}</span>
-                  <span class="text-canvas-sage font-mono font-bold shrink-0">{{ t('pop') }} {{ rec.top_track.popularity }}</span>
+                <div v-if="rec.top_track" class="mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500">
+                  <span class="truncate text-slate-800 font-medium">♪ {{ rec.top_track.title }}</span>
+                  <span class="text-teal-600 font-mono font-bold shrink-0">{{ t('pop') }} {{ rec.top_track.popularity }}</span>
                 </div>
 
-                <div class="mt-2.5 flex items-center justify-between pt-1.5 border-t border-canvas-border/50">
+                <div class="mt-2.5 flex items-center justify-between pt-1.5 border-t border-slate-100">
                   <button
                     @click="focusNodeOnGraph(rec.id)"
-                    class="text-[9px] font-bold text-canvas-muted hover:text-canvas-text cursor-pointer"
+                    class="text-[9px] font-bold text-slate-400 hover:text-slate-800 cursor-pointer flex items-center gap-1"
                   >
                     ◎ {{ t('focusInGraph') }}
                   </button>
                   <button
+                    v-if="!isNodeInProfile(rec.id)"
                     @click="addSeed({ id: rec.id, name: rec.title, type: rec.type, subtitle: rec.subtitle })"
-                    class="px-2.5 py-1 bg-canvas-coral/10 hover:bg-canvas-coral text-canvas-coral hover:text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
+                    class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-lg text-[9px] font-bold transition-colors cursor-pointer"
                   >
                     {{ t('addToProfile') }}
                   </button>
+                  <span v-else class="text-[9px] font-bold text-teal-600">
+                    {{ t('alreadyInLikes') }}
+                  </span>
                 </div>
               </div>
             </div>
@@ -481,41 +497,41 @@
       </aside>
 
       <!-- ================================================================= -->
-      <!-- RIGHT: ZERO-FREEZE NATIVE HTML5 CANVAS 3-RING CONSTELLATION       -->
+      <!-- RIGHT: ZERO-FREEZE NATIVE HTML5 CANVAS CONSTELLATION              -->
       <!-- ================================================================= -->
-      <section class="flex-1 relative bg-canvas-bg flex flex-col overflow-hidden select-none">
+      <section class="flex-1 relative bg-slate-50 flex flex-col overflow-hidden select-none">
 
         <!-- Top-Left Compact Controls + Collapsible Legend -->
         <div class="constellation-controls flex flex-col items-start gap-2 max-w-sm text-[10px]">
-          <div class="glass-panel border border-canvas-border rounded-lg px-2.5 py-1.5 shadow-sm flex flex-wrap items-center gap-1.5">
+          <div class="glass-panel border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-sm flex flex-wrap items-center gap-1.5">
             <button
               @click="showLegend = !showLegend"
-              :class="showLegend ? 'bg-canvas-text text-white border-canvas-text' : 'bg-canvas-sidebar text-canvas-text border-canvas-border hover:border-canvas-text'"
-              class="px-2.5 py-1 rounded border text-[9px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+              :class="showLegend ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400'"
+              class="px-2.5 py-1 rounded-lg border text-[9px] font-bold transition-colors cursor-pointer flex items-center gap-1"
             >
               <span>{{ showLegend ? t('hideLegendBtn') : t('showLegendBtn') }}</span>
             </button>
 
             <button
               @click="fitGraphView"
-              class="px-2 py-1 rounded border border-canvas-border bg-white hover:bg-canvas-sidebar text-[9px] font-bold text-canvas-denim transition-colors cursor-pointer"
+              class="px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-[9px] font-bold text-indigo-600 transition-colors cursor-pointer"
             >
               {{ t('fitView') }}
             </button>
 
-            <span class="h-3.5 w-px bg-canvas-border mx-0.5"></span>
+            <span class="h-3.5 w-px bg-slate-200 mx-0.5"></span>
 
             <button
               @click="onlySharedBridges = !onlySharedBridges; rebuildConstellation()"
-              :class="onlySharedBridges ? 'bg-canvas-text text-white border-canvas-text' : 'bg-canvas-sidebar text-canvas-muted border-canvas-border hover:text-canvas-text'"
-              class="px-2 py-1 rounded border text-[9px] font-bold transition-colors cursor-pointer"
+              :class="onlySharedBridges ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:text-slate-800'"
+              class="px-2 py-1 rounded-lg border text-[9px] font-bold transition-colors cursor-pointer"
             >
               {{ t('toggleSharedBridges') }}
             </button>
             <button
               @click="hideTrackNodes = !hideTrackNodes; rebuildConstellation()"
-              :class="hideTrackNodes ? 'bg-canvas-text text-white border-canvas-text' : 'bg-canvas-sidebar text-canvas-muted border-canvas-border hover:text-canvas-text'"
-              class="px-2 py-1 rounded border text-[9px] font-bold transition-colors cursor-pointer"
+              :class="hideTrackNodes ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:text-slate-800'"
+              class="px-2 py-1 rounded-lg border text-[9px] font-bold transition-colors cursor-pointer"
             >
               {{ t('toggleHideTracks') }}
             </button>
@@ -524,125 +540,137 @@
           <!-- Collapsible Legend Card -->
           <div
             v-if="showLegend"
-            class="glass-panel border border-canvas-border rounded-xl p-3.5 shadow-lg w-full space-y-2.5"
+            class="glass-panel border border-slate-200 rounded-2xl p-3.5 shadow-lg w-full space-y-2.5"
           >
-            <div class="flex items-center justify-between border-b border-canvas-border pb-1.5">
-              <span class="font-bold text-canvas-text text-[11px]">{{ t('topologicalField') }}</span>
-              <button @click="showLegend = false" class="text-canvas-muted hover:text-canvas-coral font-bold text-xs cursor-pointer">×</button>
+            <div class="flex items-center justify-between border-b border-slate-200 pb-1.5">
+              <span class="font-bold text-slate-900 text-[11px]">{{ t('topologicalField') }}</span>
+              <button @click="showLegend = false" class="text-slate-400 hover:text-rose-600 font-bold text-xs cursor-pointer">×</button>
             </div>
 
-            <p class="text-canvas-muted leading-relaxed text-[9px]">
+            <p class="text-slate-500 leading-relaxed text-[9px]">
               {{ t('constellationDesc') }}
             </p>
 
             <!-- Node Type & Ring Color Legend -->
             <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 font-bold text-[9px] pt-1">
               <span class="flex items-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full bg-white border-2 border-canvas-coral ring-2 ring-canvas-coral/25 shrink-0"></span>
-                <span>{{ t('seed') }}</span>
+                <span class="w-2.5 h-2.5 rounded-full bg-indigo-600 ring-2 ring-indigo-200 shrink-0"></span>
+                <span>Semente (Suas Escolhas)</span>
               </span>
               <span class="flex items-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full bg-canvas-denim shrink-0"></span>
-                <span>{{ t('game') }}</span>
-              </span>
-              <span class="flex items-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full bg-canvas-orange shrink-0"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-orange-600 shrink-0"></span>
                 <span>{{ t('artist') }}</span>
               </span>
               <span class="flex items-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full bg-canvas-sage shrink-0"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-teal-600 shrink-0"></span>
                 <span>{{ t('music') }}</span>
               </span>
               <span class="flex items-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full bg-canvas-amber shrink-0"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0"></span>
+                <span>{{ t('game') }}</span>
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-600 shrink-0"></span>
                 <span>{{ t('movie') }}</span>
               </span>
               <span class="flex items-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full bg-canvas-violet shrink-0"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-purple-600 shrink-0"></span>
                 <span>{{ t('series') }}</span>
               </span>
               <span class="flex items-center gap-1.5 col-span-2">
-                <span class="w-2.5 h-2.5 rotate-45 bg-slate-700 shrink-0"></span>
-                <span>{{ t('bridgeTag') }}</span>
+                <span class="w-2.5 h-2.5 rotate-45 bg-slate-600 shrink-0"></span>
+                <span>Ponte / Tag (Discreta)</span>
               </span>
             </div>
 
-            <div class="pt-2 border-t border-canvas-border text-[9px] text-canvas-muted leading-relaxed">
+            <div class="pt-2 border-t border-slate-200 text-[9px] text-slate-400 leading-relaxed">
               {{ t('graphInteractionHint') }}
             </div>
           </div>
         </div>
 
+        <!-- Graph Canvas Container (Full Height) -->
         <div id="graph-container">
           <canvas id="constellation-canvas"></canvas>
         </div>
+
+        <!-- =============================================================== -->
+        <!-- FLOATING TASTE PROFILE DOCK (Centered at Bottom of Canvas)       -->
+        <!-- =============================================================== -->
+        <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-auto max-w-[88%]">
+          <div class="glass-panel border border-slate-200/90 shadow-2xl rounded-2xl px-4 py-2 flex items-center gap-3 backdrop-blur-md bg-white/95 transition-all">
+
+            <!-- Profile Badge & Reset -->
+            <div class="flex items-center gap-2 shrink-0 pr-2 border-r border-slate-200">
+              <div class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
+                <span class="text-[11px] font-bold text-slate-800">{{ t('tasteProfile') }}</span>
+                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  {{ profileSeeds.length }}
+                </span>
+              </div>
+              <button
+                v-if="profileSeeds.length > 0"
+                @click="clearProfile"
+                class="text-[10px] font-bold text-slate-400 hover:text-rose-600 transition-colors cursor-pointer ml-1"
+                :title="t('reset')"
+              >
+                [{{ t('reset') }}]
+              </button>
+            </div>
+
+            <!-- Active Profile Seeds List -->
+            <div class="flex items-center gap-2 overflow-x-auto max-w-[55vw] py-0.5 no-scrollbar">
+              <div v-if="profileSeeds.length === 0" class="text-slate-400 text-[11px] flex items-center gap-2 shrink-0">
+                <span>{{ t('emptyProfile') }}</span>
+                <button @click="quickAdd('The Elder Scrolls V: Skyrim')" class="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 border border-slate-200 px-2.5 py-1 rounded-full text-slate-700 transition-colors cursor-pointer">
+                  🎮 + Skyrim
+                </button>
+                <button @click="quickAdd('Kanye West')" class="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 border border-slate-200 px-2.5 py-1 rounded-full text-slate-700 transition-colors cursor-pointer">
+                  👤 + Kanye West
+                </button>
+                <button @click="quickAdd('Phantogram')" class="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 border border-slate-200 px-2.5 py-1 rounded-full text-slate-700 transition-colors cursor-pointer">
+                  👤 + Phantogram
+                </button>
+                <button @click="quickAdd('Blade Runner')" class="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 border border-slate-200 px-2.5 py-1 rounded-full text-slate-700 transition-colors cursor-pointer">
+                  🎬 + Blade Runner
+                </button>
+              </div>
+
+              <div
+                v-for="seed in profileSeeds"
+                :key="seed.id"
+                @click="focusNodeOnGraph(seed.id)"
+                class="flex items-center gap-1.5 px-3 py-1 bg-slate-50 hover:bg-slate-100 rounded-full border border-slate-200 transition-all shrink-0 text-[11px] cursor-pointer group shadow-2xs hover:border-indigo-300"
+              >
+                <span class="text-xs">{{ getTypeIcon(seed.type) }}</span>
+                <span class="font-bold text-slate-800">{{ seed.name }}</span>
+                <button
+                  @click.stop="removeSeed(seed.id)"
+                  class="text-slate-400 hover:text-rose-600 font-bold ml-0.5 cursor-pointer text-xs"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <!-- Action Button -->
+            <div class="shrink-0 pl-2 border-l border-slate-200">
+              <button
+                @click="computeRecommendations"
+                :disabled="profileSeeds.length === 0 || isLoadingRecs"
+                class="bg-indigo-600 hover:bg-indigo-700 active:scale-98 disabled:opacity-40 disabled:pointer-events-none text-white font-bold text-xs py-1.5 px-4 rounded-xl transition-all flex items-center gap-2 shadow-sm cursor-pointer"
+              >
+                <span v-if="isLoadingRecs" class="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                <span>{{ isLoadingRecs ? t('computingPpr') : t('runDiffusion') }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
       </section>
 
     </div>
-
-    <!-- BOTTOM TASTE PROFILE BAR -->
-    <footer class="h-18 border-t border-canvas-border bg-white px-5 py-2 flex items-center justify-between gap-4 z-30 shrink-0 shadow-lg">
-      <div class="flex items-center gap-4 overflow-hidden flex-1">
-        <div class="shrink-0">
-          <span class="text-[9px] uppercase font-bold text-canvas-muted tracking-wider block">{{ t('tasteProfile') }}</span>
-          <span class="text-xs font-bold text-canvas-text">{{ profileSeeds.length }} {{ t('nodes') }}</span>
-        </div>
-
-        <div class="h-8 w-px bg-canvas-border shrink-0"></div>
-
-        <!-- Active Profile Seeds -->
-        <div class="flex items-center gap-2 overflow-x-auto py-1 flex-1">
-          <div v-if="profileSeeds.length === 0" class="text-canvas-muted text-[11px] flex items-center gap-2">
-            <span>{{ t('emptyProfile') }}</span>
-            <button @click="quickAdd('The Elder Scrolls V: Skyrim')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text cursor-pointer">
-              + Skyrim
-            </button>
-            <button @click="quickAdd('The Witcher 3: Wild Hunt')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text cursor-pointer">
-              + The Witcher 3
-            </button>
-            <button @click="quickAdd('Kanye West')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text cursor-pointer">
-              + Kanye West
-            </button>
-            <button @click="quickAdd('Blade Runner')" class="text-[10px] font-semibold bg-canvas-sidebar hover:bg-canvas-border border border-canvas-border px-2.5 py-1 rounded transition-colors text-canvas-text cursor-pointer">
-              + Blade Runner
-            </button>
-          </div>
-
-          <div
-            v-for="seed in profileSeeds"
-            :key="seed.id"
-            @click="focusNodeOnGraph(seed.id)"
-            class="flex items-center gap-1.5 px-3 py-1 bg-canvas-sidebar hover:bg-canvas-border/80 rounded-full border border-canvas-border transition-colors shrink-0 group text-[11px] cursor-pointer"
-          >
-            <span
-              :class="getTypeBadgeClass(seed.type)"
-              class="text-[9px] font-bold uppercase px-1 rounded border"
-            >
-              {{ seed.type }}
-            </span>
-            <span class="font-bold text-canvas-text">{{ seed.name }}</span>
-            <button
-              @click.stop="removeSeed(seed.id)"
-              class="text-canvas-muted hover:text-canvas-coral font-bold ml-1 cursor-pointer"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Run Diffusion Button -->
-      <div class="shrink-0">
-        <button
-          @click="computeRecommendations"
-          :disabled="profileSeeds.length === 0 || isLoadingRecs"
-          class="bg-canvas-pine hover:bg-black disabled:opacity-30 disabled:pointer-events-none text-white font-bold text-xs py-2 px-4 rounded-lg transition-all flex items-center gap-2 shadow-sm cursor-pointer"
-        >
-          <span v-if="isLoadingRecs" class="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-          <span>{{ isLoadingRecs ? t('computingPpr') : t('runDiffusion') }}</span>
-        </button>
-      </div>
-    </footer>
 
   </div>
 

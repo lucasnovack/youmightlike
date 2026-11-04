@@ -133,7 +133,7 @@ export class ConstellationEngine {
         ring: isSeed ? 0 : (isBridge ? 1 : 2),
         x: 0,
         y: 0,
-        r: isSeed ? 12 : (isBridge ? (seedNbrs.length >= 2 ? 9 : 7) : 9),
+        r: isSeed ? 14 : (isBridge ? (seedNbrs.length >= 2 ? 6.5 : 5.0) : (n.type === 'track' ? 8.5 : 11.5)),
       };
       nodeById.set(clone.id, clone);
     });
@@ -400,17 +400,22 @@ export class ConstellationEngine {
       ctx.lineTo(l.target.x, l.target.y);
 
       if (!hasFocus) {
-        ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
-        ctx.lineWidth = 1.2 / this.viewTransform.k;
+        // Resting state: very subtle and thin, never obscuring text or nodes
+        const isBridgeLink = l.source.isBridge || l.target.isBridge;
+        ctx.strokeStyle = isBridgeLink ? 'rgba(203, 213, 225, 0.20)' : 'rgba(148, 163, 184, 0.30)';
+        ctx.lineWidth = (isBridgeLink ? 0.75 : 1.0) / this.viewTransform.k;
       } else if (bothFocused) {
-        ctx.strokeStyle = '#e11d48';
-        ctx.lineWidth = 2.8 / this.viewTransform.k;
+        // Spotlight connected nodes with vibrant Indigo
+        ctx.strokeStyle = '#6366f1';
+        ctx.lineWidth = 2.6 / this.viewTransform.k;
       } else if (oneFocused) {
-        ctx.strokeStyle = '#0f172a';
-        ctx.lineWidth = 1.9 / this.viewTransform.k;
+        // Strong dark connector line
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 1.6 / this.viewTransform.k;
       } else {
-        ctx.strokeStyle = 'rgba(203, 213, 225, 0.22)';
-        ctx.lineWidth = 0.9 / this.viewTransform.k;
+        // Dim down unconnected lines into distant background
+        ctx.strokeStyle = 'rgba(226, 232, 240, 0.10)';
+        ctx.lineWidth = 0.5 / this.viewTransform.k;
       }
       ctx.stroke();
     }
@@ -433,34 +438,35 @@ export class ConstellationEngine {
       const isHighlighted = !hasFocus || isSelected || isNeighbor;
 
       let fill = '#64748b';
-      if (n.rawType === 'game') fill = DOMAIN_COLORS.game;
+      if (n.isSeed) fill = DOMAIN_COLORS.seed;
+      else if (n.rawType === 'game') fill = DOMAIN_COLORS.game;
       else if (n.rawType === 'artist') fill = DOMAIN_COLORS.artist;
       else if (n.rawType === 'track') fill = DOMAIN_COLORS.track;
       else if (n.rawType === 'movie') fill = DOMAIN_COLORS.movie;
       else if (n.rawType === 'series') fill = DOMAIN_COLORS.series;
       else if (n.rawType === 'developer') fill = DOMAIN_COLORS.developer;
-      else if (n.rawType === 'keyword') fill = n.sharedSeedsCount >= 2 ? DOMAIN_COLORS.keyword : '#64748b';
-      else if (n.isSeed) fill = DOMAIN_COLORS.seed;
+      else if (n.rawType === 'keyword') fill = n.sharedSeedsCount >= 2 ? (DOMAIN_COLORS.bridgeShared || '#334155') : DOMAIN_COLORS.keyword;
 
       ctx.save();
       if (hasFocus && !isHighlighted) {
-        ctx.globalAlpha = 0.22;
+        ctx.globalAlpha = 0.15;
       }
 
-      // Halo for Seeds & Focused Nodes
+      // Halo for Seeds (Deep Indigo/Violet) vs Focused Nodes
       if (n.isSeed || isSelected) {
         ctx.beginPath();
-        ctx.arc(n.x, n.y, n.r + 5.5 / this.viewTransform.k, 0, Math.PI * 2);
-        ctx.fillStyle = isSelected ? 'rgba(225, 29, 72, 0.25)' : 'rgba(225, 29, 72, 0.16)';
+        const haloR = n.r + (isSelected ? 6.5 : 5.0) / this.viewTransform.k;
+        ctx.arc(n.x, n.y, haloR, 0, Math.PI * 2);
+        ctx.fillStyle = isSelected ? 'rgba(99, 102, 241, 0.25)' : 'rgba(99, 102, 241, 0.16)';
         ctx.fill();
-        ctx.strokeStyle = '#e11d48';
-        ctx.lineWidth = (isSelected ? 2.2 : 1.6) / this.viewTransform.k;
+        ctx.strokeStyle = isSelected ? '#4f46e5' : '#6366f1';
+        ctx.lineWidth = (isSelected ? 2.4 : 1.8) / this.viewTransform.k;
         ctx.stroke();
       }
 
-      // Diamond for Bridges vs Circle for Seeds & Discoveries
+      // Diamond for Bridges/Tags vs Circle for Discoveries & Seeds
       if (n.isBridge && !n.isSeed) {
-        const d = n.r * 1.18;
+        const d = n.r * 1.15;
         ctx.beginPath();
         ctx.moveTo(n.x, n.y - d);
         ctx.lineTo(n.x + d, n.y);
@@ -470,29 +476,51 @@ export class ConstellationEngine {
         ctx.fillStyle = fill;
         ctx.fill();
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.4 / this.viewTransform.k;
+        ctx.lineWidth = 1.2 / this.viewTransform.k;
         ctx.stroke();
       } else {
         ctx.beginPath();
         ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
         ctx.fillStyle = fill;
         ctx.fill();
-        ctx.strokeStyle = n.isSeed ? '#e11d48' : '#ffffff';
-        ctx.lineWidth = (n.isSeed ? 2.2 : 1.6) / this.viewTransform.k;
+        ctx.strokeStyle = n.isSeed ? '#4f46e5' : '#ffffff';
+        ctx.lineWidth = (n.isSeed ? 2.4 : 1.6) / this.viewTransform.k;
         ctx.stroke();
       }
 
-      // Crisp Typography Label
-      const fontSize = Math.max(9.5, (n.isSeed ? 11.5 : 10.2) / Math.sqrt(this.viewTransform.k));
-      ctx.font = `${n.isSeed || isSelected ? '700' : '600'} ${fontSize}px "JetBrains Mono", monospace`;
-      const labelText = (n.isBridge && n.sharedSeedsCount >= 2)
-        ? `${n.label} (${n.sharedSeedsCount})`
-        : n.label;
+      // Selective Anti-Collision Label Rendering:
+      // - Seeds: ALWAYS rendered with high priority and soft pill backdrop
+      // - Discoveries: ALWAYS rendered
+      // - Bridges/Tags: Rendered ONLY if hovered, selected, neighbor, OR if shared bridge and zoomed in
+      const shouldDrawLabel = n.isSeed
+        || !n.isBridge
+        || isSelected
+        || isNeighbor
+        || (this.hoveredId === n.id)
+        || (n.isBridge && n.sharedSeedsCount >= 2 && this.viewTransform.k >= 0.75);
 
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillStyle = isSelected ? '#e11d48' : (n.isSeed ? '#0f172a' : '#1e293b');
-      ctx.fillText(labelText, n.x, n.y + n.r + 3.5 / this.viewTransform.k);
+      if (shouldDrawLabel) {
+        const fontSize = Math.max(9.0, (n.isSeed ? 11.5 : 10.0) / Math.sqrt(this.viewTransform.k));
+        ctx.font = `${n.isSeed || isSelected ? '700' : '600'} ${fontSize}px "JetBrains Mono", monospace`;
+        const labelText = (n.isBridge && n.sharedSeedsCount >= 2)
+          ? `${n.label} (${n.sharedSeedsCount})`
+          : n.label;
+
+        const textMetrics = ctx.measureText(labelText);
+        const textWidth = textMetrics.width;
+        const textY = n.y + n.r + 3.5 / this.viewTransform.k;
+
+        // Clean soft white backdrop pill so text never collides with intersecting lines
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
+        ctx.fillRect(n.x - textWidth / 2 - 3, textY, textWidth + 6, fontSize + 3);
+
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = isSelected
+          ? '#4f46e5'
+          : (n.isSeed ? '#1e1b4b' : (n.isBridge ? '#475569' : '#0f172a'));
+        ctx.fillText(labelText, n.x, textY + 1);
+      }
       ctx.restore();
     }
 

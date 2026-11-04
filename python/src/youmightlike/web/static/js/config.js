@@ -1,14 +1,15 @@
 // Application visual configuration, domain colors, and badge helpers
 
 export const DOMAIN_COLORS = {
-  game: '#2563eb',
-  artist: '#ea580c',
-  track: '#0d9488',
-  movie: '#ca8a04',
-  series: '#7c3aed',
-  developer: '#334155',
-  keyword: '#1e293b',
-  seed: '#e11d48',
+  seed: '#6366f1',     // Distinct Indigo/Violet for Seeds (user inputs)
+  artist: '#ea580c',   // Warm Amber/Orange for Recommended Artists
+  track: '#0d9488',    // Emerald Teal for Music Tracks
+  game: '#2563eb',     // Royal Blue for Games
+  movie: '#d97706',    // Golden Amber for Movies
+  series: '#9333ea',   // Rich Purple for Series
+  developer: '#475569',// Slate for Game Studios
+  keyword: '#64748b',  // Subtle Slate for Bridges/Tags
+  bridgeShared: '#334155', // Deeper Slate for multi-seed shared bridges
 };
 
 export function getRawType(node) {
@@ -17,22 +18,39 @@ export function getRawType(node) {
   return node.type || 'item';
 }
 
+export function getTypeIcon(type) {
+  switch (type) {
+    case 'game': return '🎮';
+    case 'artist': return '👤';
+    case 'track': return '🎵';
+    case 'movie': return '🎬';
+    case 'series': return '📺';
+    case 'keyword': return '#';
+    case 'developer': return '🏛️';
+    case 'author': return '✍️';
+    case 'person': return '🎬';
+    default: return '✦';
+  }
+}
+
 export function getTypeBadgeClass(type) {
   switch (type) {
+    case 'seed':
+      return 'text-indigo-700 bg-indigo-50 border-indigo-200';
     case 'game':
-      return 'text-canvas-denim bg-canvas-denim/10 border-canvas-denim/25';
+      return 'text-blue-700 bg-blue-50 border-blue-200';
     case 'artist':
-      return 'text-canvas-orange bg-canvas-orange/10 border-canvas-orange/30';
+      return 'text-orange-700 bg-orange-50 border-orange-200';
     case 'track':
-      return 'text-canvas-sage bg-canvas-sage/10 border-canvas-sage/25';
+      return 'text-teal-700 bg-teal-50 border-teal-200';
     case 'movie':
-      return 'text-canvas-amber bg-canvas-amber/10 border-canvas-amber/25';
+      return 'text-amber-700 bg-amber-50 border-amber-200';
     case 'series':
-      return 'text-canvas-violet bg-canvas-violet/10 border-canvas-violet/25';
+      return 'text-purple-700 bg-purple-50 border-purple-200';
     case 'keyword':
-      return 'text-slate-700 bg-slate-200/70 border-slate-300';
+      return 'text-slate-600 bg-slate-100 border-slate-200';
     default:
-      return 'text-canvas-muted bg-canvas-sidebar border-canvas-border';
+      return 'text-slate-600 bg-slate-50 border-slate-200';
   }
 }
 
@@ -46,8 +64,8 @@ export function getAffinityLabel(score, t) {
 
 export function getAffinityBadgeClass(score) {
   const val = Number(score) || 0;
-  if (val >= 5.0) return 'text-canvas-sage bg-canvas-sage/15 border-canvas-sage/30';
-  if (val >= 2.0) return 'text-canvas-denim bg-canvas-denim/10 border-canvas-denim/30';
-  if (val >= 0.6) return 'text-canvas-text bg-canvas-sidebar border-canvas-borderDark';
-  return 'text-canvas-muted bg-canvas-sidebar border-canvas-border';
+  if (val >= 5.0) return 'text-indigo-700 bg-indigo-50 border-indigo-200';
+  if (val >= 2.0) return 'text-teal-700 bg-teal-50 border-teal-200';
+  if (val >= 0.6) return 'text-blue-700 bg-blue-50 border-blue-200';
+  return 'text-slate-600 bg-slate-100 border-slate-200';
 }
