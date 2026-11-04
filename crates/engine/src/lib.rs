@@ -3,6 +3,7 @@
 pub mod graph;
 pub mod models;
 pub mod ppr;
+pub mod recommendation;
 pub mod recommender;
 pub mod search;
 pub mod service;
