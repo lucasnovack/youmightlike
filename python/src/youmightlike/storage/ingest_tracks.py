@@ -68,15 +68,32 @@ def run_tracks_bulk_ingestion() -> None:
                 conn.execute(
                     f"""
                     CREATE OR REPLACE TEMP TABLE tmp_artists_enriched AS
-                    WITH mb_dedup AS (
+                    WITH mb_names AS (
                         SELECT 
                             TRIM(name) AS mb_name,
                             country,
                             type,
-                            tags,
-                            ROW_NUMBER() OVER (PARTITION BY LOWER(TRIM(name)) ORDER BY len(tags) DESC) AS rn
+                            tags
                         FROM '{MB_PARQUET}'
                         WHERE name IS NOT NULL AND length(TRIM(name)) > 1
+                        UNION ALL
+                        SELECT 
+                            TRIM(UNNEST(aliases)) AS mb_name,
+                            country,
+                            type,
+                            tags
+                        FROM '{MB_PARQUET}'
+                        WHERE aliases IS NOT NULL AND len(aliases) > 0
+                    ),
+                    mb_dedup AS (
+                        SELECT 
+                            mb_name,
+                            country,
+                            type,
+                            tags,
+                            ROW_NUMBER() OVER (PARTITION BY LOWER(TRIM(mb_name)) ORDER BY len(tags) DESC) AS rn
+                        FROM mb_names
+                        WHERE mb_name IS NOT NULL AND length(TRIM(mb_name)) > 1
                     )
                     SELECT 
                         n.name,
