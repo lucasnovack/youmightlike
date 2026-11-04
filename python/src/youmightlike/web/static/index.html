@@ -6,8 +6,6 @@
   <title>youmightlike — Constellation Graph Engine</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
-  <script src="https://unpkg.com/force-graph"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
@@ -83,6 +81,7 @@
             <option value="track">{{ t('typeTracks') }}</option>
             <option value="movie">{{ t('typeMovies') }}</option>
             <option value="series">{{ t('typeSeries') }}</option>
+            <option value="keyword">#Tags</option>
           </select>
 
           <span class="pl-3 text-canvas-muted text-[11px] font-bold">›</span>
@@ -127,14 +126,14 @@
           <button
             @click="setLang('pt')"
             :class="{'bg-canvas-text text-white': currentLang === 'pt', 'text-canvas-muted hover:text-canvas-text': currentLang !== 'pt'}"
-            class="px-2 py-0.5 transition-colors"
+            class="px-2 py-0.5 transition-colors cursor-pointer"
           >
             PT
           </button>
           <button
             @click="setLang('en')"
             :class="{'bg-canvas-text text-white': currentLang === 'en', 'text-canvas-muted hover:text-canvas-text': currentLang !== 'en'}"
-            class="px-2 py-0.5 border-l border-canvas-border transition-colors"
+            class="px-2 py-0.5 border-l border-canvas-border transition-colors cursor-pointer"
           >
             EN
           </button>
@@ -150,11 +149,11 @@
       </div>
     </header>
 
-    <!-- Main Split Workspace: Dual-Mode Sidebar Left + Radial Constellation Right -->
+    <!-- Main Split Workspace: Dual-Mode Sidebar Left + Native Radial Constellation Right -->
     <div class="flex-1 flex overflow-hidden">
 
-      <!-- LEFT SIDEBAR (490px): Mode 1 (Live Node Inspector & Expansion) + Mode 2 (Categorized Discoveries) -->
-      <aside class="w-[490px] border-r border-canvas-border flex flex-col bg-white z-10 shrink-0">
+      <!-- LEFT SIDEBAR (480px) -->
+      <aside class="w-[480px] border-r border-canvas-border flex flex-col bg-white z-10 shrink-0">
 
         <!-- Primary Sidebar Mode Switcher -->
         <div class="border-b border-canvas-border bg-canvas-sidebar px-3 pt-2.5 pb-2 shrink-0">
@@ -174,10 +173,10 @@
               :class="sidebarMode === 'inspector' ? 'bg-canvas-coral text-white shadow-xs' : 'text-canvas-muted hover:text-canvas-text'"
               class="py-1.5 px-2.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <span v-if="selectedNodeIds.size > 0" class="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></span>
+              <span v-if="selectedNodeIds.length > 0" class="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></span>
               <span>{{ t('modeInspector') }}</span>
-              <span v-if="selectedNodeIds.size > 0" class="px-1.5 py-0.2 rounded text-[9px]" :class="sidebarMode === 'inspector' ? 'bg-white/20 text-white' : 'bg-canvas-coral/15 text-canvas-coral'">
-                {{ selectedNodeIds.size }}
+              <span v-if="selectedNodeIds.length > 0" class="px-1.5 py-0.2 rounded text-[9px]" :class="sidebarMode === 'inspector' ? 'bg-white/20 text-white' : 'bg-canvas-coral/15 text-canvas-coral'">
+                {{ selectedNodeIds.length }}
               </span>
             </button>
           </div>
@@ -236,7 +235,6 @@
           </div>
 
           <template v-else>
-            <!-- Selected Nodes Header & Clear -->
             <div class="flex items-center justify-between">
               <span class="text-[10px] font-bold uppercase tracking-wider text-canvas-muted">
                 {{ inspectedNodes.length === 1 ? t('inspecting1') : inspectedNodes.length + ' ' + t('inspectingMulti') }}
@@ -286,7 +284,7 @@
                   </button>
                 </div>
 
-                <!-- Clickable Tags on Inspected Node (Click to add tag to profile!) -->
+                <!-- Clickable Tags on Inspected Node -->
                 <div v-if="node.tags && node.tags.length > 0" class="mt-2.5 pt-2 border-t border-canvas-border">
                   <span class="text-[8px] uppercase font-bold text-canvas-muted tracking-wider block mb-1.5">
                     {{ t('clickableTagsHint') }}
@@ -363,8 +361,8 @@
                 <div
                   v-for="sug in filteredInspectorRecs"
                   :key="sug.id"
-                  @mouseenter="hoveredNodeId = sug.id; refreshGraph()"
-                  @mouseleave="hoveredNodeId = null; refreshGraph()"
+                  @mouseenter="setHoveredNode(sug.id)"
+                  @mouseleave="setHoveredNode(null)"
                   class="bg-white border border-canvas-border hover:border-canvas-coral p-2.5 rounded-lg transition-all shadow-2xs"
                 >
                   <div class="flex items-start justify-between gap-2">
@@ -410,7 +408,6 @@
 
           <template v-for="group in groupedRecommendations" :key="group.key">
             <div v-if="group.items.length > 0" class="space-y-2">
-              <!-- Category Section Header -->
               <div class="flex items-center justify-between border-b border-canvas-border pb-1.5">
                 <div class="flex items-center gap-2">
                   <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: group.color }"></span>
@@ -427,12 +424,11 @@
                 </button>
               </div>
 
-              <!-- Cards in Category -->
               <div
                 v-for="rec in group.items"
                 :key="rec.id"
-                @mouseenter="hoveredNodeId = rec.id; refreshGraph()"
-                @mouseleave="hoveredNodeId = null; refreshGraph()"
+                @mouseenter="setHoveredNode(rec.id)"
+                @mouseleave="setHoveredNode(null)"
                 class="bg-white hover:bg-canvas-sidebar/60 border border-canvas-border hover:border-canvas-text/40 p-3 rounded-lg shadow-2xs transition-all group"
               >
                 <div class="flex items-start justify-between gap-2 mb-1">
@@ -454,7 +450,6 @@
                     <p class="text-[10px] text-canvas-muted mt-0.5">{{ rec.subtitle }}</p>
                   </div>
 
-                  <!-- Affinity Badge -->
                   <div class="flex flex-col items-end shrink-0 text-right">
                     <span
                       :class="getAffinityBadgeClass(rec.score)"
@@ -468,19 +463,16 @@
                   </div>
                 </div>
 
-                <!-- Mathematical / Graph Path Explanation -->
                 <div v-if="rec.reason" class="mt-2 text-[10px] text-canvas-sage bg-canvas-sage/10 px-2.5 py-1.5 rounded border border-canvas-sage/20 flex items-start gap-1.5 leading-relaxed">
                   <span class="font-bold shrink-0 mt-0.5">↳ {{ t('path') }}</span>
                   <span class="font-medium break-words">{{ rec.reason }}</span>
                 </div>
 
-                <!-- Popular Track Preview -->
                 <div v-if="rec.top_track" class="mt-1.5 pt-1.5 border-t border-canvas-border/60 flex items-center justify-between text-[10px] text-canvas-muted">
                   <span class="truncate text-canvas-text font-medium">♪ {{ rec.top_track.title }}</span>
                   <span class="text-canvas-sage font-mono font-bold shrink-0">{{ t('pop') }} {{ rec.top_track.popularity }}</span>
                 </div>
 
-                <!-- Card Footer Actions -->
                 <div class="mt-2.5 flex items-center justify-between pt-1.5 border-t border-canvas-border/50">
                   <button
                     @click="focusNodeOnGraph(rec.id)"
@@ -502,9 +494,9 @@
       </aside>
 
       <!-- ================================================================= -->
-      <!-- RIGHT: STRUCTURED 3-RING RADIAL CONSTELLATION MAP                 -->
+      <!-- RIGHT: ZERO-FREEZE NATIVE HTML5 CANVAS 3-RING CONSTELLATION       -->
       <!-- ================================================================= -->
-      <section class="flex-1 relative bg-canvas-bg flex flex-col overflow-hidden">
+      <section class="flex-1 relative bg-canvas-bg flex flex-col overflow-hidden select-none">
 
         <!-- Top-Left Constellation HUD & Layer Filters -->
         <div class="absolute top-4 left-4 z-20 bg-white/95 backdrop-blur border border-canvas-border rounded-xl p-3.5 shadow-md max-w-sm text-[10px]">
@@ -525,7 +517,7 @@
             <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-sage"></span> {{ t('music') }}</span>
             <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-amber"></span> {{ t('movie') }}</span>
             <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-canvas-violet"></span> {{ t('series') }}</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rotate-45 bg-slate-500"></span> {{ t('bridgeTag') }}</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rotate-45 bg-slate-600"></span> {{ t('bridgeTag') }}</span>
           </div>
 
           <!-- Visual Declutter Controls -->
@@ -552,7 +544,9 @@
           {{ t('graphInteractionHint') }}
         </div>
 
-        <div id="graph-container" class="flex-1 w-full h-full"></div>
+        <div id="graph-container" class="flex-1 w-full h-full relative">
+          <canvas id="constellation-canvas" class="w-full h-full block"></canvas>
+        </div>
       </section>
 
     </div>
@@ -658,7 +652,7 @@
         liveExpansionTitle: "Expansão ao Vivo para esta Seleção",
         liveExpansionSubtitle: "Sugestões calculadas diretamente a partir dos nós selecionados acima:",
         addBtn: "+ Perfil",
-        searchAll: "buscar jogos, artistas, faixas, filmes, séries...",
+        searchAll: "buscar jogos, artistas, faixas, filmes, séries, #tags...",
         searchGame: "buscar jogos (ex: skyrim, elden ring, witcher)...",
         searchArtist: "buscar artistas (ex: kanye west, daft punk, the cure)...",
         searchTrack: "buscar faixas...",
@@ -686,7 +680,11 @@
         sectionScreen: "Filmes & Séries",
         toggleSharedBridges: "Focar Pontes Comuns",
         toggleHideTracks: "Ocultar Faixas",
-        graphInteractionHint: "Clique: inspecionar ao vivo • Shift+Clique: combinar nós • Duplo-Clique: adicionar ao perfil",
+        tasteProfile: "Perfil de Afinidade",
+        emptyProfile: "Perfil vazio. Adição rápida:",
+        computingPpr: "Calculando...",
+        runDiffusion: "Calcular Difusão →",
+        graphInteractionHint: "Clique: inspecionar ao vivo • Shift+Clique: combinar nós • Duplo-Clique: adicionar ao perfil • Arraste: mover",
       },
       en: {
         nodes: "nodes",
@@ -719,7 +717,7 @@
         liveExpansionTitle: "Live Expansion for Selection",
         liveExpansionSubtitle: "Recommendations computed directly from the selected nodes above:",
         addBtn: "+ Profile",
-        searchAll: "search games, artists, tracks, movies, series...",
+        searchAll: "search games, artists, tracks, movies, series, #tags...",
         searchGame: "search games (e.g. skyrim, elden ring, witcher)...",
         searchArtist: "search artists (e.g. kanye west, daft punk, the cure)...",
         searchTrack: "search tracks...",
@@ -747,7 +745,11 @@
         sectionScreen: "Movies & Series",
         toggleSharedBridges: "Focus Shared Bridges",
         toggleHideTracks: "Hide Tracks",
-        graphInteractionHint: "Click: live inspect • Shift+Click: combine nodes • Double-Click: add to profile",
+        tasteProfile: "Taste Profile",
+        emptyProfile: "Empty profile. Quick add:",
+        computingPpr: "Computing...",
+        runDiffusion: "Run Diffusion →",
+        graphInteractionHint: "Click: live inspect • Shift+Click: combine nodes • Double-Click: add to profile • Drag: move",
       }
     };
 
@@ -756,7 +758,7 @@
         const currentLang = ref(localStorage.getItem('ym_lang') || 'pt');
         const t = (key) => I18N[currentLang.value]?.[key] || I18N.en[key] || key;
 
-        const sidebarMode = ref('discoveries'); // 'discoveries' | 'inspector'
+        const sidebarMode = ref('discoveries');
         const searchQuery = ref('');
         const searchType = ref('');
         const searchResults = ref([]);
@@ -766,21 +768,51 @@
         const isLoadingRecs = ref(false);
         const targetFilter = ref(null);
 
-        // Live Inspector state
-        const selectedNodeIds = ref(new Set());
-        const hoveredNodeId = ref(null);
+        // Plain array for Vue reactivity without Set proxy traps
+        const selectedNodeIds = ref([]);
         const inspectorRecs = ref([]);
         const inspectorFilter = ref(null);
         const isLoadingInspectorRecs = ref(false);
 
-        // Constellation filter toggles
         const onlySharedBridges = ref(false);
         const hideTrackNodes = ref(false);
 
-        let graphInstance = null;
         let searchTimeout = null;
-        let currentGraphRaw = { nodes: [], links: [] };
         let fullServerGraph = { nodes: [], links: [] };
+
+        // Pure non-reactive Canvas state (zero Vue proxy overhead during rendering)
+        let canvasEl = null;
+        let ctx2d = null;
+        let canvasNodes = [];
+        let canvasLinks = [];
+        let canvasAdj = new Map();
+        let hoveredId = null;
+        let draggingNode = null;
+        let isPanning = false;
+        let panStartX = 0;
+        let panStartY = 0;
+        let pointerDownX = 0;
+        let pointerDownY = 0;
+        let viewTransform = { x: 0, y: 0, k: 1 };
+        let rafPending = false;
+        let lastClickTime = 0;
+        let lastClickedNodeId = null;
+
+        const scheduleDraw = () => {
+          if (rafPending) return;
+          rafPending = true;
+          requestAnimationFrame(() => {
+            rafPending = false;
+            drawConstellation();
+          });
+        };
+
+        const setHoveredNode = (id) => {
+          if (hoveredId !== id) {
+            hoveredId = id;
+            scheduleDraw();
+          }
+        };
 
         const setLang = (lang) => {
           currentLang.value = lang;
@@ -788,7 +820,7 @@
           if (profileSeeds.value.length > 0) {
             computeRecommendations();
           }
-          if (selectedNodeIds.value.size > 0) {
+          if (selectedNodeIds.value.length > 0) {
             fetchLiveInspectorRecommendations();
           }
         };
@@ -884,8 +916,9 @@
 
         const filteredInspectorRecs = computed(() => {
           const profileSet = new Set(profileSeeds.value.map(s => s.id));
+          const selSet = new Set(selectedNodeIds.value);
           return inspectorRecs.value.filter(r => {
-            if (profileSet.has(r.id) || selectedNodeIds.value.has(r.id)) return false;
+            if (profileSet.has(r.id) || selSet.has(r.id)) return false;
             if (!inspectorFilter.value) return true;
             if (inspectorFilter.value === 'music') return r.type === 'artist' || r.type === 'track';
             return r.type === inspectorFilter.value;
@@ -997,17 +1030,16 @@
         const clearProfile = () => {
           profileSeeds.value = [];
           recommendations.value = [];
-          selectedNodeIds.value.clear();
+          selectedNodeIds.value = [];
           inspectorRecs.value = [];
           saveProfile();
           fullServerGraph = { nodes: [], links: [] };
           rebuildConstellation();
         };
 
-        // Live query to /api/recommend for the currently selected node(s) on the graph!
         let inspectorAbortController = null;
         const fetchLiveInspectorRecommendations = async () => {
-          if (selectedNodeIds.value.size === 0) {
+          if (selectedNodeIds.value.length === 0) {
             inspectorRecs.value = [];
             return;
           }
@@ -1018,10 +1050,8 @@
           isLoadingInspectorRecs.value = true;
 
           try {
-            // Combine selected nodes with any game/music context if user selected pure tags
-            const selectedArr = Array.from(selectedNodeIds.value);
             const payload = {
-              seeds: selectedArr,
+              seeds: [...selectedNodeIds.value],
               target_type: inspectorFilter.value,
               limit: 16,
               lang: currentLang.value,
@@ -1086,14 +1116,14 @@
             } finally {
               isLoadingRecs.value = false;
             }
-          }, 180);
+          }, 150);
         };
 
         const inspectedNodes = computed(() => {
-          if (selectedNodeIds.value.size === 0) return [];
+          if (selectedNodeIds.value.length === 0) return [];
           const list = [];
           for (const nid of selectedNodeIds.value) {
-            const node = fullServerGraph.nodes.find(n => n.id === nid) || currentGraphRaw.nodes.find(n => n.id === nid);
+            const node = fullServerGraph.nodes.find(n => n.id === nid);
             if (node) {
               list.push(node);
             }
@@ -1102,40 +1132,37 @@
         });
 
         const clearSelection = () => {
-          selectedNodeIds.value.clear();
+          selectedNodeIds.value = [];
           inspectorRecs.value = [];
-          refreshGraph();
+          scheduleDraw();
         };
 
         const focusNodeOnGraph = (nodeId) => {
-          if (!graphInstance) return;
-          const node = currentGraphRaw.nodes.find(n => n.id === nodeId);
-          if (node) {
-            selectedNodeIds.value.clear();
-            selectedNodeIds.value.add(nodeId);
+          const node = canvasNodes.find(n => n.id === nodeId);
+          if (node && canvasEl) {
+            selectedNodeIds.value = [nodeId];
             sidebarMode.value = 'inspector';
             fetchLiveInspectorRecommendations();
-            graphInstance.centerAt(node.x, node.y, 450);
-            graphInstance.zoom(1.8, 450);
-            refreshGraph();
+            const rect = canvasEl.getBoundingClientRect();
+            viewTransform.k = 1.35;
+            viewTransform.x = rect.width / 2 - node.x * viewTransform.k;
+            viewTransform.y = rect.height / 2 - node.y * viewTransform.k;
+            scheduleDraw();
           }
         };
 
-        const refreshGraph = () => {
-          if (graphInstance) graphInstance.refresh();
-        };
-
         // ===================================================================
-        // 3-RING RADIAL CONSTELLATION BUILDER
+        // DETERMINISTIC, ZERO-FREEZE 3-RING RADIAL CONSTELLATION ENGINE
         // ===================================================================
         const rebuildConstellation = () => {
-          if (!graphInstance) return;
           const rawNodes = fullServerGraph.nodes || [];
           const rawLinks = fullServerGraph.links || [];
 
           if (rawNodes.length === 0) {
-            currentGraphRaw = { nodes: [], links: [] };
-            graphInstance.graphData(currentGraphRaw);
+            canvasNodes = [];
+            canvasLinks = [];
+            canvasAdj = new Map();
+            scheduleDraw();
             return;
           }
 
@@ -1159,33 +1186,54 @@
             }
           });
 
-          // Filter nodes according to user's visual declutter toggles
           const filteredNodes = rawNodes.filter(n => {
             const isSeed = n.type === 'seed' || profileIdSet.has(n.id);
             if (isSeed) return true;
             if (hideTrackNodes.value && n.type === 'track') return false;
             const isBridge = ['keyword', 'developer', 'person', 'author'].includes(n.type);
             if (onlySharedBridges.value && isBridge) {
-              const deg = (adj.get(n.id) || new Set()).size;
-              return deg >= 2;
+              return (adj.get(n.id) || new Set()).size >= 2;
             }
             return true;
           });
 
-          const keptIds = new Set(filteredNodes.map(n => n.id));
+          const nodeById = new Map();
+          filteredNodes.forEach(n => {
+            const isSeed = n.type === 'seed' || profileIdSet.has(n.id);
+            const isBridge = !isSeed && ['keyword', 'developer', 'person', 'author'].includes(n.type);
+            const seedNbrs = Array.from(seedNeighbors.get(n.id) || []);
+            const clone = {
+              ...n,
+              rawType: getRawType(n),
+              isSeed,
+              isBridge,
+              sharedSeedsCount: seedNbrs.length,
+              seedNbrs,
+              ring: isSeed ? 0 : (isBridge ? 1 : 2),
+              x: 0,
+              y: 0,
+              r: isSeed ? 12 : (isBridge ? (seedNbrs.length >= 2 ? 9 : 7) : 9),
+            };
+            nodeById.set(clone.id, clone);
+          });
+
           const seenLinks = new Set();
-          const cleanLinks = [];
+          const links = [];
+          const filteredAdj = new Map();
+          nodeById.forEach((_, id) => filteredAdj.set(id, new Set()));
 
           rawLinks.forEach(l => {
             const sId = typeof l.source === 'object' ? l.source.id : l.source;
             const tId = typeof l.target === 'object' ? l.target.id : l.target;
-            if (sId && tId && sId !== tId && keptIds.has(sId) && keptIds.has(tId)) {
+            if (sId && tId && sId !== tId && nodeById.has(sId) && nodeById.has(tId)) {
               const key = [sId, tId].sort().join('__');
               if (!seenLinks.has(key)) {
                 seenLinks.add(key);
-                cleanLinks.push({
-                  source: sId,
-                  target: tId,
+                filteredAdj.get(sId).add(tId);
+                filteredAdj.get(tId).add(sId);
+                links.push({
+                  source: nodeById.get(sId),
+                  target: nodeById.get(tId),
                   label: l.label,
                   weight: l.weight || 1,
                 });
@@ -1193,299 +1241,473 @@
             }
           });
 
-          // Assign Ring Tier & Initial Radial Coordinates for deterministic Constellation structure:
-          // Ring 0: Profile Seeds (Inner Core, radius = 0 if 1 seed else 95px)
-          // Ring 1: Shared Bridges (#tags, studios, directors) positioned between connected seeds (radius ~ 55..175px)
-          // Ring 2: Recommended Discoveries (Outer Orbit, radius = 290px)
-          const seedsList = filteredNodes.filter(n => n.type === 'seed' || profileIdSet.has(n.id));
-          const seedAngles = new Map();
-          const innerRadius = seedsList.length <= 1 ? 0 : Math.min(115, 65 + seedsList.length * 12);
+          // 1. Place Ring 0 (Profile Seeds) evenly on the inner ring
+          const seeds = Array.from(nodeById.values()).filter(n => n.ring === 0);
+          const bridges = Array.from(nodeById.values()).filter(n => n.ring === 1);
+          const discoveries = Array.from(nodeById.values()).filter(n => n.ring === 2);
 
-          seedsList.forEach((sNode, idx) => {
-            const angle = (2 * Math.PI * idx) / Math.max(1, seedsList.length) - Math.PI / 2;
-            seedAngles.set(sNode.id, angle);
-            sNode.ring = 0;
-            sNode.targetR = innerRadius;
-            sNode.x = Math.cos(angle) * innerRadius;
-            sNode.y = Math.sin(angle) * innerRadius;
+          const R_SEED = seeds.length <= 1 ? 0 : Math.min(130, 75 + seeds.length * 14);
+          const R_BRIDGE = 215;
+          const R_DISC = 355;
+
+          const nodeAngles = new Map();
+          seeds.forEach((s, idx) => {
+            const angle = (2 * Math.PI * idx) / Math.max(1, seeds.length) - Math.PI / 2;
+            nodeAngles.set(s.id, angle);
+            s.x = Math.cos(angle) * R_SEED;
+            s.y = Math.sin(angle) * R_SEED;
           });
 
-          let bridgeIdx = 0;
-          let recIdx = 0;
-          const totalRecs = Math.max(1, filteredNodes.length - seedsList.length);
+          // 2. Place Ring 1 (Bridges: #tags, studios, directors)
+          // Shared bridges between 2+ seeds go near the inner centroid; single-seed bridges go on R_BRIDGE
+          const sharedBridges = bridges.filter(b => b.sharedSeedsCount >= 2);
+          const singleBridges = bridges.filter(b => b.sharedSeedsCount < 2);
 
-          filteredNodes.forEach(n => {
-            const isSeed = n.type === 'seed' || profileIdSet.has(n.id);
-            const deg = (adj.get(n.id) || new Set()).size;
-            const seedNbrs = Array.from(seedNeighbors.get(n.id) || []);
-            n.degree = deg;
-            n.sharedSeedsCount = seedNbrs.length;
-
-            if (isSeed) return;
-
-            const isBridge = ['keyword', 'developer', 'person', 'author'].includes(n.type);
-            if (isBridge) {
-              n.ring = 1;
-              if (seedNbrs.length >= 2) {
-                // Shared bridge between multiple seeds: place near the centroid of those seeds!
-                let sx = 0, sy = 0;
-                seedNbrs.forEach(sid => {
-                  const a = seedAngles.get(sid) || 0;
-                  sx += Math.cos(a);
-                  sy += Math.sin(a);
-                });
-                const jitter = ((bridgeIdx % 5) - 2) * 18;
-                n.targetR = 55;
-                n.x = (sx / seedNbrs.length) * 65 + jitter;
-                n.y = (sy / seedNbrs.length) * 65 - jitter;
-              } else if (seedNbrs.length === 1) {
-                const baseAngle = (seedAngles.get(seedNbrs[0]) || 0) + ((bridgeIdx % 7) - 3) * 0.18;
-                n.targetR = 175;
-                n.x = Math.cos(baseAngle) * 175;
-                n.y = Math.sin(baseAngle) * 175;
-              } else {
-                const angle = (2 * Math.PI * bridgeIdx) / 16;
-                n.targetR = 190;
-                n.x = Math.cos(angle) * 190;
-                n.y = Math.sin(angle) * 190;
-              }
-              bridgeIdx++;
+          sharedBridges.forEach((b, idx) => {
+            let sx = 0, sy = 0;
+            b.seedNbrs.forEach(sid => {
+              const a = nodeAngles.get(sid) ?? 0;
+              sx += Math.cos(a);
+              sy += Math.sin(a);
+            });
+            sx /= b.seedNbrs.length;
+            sy /= b.seedNbrs.length;
+            const norm = Math.hypot(sx, sy);
+            const spreadAngle = (2 * Math.PI * idx) / Math.max(1, sharedBridges.length);
+            if (norm < 0.15) {
+              // Opposite seeds: fan shared bridges in a tight inner ring around the origin
+              const rInner = sharedBridges.length === 1 ? 0 : 48;
+              b.x = Math.cos(spreadAngle) * rInner;
+              b.y = Math.sin(spreadAngle) * rInner;
+              nodeAngles.set(b.id, spreadAngle);
             } else {
-              // Outer Ring Discovery
-              n.ring = 2;
-              n.targetR = 295;
-              const angle = (2 * Math.PI * recIdx) / totalRecs;
-              n.x = Math.cos(angle) * 295;
-              n.y = Math.sin(angle) * 295;
-              recIdx++;
+              const baseAngle = Math.atan2(sy, sx) + ((idx % 5) - 2) * 0.22;
+              const rMid = Math.max(55, R_SEED * 0.65);
+              b.x = Math.cos(baseAngle) * rMid;
+              b.y = Math.sin(baseAngle) * rMid;
+              nodeAngles.set(b.id, baseAngle);
             }
           });
 
-          currentGraphRaw = {
-            nodes: filteredNodes.map(n => ({ ...n })),
-            links: cleanLinks,
-          };
+          singleBridges.forEach((b, idx) => {
+            let angle;
+            if (b.seedNbrs.length === 1 && nodeAngles.has(b.seedNbrs[0])) {
+              const parentAngle = nodeAngles.get(b.seedNbrs[0]);
+              angle = parentAngle + ((idx % 7) - 3) * 0.24;
+            } else {
+              angle = (2 * Math.PI * idx) / Math.max(1, singleBridges.length);
+            }
+            nodeAngles.set(b.id, angle);
+            b.x = Math.cos(angle) * R_BRIDGE;
+            b.y = Math.sin(angle) * R_BRIDGE;
+          });
 
-          graphInstance.graphData(currentGraphRaw);
+          // 3. Place Ring 2 (Discoveries) angularly aligned with their connected bridges/seeds
+          discoveries.forEach((d, idx) => {
+            const nbrs = Array.from(filteredAdj.get(d.id) || []);
+            let sx = 0, sy = 0, count = 0;
+            nbrs.forEach(nid => {
+              if (nodeAngles.has(nid)) {
+                const a = nodeAngles.get(nid);
+                sx += Math.cos(a);
+                sy += Math.sin(a);
+                count++;
+              }
+            });
+            let angle;
+            if (count > 0 && Math.hypot(sx, sy) > 0.05) {
+              angle = Math.atan2(sy, sx) + ((idx % 5) - 2) * 0.16;
+            } else {
+              angle = (2 * Math.PI * idx) / Math.max(1, discoveries.length);
+            }
+            nodeAngles.set(d.id, angle);
+            d.x = Math.cos(angle) * R_DISC;
+            d.y = Math.sin(angle) * R_DISC;
+          });
 
-          // Apply radial constellation forces
-          if (window.d3 && window.d3.forceRadial) {
-            graphInstance.d3Force('radial', window.d3.forceRadial(
-              node => node.targetR ?? 240,
-              0,
-              0
-            ).strength(node => {
-              if (node.ring === 0) return 0.85;
-              if (node.ring === 1 && node.sharedSeedsCount >= 2) return 0.35;
-              if (node.ring === 1) return 0.55;
-              return 0.65;
-            }));
+          // 4. Fast, deterministic collision-free relaxation (45 iterations, < 1.5ms total)
+          const allNodes = Array.from(nodeById.values());
+          const minSep = 54;
+          for (let iter = 0; iter < 45; iter++) {
+            // Pairwise anti-overlap repulsion
+            for (let i = 0; i < allNodes.length; i++) {
+              for (let j = i + 1; j < allNodes.length; j++) {
+                const a = allNodes[i];
+                const b = allNodes[j];
+                let dx = b.x - a.x;
+                let dy = b.y - a.y;
+                let dist = Math.hypot(dx, dy);
+                if (dist < 0.1) {
+                  dx = (i - j) * 0.5;
+                  dy = ((i + j) % 3 - 1) * 0.5;
+                  dist = Math.hypot(dx, dy) || 1;
+                }
+                if (dist < minSep) {
+                  const push = ((minSep - dist) / dist) * 0.42;
+                  const px = dx * push;
+                  const py = dy * push;
+                  if (!a.isSeed) { a.x -= px; a.y -= py; }
+                  if (!b.isSeed) { b.x += px; b.y += py; }
+                }
+              }
+            }
+            // Gentle spring attraction along links for non-seed nodes
+            for (const l of links) {
+              const dx = l.target.x - l.source.x;
+              const dy = l.target.y - l.source.y;
+              const dist = Math.hypot(dx, dy) || 1;
+              const ideal = (l.source.isSeed && l.target.isSeed) ? R_SEED * 1.4 : 135;
+              const pull = ((dist - ideal) / dist) * 0.04;
+              if (!l.source.isSeed) {
+                l.source.x += dx * pull;
+                l.source.y += dy * pull;
+              }
+              if (!l.target.isSeed) {
+                l.target.x -= dx * pull;
+                l.target.y -= dy * pull;
+              }
+            }
+            // Radial ring tether so rings stay cleanly stratified
+            for (const n of allNodes) {
+              if (n.isSeed) continue;
+              const targetR = n.ring === 1
+                ? (n.sharedSeedsCount >= 2 ? Math.max(55, R_SEED * 0.65) : R_BRIDGE)
+                : R_DISC;
+              const r = Math.hypot(n.x, n.y) || 1;
+              const kR = n.ring === 1 && n.sharedSeedsCount >= 2 ? 0.08 : 0.22;
+              const factor = 1 + ((targetR - r) / r) * kR;
+              n.x *= factor;
+              n.y *= factor;
+            }
           }
 
-          setTimeout(() => {
-            if (graphInstance && currentGraphRaw.nodes.length > 0) {
-              graphInstance.zoomToFit(450, 65);
-            }
-          }, 320);
+          canvasNodes = allNodes;
+          canvasLinks = links;
+          canvasAdj = filteredAdj;
+          fitGraphView();
         };
 
-        let lastClickTime = 0;
-        let lastClickedNodeId = null;
+        const fitGraphView = () => {
+          if (!canvasEl) return;
+          const rect = canvasEl.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) return;
 
-        const initGraph = () => {
-          const elem = document.getElementById('graph-container');
-          graphInstance = ForceGraph()(elem)
-            .backgroundColor('#f8fafc')
-            .nodeId('id')
-            .nodeVal('val')
-            .nodeLabel(node => `${node.label} (${getRawType(node)})`)
-            .onNodeHover(node => {
-              hoveredNodeId.value = node ? node.id : null;
-              elem.style.cursor = node ? 'pointer' : 'default';
-              refreshGraph();
-            })
-            .onNodeClick((node, event) => {
-              const now = Date.now();
-              if (lastClickedNodeId === node.id && (now - lastClickTime) < 320) {
-                // Double-click adds node directly to profile seeds!
-                addNodeToProfile(node);
-                lastClickTime = 0;
-                return;
-              }
-              lastClickTime = now;
-              lastClickedNodeId = node.id;
+          if (canvasNodes.length === 0) {
+            viewTransform = { x: rect.width / 2, y: rect.height / 2, k: 1 };
+            scheduleDraw();
+            return;
+          }
 
-              if (event.ctrlKey || event.metaKey || event.shiftKey) {
-                if (selectedNodeIds.value.has(node.id)) {
-                  selectedNodeIds.value.delete(node.id);
-                } else {
-                  selectedNodeIds.value.add(node.id);
-                }
-              } else {
-                selectedNodeIds.value.clear();
-                selectedNodeIds.value.add(node.id);
-              }
+          let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+          for (const n of canvasNodes) {
+            if (n.x < minX) minX = n.x;
+            if (n.x > maxX) maxX = n.x;
+            if (n.y < minY) minY = n.y;
+            if (n.y > maxY) maxY = n.y;
+          }
+          const pad = 110;
+          const spanX = Math.max(200, (maxX - minX) + pad * 2);
+          const spanY = Math.max(200, (maxY - minY) + pad * 2);
+          const k = Math.min(1.5, Math.max(0.45, Math.min(rect.width / spanX, rect.height / spanY)));
+          const cx = (minX + maxX) / 2;
+          const cy = (minY + maxY) / 2;
 
-              if (selectedNodeIds.value.size > 0) {
-                sidebarMode.value = 'inspector';
-                fetchLiveInspectorRecommendations();
-              }
-              refreshGraph();
-            })
-            .onBackgroundClick(() => {
-              clearSelection();
-            })
-            .nodeCanvasObject((node, ctx, globalScale) => {
-              if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
+          viewTransform = {
+            x: rect.width / 2 - cx * k,
+            y: rect.height / 2 - cy * k,
+            k,
+          };
+          scheduleDraw();
+        };
 
-              const activeFocusSet = new Set(selectedNodeIds.value);
-              if (hoveredNodeId.value) activeFocusSet.add(hoveredNodeId.value);
-              const hasFocus = activeFocusSet.size > 0;
-              const isSelected = activeFocusSet.has(node.id);
+        const drawConstellation = () => {
+          if (!canvasEl || !ctx2d) return;
+          const dpr = window.devicePixelRatio || 1;
+          const rect = canvasEl.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) return;
 
-              let isNeighbor = false;
-              if (hasFocus && !isSelected) {
-                for (const link of currentGraphRaw.links) {
-                  const sId = typeof link.source === 'object' ? link.source.id : link.source;
-                  const tId = typeof link.target === 'object' ? link.target.id : link.target;
-                  if ((activeFocusSet.has(sId) && tId === node.id) ||
-                      (activeFocusSet.has(tId) && sId === node.id)) {
+          if (canvasEl.width !== Math.round(rect.width * dpr) || canvasEl.height !== Math.round(rect.height * dpr)) {
+            canvasEl.width = Math.round(rect.width * dpr);
+            canvasEl.height = Math.round(rect.height * dpr);
+          }
+
+          const ctx = ctx2d;
+          ctx.save();
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          ctx.fillStyle = '#f8fafc';
+          ctx.fillRect(0, 0, rect.width, rect.height);
+
+          if (canvasNodes.length === 0) {
+            ctx.restore();
+            return;
+          }
+
+          ctx.translate(viewTransform.x, viewTransform.y);
+          ctx.scale(viewTransform.k, viewTransform.k);
+
+          // Draw subtle concentric orbital guide rings
+          ctx.save();
+          ctx.strokeStyle = 'rgba(203, 213, 225, 0.55)';
+          ctx.setLineDash([4, 6]);
+          ctx.lineWidth = 1 / viewTransform.k;
+          for (const radius of [110, 215, 355]) {
+            ctx.beginPath();
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+          ctx.restore();
+
+          const focusSet = new Set(selectedNodeIds.value);
+          if (hoveredId) focusSet.add(hoveredId);
+          const hasFocus = focusSet.size > 0;
+
+          // Draw Links
+          for (const l of canvasLinks) {
+            const sId = l.source.id;
+            const tId = l.target.id;
+            const bothFocused = hasFocus && focusSet.has(sId) && focusSet.has(tId);
+            const oneFocused = hasFocus && (focusSet.has(sId) || focusSet.has(tId));
+
+            ctx.beginPath();
+            ctx.moveTo(l.source.x, l.source.y);
+            ctx.lineTo(l.target.x, l.target.y);
+
+            if (!hasFocus) {
+              ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+              ctx.lineWidth = 1.2 / viewTransform.k;
+            } else if (bothFocused) {
+              ctx.strokeStyle = '#e11d48';
+              ctx.lineWidth = 2.8 / viewTransform.k;
+            } else if (oneFocused) {
+              ctx.strokeStyle = '#0f172a';
+              ctx.lineWidth = 1.9 / viewTransform.k;
+            } else {
+              ctx.strokeStyle = 'rgba(203, 213, 225, 0.22)';
+              ctx.lineWidth = 0.9 / viewTransform.k;
+            }
+            ctx.stroke();
+          }
+
+          // Draw Nodes
+          for (const n of canvasNodes) {
+            const isSelected = focusSet.has(n.id);
+            let isNeighbor = false;
+            if (hasFocus && !isSelected) {
+              const nbrs = canvasAdj.get(n.id);
+              if (nbrs) {
+                for (const fId of focusSet) {
+                  if (nbrs.has(fId)) {
                     isNeighbor = true;
                     break;
                   }
                 }
               }
+            }
+            const isHighlighted = !hasFocus || isSelected || isNeighbor;
 
-              const isHighlighted = !hasFocus || isSelected || isNeighbor;
-              const rawType = getRawType(node);
-              const isSeed = node.type === 'seed' || isNodeInProfile(node.id);
-              const isBridge = ['keyword', 'developer', 'person', 'author'].includes(node.type);
+            let fill = '#64748b';
+            if (n.isSeed) fill = '#e11d48';
+            else if (n.rawType === 'game') fill = '#2563eb';
+            else if (n.rawType === 'artist' || n.rawType === 'track') fill = '#0d9488';
+            else if (n.rawType === 'movie') fill = '#d97706';
+            else if (n.rawType === 'series') fill = '#7c3aed';
+            else if (n.rawType === 'developer') fill = '#1d4ed8';
+            else if (n.rawType === 'keyword') fill = n.sharedSeedsCount >= 2 ? '#1e293b' : '#64748b';
 
-              let fill = '#64748b';
-              if (isSeed) fill = '#e11d48';
-              else if (rawType === 'game') fill = '#2563eb';
-              else if (rawType === 'artist' || rawType === 'track') fill = '#0d9488';
-              else if (rawType === 'movie') fill = '#d97706';
-              else if (rawType === 'series') fill = '#7c3aed';
-              else if (rawType === 'developer') fill = '#1d4ed8';
-              else if (rawType === 'keyword') fill = node.sharedSeedsCount >= 2 ? '#334155' : '#64748b';
+            ctx.save();
+            if (hasFocus && !isHighlighted) {
+              ctx.globalAlpha = 0.22;
+            }
 
-              const baseR = isSeed ? 10.5 : (isBridge ? (node.sharedSeedsCount >= 2 ? 7.5 : 5.8) : 7.5);
+            // Halo for Seeds & Focused Nodes
+            if (n.isSeed || isSelected) {
+              ctx.beginPath();
+              ctx.arc(n.x, n.y, n.r + 5 / viewTransform.k, 0, Math.PI * 2);
+              ctx.fillStyle = isSelected ? 'rgba(225, 29, 72, 0.24)' : 'rgba(225, 29, 72, 0.14)';
+              ctx.fill();
+              ctx.strokeStyle = '#e11d48';
+              ctx.lineWidth = (isSelected ? 2.0 : 1.2) / viewTransform.k;
+              ctx.stroke();
+            }
 
-              ctx.save();
-              if (hasFocus && !isHighlighted) {
-                ctx.globalAlpha = 0.22;
-              }
+            // Shape: Diamond for Bridges vs Circle for Seeds & Discoveries
+            if (n.isBridge && !n.isSeed) {
+              const d = n.r * 1.18;
+              ctx.beginPath();
+              ctx.moveTo(n.x, n.y - d);
+              ctx.lineTo(n.x + d, n.y);
+              ctx.lineTo(n.x, n.y + d);
+              ctx.lineTo(n.x - d, n.y);
+              ctx.closePath();
+              ctx.fillStyle = fill;
+              ctx.fill();
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 1.4 / viewTransform.k;
+              ctx.stroke();
+            } else {
+              ctx.beginPath();
+              ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+              ctx.fillStyle = fill;
+              ctx.fill();
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 1.6 / viewTransform.k;
+              ctx.stroke();
+            }
 
-              // Outer Halo for Seeds & Selected Nodes
-              if (isSelected || isSeed) {
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, baseR + 4.5 / globalScale, 0, 2 * Math.PI, false);
-                ctx.fillStyle = isSelected ? 'rgba(225, 29, 72, 0.24)' : 'rgba(225, 29, 72, 0.14)';
-                ctx.fill();
-                ctx.strokeStyle = '#e11d48';
-                ctx.lineWidth = (isSelected ? 2.0 : 1.2) / globalScale;
-                ctx.stroke();
-              }
+            // Crisp Typography Label
+            const fontSize = Math.max(9.5, (n.isSeed ? 11.5 : 10.2) / Math.sqrt(viewTransform.k));
+            ctx.font = `${n.isSeed || isSelected ? '700' : '600'} ${fontSize}px "JetBrains Mono", monospace`;
+            const labelText = (n.isBridge && n.sharedSeedsCount >= 2)
+              ? `${n.label} (${n.sharedSeedsCount})`
+              : n.label;
 
-              // Draw Diamond for Shared Bridge Nodes vs Circle for Entities
-              if (isBridge && !isSeed) {
-                const d = baseR * 1.15;
-                ctx.beginPath();
-                ctx.moveTo(node.x, node.y - d);
-                ctx.lineTo(node.x + d, node.y);
-                ctx.lineTo(node.x, node.y + d);
-                ctx.lineTo(node.x - d, node.y);
-                ctx.closePath();
-                ctx.fillStyle = fill;
-                ctx.fill();
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 1.3 / globalScale;
-                ctx.stroke();
-              } else {
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, baseR, 0, 2 * Math.PI, false);
-                ctx.fillStyle = fill;
-                ctx.fill();
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 1.5 / globalScale;
-                ctx.stroke();
-              }
-
-              // Node Label with pill backdrop for crisp legibility
-              const fontSize = Math.max(9.5, (isSeed ? 11.5 : 10.2) / Math.sqrt(globalScale));
-              ctx.font = `${isSeed || isSelected ? '700' : '600'} ${fontSize}px "JetBrains Mono", monospace`;
-              const labelText = node.sharedSeedsCount >= 2 && isBridge
-                ? `${node.label} (${node.sharedSeedsCount})`
-                : node.label;
-
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'top';
-              const labelY = node.y + baseR + 3 / globalScale;
-              ctx.fillStyle = isSelected ? '#e11d48' : (isSeed ? '#0f172a' : '#1e293b');
-              ctx.fillText(labelText, node.x, labelY);
-
-              ctx.restore();
-            })
-            .linkDirectionalParticles(link => {
-              const sId = typeof link.source === 'object' ? link.source.id : link.source;
-              const tId = typeof link.target === 'object' ? link.target.id : link.target;
-              if (hoveredNodeId.value === sId || hoveredNodeId.value === tId) return 4;
-              if (selectedNodeIds.value.has(sId) || selectedNodeIds.value.has(tId)) return 3;
-              return 0;
-            })
-            .linkDirectionalParticleSpeed(0.005)
-            .linkColor(link => {
-              const activeFocusSet = new Set(selectedNodeIds.value);
-              if (hoveredNodeId.value) activeFocusSet.add(hoveredNodeId.value);
-              const sId = typeof link.source === 'object' ? link.source.id : link.source;
-              const tId = typeof link.target === 'object' ? link.target.id : link.target;
-
-              if (activeFocusSet.size === 0) {
-                return 'rgba(148, 163, 184, 0.45)';
-              }
-              if (activeFocusSet.has(sId) && activeFocusSet.has(tId)) {
-                return '#e11d48';
-              }
-              if (activeFocusSet.has(sId) || activeFocusSet.has(tId)) {
-                return '#0f172a';
-              }
-              return 'rgba(203, 213, 225, 0.22)';
-            })
-            .linkWidth(link => {
-              const activeFocusSet = new Set(selectedNodeIds.value);
-              if (hoveredNodeId.value) activeFocusSet.add(hoveredNodeId.value);
-              const sId = typeof link.source === 'object' ? link.source.id : link.source;
-              const tId = typeof link.target === 'object' ? link.target.id : link.target;
-              if (activeFocusSet.has(sId) && activeFocusSet.has(tId)) return 3.2;
-              if (activeFocusSet.has(sId) || activeFocusSet.has(tId)) return 2.0;
-              return 1.1;
-            });
-
-          if (graphInstance.d3Force('charge')) {
-            graphInstance.d3Force('charge').strength(-360).distanceMax(700);
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = isSelected ? '#e11d48' : (n.isSeed ? '#0f172a' : '#1e293b');
+            ctx.fillText(labelText, n.x, n.y + n.r + 3.5 / viewTransform.k);
+            ctx.restore();
           }
-          if (graphInstance.d3Force('link')) {
-            graphInstance.d3Force('link').distance(link => Math.max(70, 115 - (link.weight || 1) * 8));
-          }
-          if (window.d3 && window.d3.forceCollide) {
-            graphInstance.d3Force('collide', window.d3.forceCollide(node => {
-              return (node.ring === 0 ? 38 : 28);
-            }).iterations(3));
-          }
-          graphInstance.d3VelocityDecay(0.38);
-          graphInstance.cooldownTicks(140);
+
+          ctx.restore();
         };
 
-        const fitGraphView = () => {
-          if (graphInstance && currentGraphRaw.nodes.length > 0) {
-            graphInstance.zoomToFit(450, 65);
+        const screenToWorld = (sx, sy) => {
+          return {
+            x: (sx - viewTransform.x) / viewTransform.k,
+            y: (sy - viewTransform.y) / viewTransform.k,
+          };
+        };
+
+        const findNodeAt = (wx, wy) => {
+          const hitPad = 6 / viewTransform.k;
+          for (let i = canvasNodes.length - 1; i >= 0; i--) {
+            const n = canvasNodes[i];
+            if (Math.hypot(wx - n.x, wy - n.y) <= n.r + hitPad) {
+              return n;
+            }
           }
+          return null;
+        };
+
+        const initCanvasEvents = () => {
+          canvasEl = document.getElementById('constellation-canvas');
+          if (!canvasEl) return;
+          ctx2d = canvasEl.getContext('2d');
+
+          const resizeObs = new ResizeObserver(() => {
+            scheduleDraw();
+          });
+          resizeObs.observe(canvasEl);
+
+          canvasEl.addEventListener('pointerdown', (e) => {
+            const rect = canvasEl.getBoundingClientRect();
+            const sx = e.clientX - rect.left;
+            const sy = e.clientY - rect.top;
+            pointerDownX = sx;
+            pointerDownY = sy;
+            const world = screenToWorld(sx, sy);
+            const hit = findNodeAt(world.x, world.y);
+
+            if (hit) {
+              draggingNode = hit;
+            } else {
+              isPanning = true;
+              panStartX = sx - viewTransform.x;
+              panStartY = sy - viewTransform.y;
+            }
+          });
+
+          window.addEventListener('pointermove', (e) => {
+            if (!canvasEl) return;
+            const rect = canvasEl.getBoundingClientRect();
+            const sx = e.clientX - rect.left;
+            const sy = e.clientY - rect.top;
+
+            if (draggingNode) {
+              const world = screenToWorld(sx, sy);
+              draggingNode.x = world.x;
+              draggingNode.y = world.y;
+              scheduleDraw();
+              return;
+            }
+            if (isPanning) {
+              viewTransform.x = sx - panStartX;
+              viewTransform.y = sy - panStartY;
+              scheduleDraw();
+              return;
+            }
+
+            if (sx >= 0 && sy >= 0 && sx <= rect.width && sy <= rect.height) {
+              const world = screenToWorld(sx, sy);
+              const hit = findNodeAt(world.x, world.y);
+              const newHover = hit ? hit.id : null;
+              if (newHover !== hoveredId) {
+                hoveredId = newHover;
+                canvasEl.style.cursor = hit ? 'pointer' : 'grab';
+                scheduleDraw();
+              }
+            }
+          });
+
+          window.addEventListener('pointerup', (e) => {
+            if (!canvasEl) return;
+            const rect = canvasEl.getBoundingClientRect();
+            const sx = e.clientX - rect.left;
+            const sy = e.clientY - rect.top;
+            const movedDist = Math.hypot(sx - pointerDownX, sy - pointerDownY);
+
+            if (draggingNode && movedDist < 5) {
+              const clicked = draggingNode;
+              const now = Date.now();
+              if (lastClickedNodeId === clicked.id && (now - lastClickTime) < 320) {
+                addNodeToProfile(clicked);
+                lastClickTime = 0;
+              } else {
+                lastClickTime = now;
+                lastClickedNodeId = clicked.id;
+                if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                  const idx = selectedNodeIds.value.indexOf(clicked.id);
+                  if (idx >= 0) {
+                    selectedNodeIds.value.splice(idx, 1);
+                  } else {
+                    selectedNodeIds.value.push(clicked.id);
+                  }
+                } else {
+                  selectedNodeIds.value = [clicked.id];
+                }
+                if (selectedNodeIds.value.length > 0) {
+                  sidebarMode.value = 'inspector';
+                  fetchLiveInspectorRecommendations();
+                }
+                scheduleDraw();
+              }
+            } else if (isPanning && movedDist < 4) {
+              if (selectedNodeIds.value.length > 0) {
+                clearSelection();
+              }
+            }
+
+            draggingNode = null;
+            isPanning = false;
+          });
+
+          canvasEl.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const rect = canvasEl.getBoundingClientRect();
+            const sx = e.clientX - rect.left;
+            const sy = e.clientY - rect.top;
+            const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
+            const nextK = Math.min(3.5, Math.max(0.25, viewTransform.k * zoomFactor));
+            viewTransform.x = sx - (sx - viewTransform.x) * (nextK / viewTransform.k);
+            viewTransform.y = sy - (sy - viewTransform.y) * (nextK / viewTransform.k);
+            viewTransform.k = nextK;
+            scheduleDraw();
+          }, { passive: false });
         };
 
         onMounted(() => {
           loadSavedProfile();
-          initGraph();
+          initCanvasEvents();
           if (profileSeeds.value.length > 0) {
             computeRecommendations();
           }
@@ -1522,7 +1744,7 @@
           getAffinityLabel,
           getAffinityBadgeClass,
           selectedNodeIds,
-          hoveredNodeId,
+          setHoveredNode,
           inspectedNodes,
           inspectorRecs,
           inspectorFilter,
@@ -1531,7 +1753,6 @@
           setInspectorFilter,
           clearSelection,
           focusNodeOnGraph,
-          refreshGraph,
           onlySharedBridges,
           hideTrackNodes,
           rebuildConstellation,
