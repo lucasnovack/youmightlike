@@ -98,7 +98,7 @@ pub fn search_entities_sync(
                         let country: Option<String> = r.get(2).ok();
                         let nid = format!("artist:{}", aid);
                         let degree = state.graph.out_edges_by_key(&nid).len();
-                        if degree < 5 {
+                        if degree == 0 {
                             continue;
                         }
                         let nkey = norm_artist_key(&aname);
