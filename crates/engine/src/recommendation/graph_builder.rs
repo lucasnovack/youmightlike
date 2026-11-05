@@ -64,10 +64,11 @@ pub fn init_subgraph_anchors(
         }
 
         // Structural anchors for each seed:
-        // - Up to 1 creator/studio (games/movies/books) OR up to 1 top similar peer artist (music)
+        // - Up to 1 creator/studio (games/movies/books) OR up to 1 top similar peer artist/game
         // - Up to 2 top non-noise tags (shared multi-seed tags prioritized)
         let mut creator_edges = Vec::new();
         let mut peer_artist_edges = Vec::new();
+        let mut peer_game_edges = Vec::new();
         let mut tag_edges = Vec::new();
 
         for e in state.graph.out_edges_by_key(&seed_item.id) {
@@ -77,6 +78,9 @@ pub fn init_subgraph_anchors(
                 }
                 "similar_to" if seed_item.entity_type == "artist" => {
                     peer_artist_edges.push(e);
+                }
+                "similar_to" if seed_item.entity_type == "game" => {
+                    peer_game_edges.push(e);
                 }
                 "has_tag" => {
                     if let Some(("keyword", tid)) = parse_node_key(e.target_key) {
@@ -113,6 +117,12 @@ pub fn init_subgraph_anchors(
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
+        peer_game_edges.sort_by(|a, b| {
+            b.base_weight
+                .partial_cmp(&a.base_weight)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
         tag_edges.sort_by(|a, b| {
             let cnt_a = seed_tag_counts.get(&a.0).copied().unwrap_or(0);
             let cnt_b = seed_tag_counts.get(&b.0).copied().unwrap_or(0);
@@ -130,6 +140,7 @@ pub fn init_subgraph_anchors(
             .into_iter()
             .take(1)
             .chain(peer_artist_edges.into_iter().take(1))
+            .chain(peer_game_edges.into_iter().take(1))
             .chain(tag_edges.into_iter().take(2).map(|(_, e)| e));
 
         for edge in selected_anchors {
@@ -144,6 +155,7 @@ pub fn init_subgraph_anchors(
                     "person" => state.catalog.people.get(&t_nid).cloned(),
                     "author" => state.catalog.authors.get(&t_nid).cloned(),
                     "artist" => lookup_artist_meta(conn, t_nid).map(|(n, _)| n),
+                    "game" => state.catalog.games.get(&t_nid).map(|g| g.title.clone()),
                     _ => None,
                 };
                 if let Some(label) = t_label {
@@ -305,14 +317,16 @@ pub fn build_subgraph_and_prune(
                         2
                     } else if rel == "is_artist" {
                         3
-                    } else if rel == "performed_by" {
+                    } else if rel == "similar_to" {
                         4
-                    } else if rel == "has_director" {
+                    } else if rel == "performed_by" {
                         5
-                    } else if rel == "developed_by" {
+                    } else if rel == "has_director" {
                         6
-                    } else {
+                    } else if rel == "developed_by" {
                         7
+                    } else {
+                        8
                     }
                 };
                 rel_prio(&a.label).cmp(&rel_prio(&b.label)).then_with(|| {
@@ -378,7 +392,7 @@ pub fn build_subgraph_and_prune(
                                 .get(&tid)
                                 .map(|k| !is_steam_noise_tag(k.as_str()))
                                 .unwrap_or(false),
-                            "artist" | "person" | "developer" | "author" => true,
+                            "artist" | "person" | "developer" | "author" | "game" => true,
                             _ => false,
                         };
                         if valid {
@@ -426,6 +440,7 @@ pub fn build_subgraph_and_prune(
                                 "developer" => state.catalog.developers.get(&t_nid).cloned(),
                                 "person" => state.catalog.people.get(&t_nid).cloned(),
                                 "author" => state.catalog.authors.get(&t_nid).cloned(),
+                                "game" => state.catalog.games.get(&t_nid).map(|g| g.title.clone()),
                                 _ => None,
                             };
                             if let Some(label) = t_label {

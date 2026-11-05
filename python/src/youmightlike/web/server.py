@@ -644,6 +644,25 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                 if row:
                     is_pt = (req.lang == "pt")
                     game_explanation = []
+                    # 0. Co-jogabilidade direta da Steam (similar_to)
+                    direct_game_edge = conn.execute(
+                        f"""
+                        SELECT e.relation_type, e.base_weight, g_other.title
+                        FROM graph_semantic_edges e
+                        JOIN games g_other ON (e.source_id = 'game:' || g_other.id AND e.target_id = '{nkey}')
+                                           OR (e.target_id = 'game:' || g_other.id AND e.source_id = '{nkey}')
+                        WHERE ((e.source_id IN ({seed_ids_sql}) AND e.target_id = '{nkey}')
+                           OR (e.source_id = '{nkey}' AND e.target_id IN ({seed_ids_sql})))
+                          AND 'game:' || g_other.id != '{nkey}'
+                          AND e.relation_type = 'similar_to'
+                        LIMIT 1;
+                        """
+                    ).fetchone()
+                    if direct_game_edge:
+                        _, w, src_name = direct_game_edge
+                        pct = int(round(w / 2.0 * 100))
+                        game_explanation.append(f"Co-jogabilidade com {src_name} ({pct}%)" if is_pt else f"Co-played with {src_name} ({pct}%)")
+
                     # 1. Desenvolvedor ou estúdio compartilhado com a semente
                     shared_dev = conn.execute(
                         f"""

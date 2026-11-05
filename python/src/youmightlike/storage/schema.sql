@@ -225,6 +225,13 @@ CREATE TABLE IF NOT EXISTS game_tags (
     PRIMARY KEY (game_id, keyword_id)
 );
 
+CREATE TABLE IF NOT EXISTS game_similarities (
+    source_game_id BIGINT NOT NULL REFERENCES games(id),
+    target_game_id BIGINT NOT NULL REFERENCES games(id),
+    match_score DOUBLE NOT NULL,        -- Cosine similarity score (0.0 to 1.0)
+    PRIMARY KEY (source_game_id, target_game_id)
+);
+
 -- ============================================================================
 -- 5. GRAPH PROJECTION VIEWS (Consumed by Rust / SciPy Engine)
 -- ============================================================================
@@ -479,6 +486,14 @@ SELECT
     'has_tag' AS relation_type,
     1.2 AS base_weight
 FROM game_tags
+UNION ALL
+-- Game ➔ Similar Game (similar_to) -> Steam Co-play Bridge
+SELECT 
+    'game:' || CAST(source_game_id AS VARCHAR) AS source_id,
+    'game:' || CAST(target_game_id AS VARCHAR) AS target_id,
+    'similar_to' AS relation_type,
+    match_score * 2.0 AS base_weight
+FROM game_similarities
 UNION ALL
 -- Series ➔ Director (has_director)
 SELECT 

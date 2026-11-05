@@ -92,6 +92,8 @@ pub fn extract_games(
 
         let mut touches_direct_seed_artist = false;
         let mut touches_seed_dev = false;
+        let mut touches_seed_game_similar = false;
+        let mut found_similar_game: Option<(i64, String, f32)> = None;
         let mut _touches_seed_tag = false;
 
         for e in ctx.state.graph.out_edges_by_key(nkey) {
@@ -131,6 +133,17 @@ pub fn extract_games(
                         }
                     } else if found_dev.is_none() {
                         found_dev = ctx.state.catalog.developers.get(&tid).cloned();
+                    }
+                } else if tpfx == "game" && e.relation_type == "similar_to" {
+                    let is_seed = ctx.active_seed_set.contains(e.target_key)
+                        || ctx.seed_set.contains(e.target_key);
+                    if is_seed {
+                        touches_seed_game_similar = true;
+                        if found_similar_game.is_none() {
+                            if let Some(sg) = ctx.state.catalog.games.get(&tid) {
+                                found_similar_game = Some((tid, sg.title.clone(), e.base_weight));
+                            }
+                        }
                     }
                 } else if tpfx == "keyword" && is_tag_relation(e.relation_type) {
                     let is_active_seed = ctx.active_seed_set.contains(e.target_key);
@@ -203,6 +216,9 @@ pub fn extract_games(
         if touches_direct_seed_artist {
             boost *= 1.8;
         }
+        if touches_seed_game_similar {
+            boost *= 1.6;
+        }
         if touches_seed_dev && total_shared_tags >= 2 {
             boost *= 1.25;
         } else if found_composer.is_some() && !touches_direct_seed_artist && !touches_seed_dev {
@@ -240,6 +256,13 @@ pub fn extract_games(
                     ));
                 }
             }
+        }
+        if let Some((_gid, ref gtitle, _w)) = found_similar_game {
+            game_explanation.push(if ctx.is_pt {
+                format!("Jogadores de '{}' também jogam", gtitle)
+            } else {
+                format!("Players of '{}' also play", gtitle)
+            });
         }
         if let Some(dname) = found_dev {
             if touches_seed_dev {
@@ -383,9 +406,21 @@ pub fn extract_games(
             });
         }
 
-        // Direct link to seed game if sharing developer
+        // Direct link to seed game if similar_to or sharing developer
         let seed_game_keys: Vec<String> = ctx.seed_set.iter().filter(|s| s.starts_with("game:")).cloned().collect();
         for s_gkey in &seed_game_keys {
+            let is_similar = ctx.state.graph.out_edges_by_key(s_gkey).iter().any(|e| {
+                e.relation_type == "similar_to" && e.target_key == cand.nkey
+            });
+            if is_similar && !graph_links.iter().any(|l| (l.source == *s_gkey && l.target == cand.nkey) || (l.source == cand.nkey && l.target == *s_gkey)) {
+                graph_links.push(GraphLinkPayload {
+                    source: s_gkey.clone(),
+                    target: cand.nkey.clone(),
+                    label: if ctx.is_pt { "co_jogabilidade".to_string() } else { "co_played".to_string() },
+                    weight: 3.5,
+                });
+            }
+
             let shares_dev = ctx.state.graph.out_edges_by_key(s_gkey).iter().any(|e| {
                 e.relation_type == "developed_by" && parse_node_key(e.target_key).map(|(_, did)| cand.dev_ids.contains(&did)).unwrap_or(false)
             });
@@ -474,6 +509,18 @@ pub fn extract_games(
 
             let seed_game_keys: Vec<String> = ctx.seed_set.iter().filter(|s| s.starts_with("game:")).cloned().collect();
             for s_gkey in &seed_game_keys {
+                let is_similar = ctx.state.graph.out_edges_by_key(s_gkey).iter().any(|e| {
+                    e.relation_type == "similar_to" && e.target_key == cand.nkey
+                });
+                if is_similar && !graph_links.iter().any(|l| (l.source == *s_gkey && l.target == cand.nkey) || (l.source == cand.nkey && l.target == *s_gkey)) {
+                    graph_links.push(GraphLinkPayload {
+                        source: s_gkey.clone(),
+                        target: cand.nkey.clone(),
+                        label: if ctx.is_pt { "co_jogabilidade".to_string() } else { "co_played".to_string() },
+                        weight: 3.5,
+                    });
+                }
+
                 let shares_dev = ctx.state.graph.out_edges_by_key(s_gkey).iter().any(|e| {
                     e.relation_type == "developed_by" && parse_node_key(e.target_key).map(|(_, did)| cand.dev_ids.contains(&did)).unwrap_or(false)
                 });
@@ -488,5 +535,120 @@ pub fn extract_games(
             }
             game_recs_added += 1;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::graph::{GraphCSR, RawEdges};
+    use crate::models::{AppState, CatalogCache, GameMeta, ResponseCache};
+    use duckdb::Connection;
+    use std::sync::Mutex;
+
+    #[test]
+    fn test_extract_games_co_play_similarity() {
+        let mut raw = RawEdges::default();
+        raw.push("game:1", "game:2", "similar_to", 1.5);
+        raw.push("game:2", "game:1", "similar_to", 1.5);
+        let graph = GraphCSR::from_raw(raw, 1.0);
+
+        let mut games = HashMap::new();
+        games.insert(
+            1,
+            GameMeta {
+                title: "The Elder Scrolls V: Skyrim".to_string(),
+                release_year: Some(2011),
+                positive_reviews: Some(200000),
+            },
+        );
+        games.insert(
+            2,
+            GameMeta {
+                title: "Fallout: New Vegas".to_string(),
+                release_year: Some(2010),
+                positive_reviews: Some(150000),
+            },
+        );
+
+        let catalog = CatalogCache {
+            developers: HashMap::new(),
+            keywords: HashMap::new(),
+            people: HashMap::new(),
+            authors: HashMap::new(),
+            movies: HashMap::new(),
+            series: HashMap::new(),
+            games,
+            books: HashMap::new(),
+        };
+
+        let state = AppState {
+            db_path: ":memory:".to_string(),
+            graph,
+            catalog,
+            db_conn: Mutex::new(Connection::open_in_memory().unwrap()),
+            cache: Mutex::new(ResponseCache::new()),
+        };
+
+        let conn = Connection::open_in_memory().unwrap();
+        let p = vec![0.5f32, 0.5f32];
+        let exclude_ids = HashSet::new();
+        let mut seed_set = HashSet::new();
+        seed_set.insert("game:1".to_string());
+        let mut active_seed_set = HashSet::new();
+        active_seed_set.insert("game:1".to_string());
+        let affinitive_artist_keys = HashSet::new();
+        let top_diffused_artist_ids = vec![];
+        let seed_artist_names = HashMap::new();
+        let seed_tag_counts = HashMap::new();
+        let seed_people = HashSet::new();
+        let seed_devs = HashSet::new();
+        let seed_authors = HashSet::new();
+        let seed_artists = HashSet::new();
+        let mut seed_games = HashSet::new();
+        seed_games.insert(1);
+
+        let ctx = RecContext {
+            state: &state,
+            conn: &conn,
+            p: &p,
+            exclude_ids: &exclude_ids,
+            seed_set: &seed_set,
+            active_seed_set: &active_seed_set,
+            affinitive_artist_keys: &affinitive_artist_keys,
+            top_diffused_artist_ids: &top_diffused_artist_ids,
+            seed_artist_names: &seed_artist_names,
+            seed_tag_counts: &seed_tag_counts,
+            seed_people: &seed_people,
+            seed_devs: &seed_devs,
+            seed_authors: &seed_authors,
+            seed_artists: &seed_artists,
+            seed_games: &seed_games,
+            is_pt: true,
+            min_rec_score: 0.0001,
+        };
+
+        let mut results = Vec::new();
+        let mut graph_nodes = Vec::new();
+        let mut graph_links = Vec::new();
+
+        extract_games(&ctx, 5, &mut results, &mut graph_nodes, &mut graph_links);
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["id"], "game:2");
+        assert_eq!(results[0]["title"], "Fallout: New Vegas");
+        let reason = results[0]["reason"].as_str().unwrap();
+        assert!(
+            reason.contains("Jogadores de 'The Elder Scrolls V: Skyrim' também jogam"),
+            "Expected co-play explanation, got: {}",
+            reason
+        );
+
+        let has_co_play_link = graph_links.iter().any(|l| {
+            l.label == "co_jogabilidade"
+                && ((l.source == "game:1" && l.target == "game:2")
+                    || (l.source == "game:2" && l.target == "game:1"))
+        });
+        assert!(has_co_play_link, "Expected co_jogabilidade graph link");
     }
 }
