@@ -51,7 +51,29 @@ pub fn extract_books(
 
         for e in ctx.state.graph.out_edges_by_key(nkey) {
             if let Some((tpfx, tid)) = parse_node_key(e.target_key) {
-                if tpfx == "author"
+                if (tpfx == "movie" || tpfx == "series")
+                    && (e.relation_type == "adapted_as" || e.relation_type == "based_on")
+                    && ctx.active_seed_set.contains(e.target_key)
+                {
+                    let title = if tpfx == "movie" {
+                        ctx.state.catalog.movies.get(&tid).map(|m| m.title.clone())
+                    } else {
+                        ctx.state.catalog.series.get(&tid).map(|s| s.title.clone())
+                    };
+                    if let Some(scr_title) = title {
+                        book_explanation.push(if ctx.is_pt {
+                            format!("Obra adaptada em '{}'", scr_title)
+                        } else {
+                            format!("Adapted into '{}'", scr_title)
+                        });
+                        best_book_bridge = Some((
+                            e.target_key.to_string(),
+                            scr_title,
+                            tpfx.to_string(),
+                            3.5,
+                        ));
+                    }
+                } else if tpfx == "author"
                     && found_author.is_none()
                     && ctx.seed_authors.contains(&tid)
                 {

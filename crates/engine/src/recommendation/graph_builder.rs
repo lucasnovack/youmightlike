@@ -299,18 +299,20 @@ pub fn build_subgraph_and_prune(
 
             extracted.sort_by(|a, b| {
                 let rel_prio = |rel: &str| {
-                    if rel.starts_with("soundtrack_") {
+                    if rel == "based_on" || rel == "adapted_as" {
                         1
-                    } else if rel == "is_artist" {
+                    } else if rel.starts_with("soundtrack_") {
                         2
-                    } else if rel == "performed_by" {
+                    } else if rel == "is_artist" {
                         3
-                    } else if rel == "has_director" {
+                    } else if rel == "performed_by" {
                         4
-                    } else if rel == "developed_by" {
+                    } else if rel == "has_director" {
                         5
-                    } else {
+                    } else if rel == "developed_by" {
                         6
+                    } else {
+                        7
                     }
                 };
                 rel_prio(&a.label).cmp(&rel_prio(&b.label)).then_with(|| {

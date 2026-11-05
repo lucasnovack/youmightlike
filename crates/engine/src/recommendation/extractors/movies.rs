@@ -129,7 +129,24 @@ pub fn extract_movies(
 
         for e in ctx.state.graph.out_edges_by_key(nkey) {
             if let Some((tpfx, tid)) = parse_node_key(e.target_key) {
-                if tpfx == "person" && found_person.is_none() && ctx.seed_people.contains(&tid) {
+                if tpfx == "book"
+                    && (e.relation_type == "based_on" || e.relation_type == "adapted_as")
+                    && ctx.active_seed_set.contains(e.target_key)
+                {
+                    if let Some(b) = ctx.state.catalog.books.get(&tid) {
+                        movie_explanation.push(if ctx.is_pt {
+                            format!("Baseado no livro ({})", b.title)
+                        } else {
+                            format!("Based on the book ({})", b.title)
+                        });
+                        best_movie_bridge = Some((
+                            e.target_key.to_string(),
+                            b.title.clone(),
+                            "book".to_string(),
+                            3.5,
+                        ));
+                    }
+                } else if tpfx == "person" && found_person.is_none() && ctx.seed_people.contains(&tid) {
                     found_person = ctx.state.catalog.people.get(&tid).cloned();
                     if best_movie_bridge.is_none() {
                         if let Some(ref pname) = found_person {
