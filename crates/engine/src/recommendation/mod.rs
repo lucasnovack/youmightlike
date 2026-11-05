@@ -10,7 +10,9 @@ use context::{RecContext, MIN_REC_SCORE};
 use extractors::{
     extract_backfill, extract_books, extract_games, extract_movies, extract_music, extract_series,
 };
-use graph_builder::{build_subgraph_and_prune, enrich_graph_nodes, init_subgraph_anchors};
+use graph_builder::{
+    build_subgraph_and_prune, enrich_graph_nodes, init_subgraph_anchors, resolve_node_metadata,
+};
 use std::collections::{HashMap, HashSet};
 
 use crate::models::{
@@ -498,6 +500,22 @@ pub fn run_recommendation_pipeline(
 
     // 5. Enrich each graph node with descriptive tags and metadata
     enrich_graph_nodes(state, &conn, is_pt, &mut graph_nodes);
+
+    // 6. Enrich recommendation results with structured metadata
+    for item in results.iter_mut() {
+        if let Some(id_str) = item.get("id").and_then(|v| v.as_str()) {
+            if let Some(node) = graph_nodes.iter().find(|n| n.id == id_str) {
+                if let Some(ref meta) = node.metadata {
+                    item["metadata"] = meta.clone();
+                }
+            } else {
+                let (_, meta) = resolve_node_metadata(state, &conn, is_pt, id_str);
+                if let Some(m) = meta {
+                    item["metadata"] = m;
+                }
+            }
+        }
+    }
 
     let resp_obj = RecommendationResponse {
         seeds: seeds_resolved,

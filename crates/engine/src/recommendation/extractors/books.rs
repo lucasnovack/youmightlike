@@ -141,6 +141,7 @@ pub fn extract_books(
             val: 12.0,
             tags: Vec::new(),
             desc: String::new(),
+            metadata: None,
         });
 
         if let Some((b_key, b_label, b_type, b_weight)) = best_book_bridge {
@@ -152,6 +153,7 @@ pub fn extract_books(
                     val: 9.0,
                     tags: Vec::new(),
                     desc: String::new(),
+                    metadata: None,
                 });
             }
             graph_links.push(GraphLinkPayload {

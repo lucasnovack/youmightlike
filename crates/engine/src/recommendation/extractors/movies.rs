@@ -110,6 +110,7 @@ pub fn extract_movies(
                         val: 11.5,
                         tags: Vec::new(),
                         desc: String::new(),
+                        metadata: None,
                     });
                 }
                 if best_movie_bridge.is_none() {
@@ -219,6 +220,7 @@ pub fn extract_movies(
             val: 12.5,
             tags: Vec::new(),
             desc: String::new(),
+            metadata: None,
         });
 
         if let Some((b_key, b_label, b_type, b_weight)) = best_movie_bridge {
@@ -230,6 +232,7 @@ pub fn extract_movies(
                     val: 9.0,
                     tags: Vec::new(),
                     desc: String::new(),
+                    metadata: None,
                 });
             }
             graph_links.push(GraphLinkPayload {

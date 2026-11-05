@@ -110,6 +110,7 @@ pub fn extract_series(
                         val: 11.5,
                         tags: Vec::new(),
                         desc: String::new(),
+                        metadata: None,
                     });
                 }
                 if best_series_bridge.is_none() {
@@ -234,6 +235,7 @@ pub fn extract_series(
             val: 12.5,
             tags: Vec::new(),
             desc: String::new(),
+            metadata: None,
         });
 
         if let Some((b_key, b_label, b_type, b_weight)) = best_series_bridge {
@@ -245,6 +247,7 @@ pub fn extract_series(
                     val: 9.0,
                     tags: Vec::new(),
                     desc: String::new(),
+                    metadata: None,
                 });
             }
             graph_links.push(GraphLinkPayload {

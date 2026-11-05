@@ -2,10 +2,11 @@
 
 use super::context::is_steam_noise_tag;
 use crate::models::{
-    collect_node_tags, lookup_artist_meta, parse_node_key, AppState, EntityItem, GraphLinkPayload,
-    GraphNodePayload,
+    collect_node_tags, lookup_artist_meta, lookup_track_participating_artists, parse_node_key,
+    AppState, EntityItem, GraphLinkPayload, GraphNodePayload,
 };
 use duckdb::{params, Connection};
+use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet, VecDeque};
 
 /// Adds seeds, track-artist connections, and structural anchors to the recommendation graph
@@ -27,6 +28,7 @@ pub fn init_subgraph_anchors(
             val: 18.0,
             tags: Vec::new(),
             desc: String::new(),
+            metadata: None,
         });
 
         if seed_item.entity_type == "track" {
@@ -41,6 +43,7 @@ pub fn init_subgraph_anchors(
                             val: 14.0,
                             tags: Vec::new(),
                             desc: String::new(),
+            metadata: None,
                         });
                     }
                     if !graph_links.iter().any(|l| {
@@ -150,6 +153,7 @@ pub fn init_subgraph_anchors(
                             val: 9.0,
                             tags: Vec::new(),
                             desc: String::new(),
+            metadata: None,
                         });
                     }
                     graph_links.push(GraphLinkPayload {
@@ -247,6 +251,7 @@ pub fn init_subgraph_anchors(
                         val: 9.0,
                         tags: Vec::new(),
                         desc: String::new(),
+            metadata: None,
                     });
                 }
             }
@@ -427,6 +432,7 @@ pub fn build_subgraph_and_prune(
                                     val: 9.0,
                                     tags: Vec::new(),
                                     desc: String::new(),
+            metadata: None,
                                 });
                                 added_bridges = true;
                             }
@@ -488,7 +494,413 @@ pub fn build_subgraph_and_prune(
     }
 }
 
-/// Enriches each graph node with descriptive tags and bilingual metadata
+/// Resolves rich bilingual metadata and structured attributes for any node
+pub fn resolve_node_metadata(
+    state: &AppState,
+    conn: &Connection,
+    is_pt: bool,
+    node_id: &str,
+) -> (String, Option<Value>) {
+    let Some((pfx, nid)) = parse_node_key(node_id) else {
+        return (String::new(), None);
+    };
+
+    match pfx {
+        "artist" => {
+            let row = conn
+                .query_row(
+                    "SELECT name, country, type, listeners FROM music_artists WHERE id = ?",
+                    params![nid],
+                    |r| {
+                        Ok((
+                            r.get::<_, String>(0)?,
+                            r.get::<_, Option<String>>(1)?,
+                            r.get::<_, Option<String>>(2)?,
+                            r.get::<_, Option<i64>>(3)?,
+                        ))
+                    },
+                )
+                .ok();
+
+            if let Some((name, country, artist_type, listeners)) = row {
+                let desc = match (&country, is_pt) {
+                    (Some(c), true) => format!("Artista musical • {}", c),
+                    (Some(c), false) => format!("Musical Artist • {}", c),
+                    (None, true) => "Artista musical".to_string(),
+                    (None, false) => "Musical Artist".to_string(),
+                };
+                let meta = json!({
+                    "entity_type": "artist",
+                    "name": name,
+                    "country": country,
+                    "artist_type": artist_type,
+                    "listeners": listeners,
+                });
+                (desc, Some(meta))
+            } else {
+                let desc = if is_pt {
+                    "Artista musical".to_string()
+                } else {
+                    "Musical Artist".to_string()
+                };
+                (desc, None)
+            }
+        }
+        "track" => {
+            let track_row = conn
+                .query_row(
+                    "SELECT t.title, t.artist_id, ma.name, t.album_id, t.tempo, t.duration_ms, t.popularity, t.spotify_id
+                     FROM music_tracks t
+                     JOIN music_artists ma ON ma.id = t.artist_id
+                     WHERE t.id = ?",
+                    params![nid],
+                    |r| {
+                        Ok((
+                            r.get::<_, String>(0)?,
+                            r.get::<_, i64>(1)?,
+                            r.get::<_, String>(2)?,
+                            r.get::<_, Option<i64>>(3)?,
+                            r.get::<_, Option<f64>>(4)?,
+                            r.get::<_, Option<i64>>(5)?,
+                            r.get::<_, Option<i32>>(6)?,
+                            r.get::<_, Option<String>>(7)?,
+                        ))
+                    },
+                )
+                .ok();
+
+            if let Some((
+                title,
+                _primary_aid,
+                primary_name,
+                album_id,
+                tempo_opt,
+                duration_ms_opt,
+                popularity_opt,
+                spotify_id_opt,
+            )) = track_row
+            {
+                let mut artist_names = Vec::new();
+                if let Some((_, parts)) = lookup_track_participating_artists(conn, nid) {
+                    for (_, a_name) in parts {
+                        if !artist_names.contains(&a_name) {
+                            artist_names.push(a_name);
+                        }
+                    }
+                }
+                if artist_names.is_empty() {
+                    artist_names.push(primary_name.clone());
+                }
+                let artists_str = artist_names.join(", ");
+
+                let mut album_title: Option<String> = None;
+                let mut release_year: Option<i32> = None;
+
+                if let Some(alb_id) = album_id {
+                    if let Ok((at, ay)) = conn.query_row(
+                        "SELECT title, release_year FROM music_albums WHERE id = ?",
+                        params![alb_id],
+                        |r| Ok((r.get::<_, Option<String>>(0)?, r.get::<_, Option<i32>>(1)?)),
+                    ) {
+                        album_title = at;
+                        release_year = ay;
+                    }
+                }
+
+                if (release_year.is_none() || album_title.is_none()) && spotify_id_opt.is_some() {
+                    if let Some(ref sid) = spotify_id_opt {
+                        if std::path::Path::new("data/raw/music/spotify_56m_tracks.parquet").exists()
+                        {
+                            let parquet_sql = "
+                                SELECT album_name, CAST(substr(CAST(album_release_date AS VARCHAR), 1, 4) AS INT)
+                                FROM 'data/raw/music/spotify_56m_tracks.parquet'
+                                WHERE track_id = ?
+                                LIMIT 1
+                            ";
+                            if let Ok((p_alb, p_yr)) =
+                                conn.query_row(parquet_sql, params![sid], |r| {
+                                    Ok((
+                                        r.get::<_, Option<String>>(0)?,
+                                        r.get::<_, Option<i32>>(1)?,
+                                    ))
+                                })
+                            {
+                                if album_title.is_none() {
+                                    album_title = p_alb;
+                                }
+                                if release_year.is_none() {
+                                    release_year = p_yr;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let bpm_int = tempo_opt.map(|b| b.round() as i32);
+                let duration_str = duration_ms_opt.map(|ms| {
+                    let total_secs = ms / 1000;
+                    format!("{}:{:02}", total_secs / 60, total_secs % 60)
+                });
+
+                let mut parts = Vec::new();
+                parts.push(if is_pt {
+                    "Faixa".to_string()
+                } else {
+                    "Track".to_string()
+                });
+                if !artists_str.is_empty() {
+                    parts.push(artists_str.clone());
+                }
+                match (&album_title, release_year) {
+                    (Some(alb), Some(yr)) => parts.push(format!("{} ({})", alb, yr)),
+                    (Some(alb), None) => parts.push(alb.clone()),
+                    (None, Some(yr)) => parts.push(format!("({})", yr)),
+                    (None, None) => {}
+                }
+                if let Some(bpm) = bpm_int {
+                    parts.push(format!("{} BPM", bpm));
+                }
+                if let Some(ref dur) = duration_str {
+                    parts.push(dur.clone());
+                }
+
+                let desc = parts.join(" • ");
+                let meta = json!({
+                    "entity_type": "track",
+                    "title": title,
+                    "artists": artist_names,
+                    "artist_str": artists_str,
+                    "album": album_title,
+                    "year": release_year,
+                    "tempo": bpm_int,
+                    "duration_ms": duration_ms_opt,
+                    "duration_str": duration_str,
+                    "popularity": popularity_opt,
+                });
+
+                (desc, Some(meta))
+            } else {
+                let desc = if is_pt {
+                    "Faixa musical".to_string()
+                } else {
+                    "Music Track".to_string()
+                };
+                (desc, None)
+            }
+        }
+        "movie" => {
+            if let Some(m) = state.catalog.movies.get(&nid) {
+                let director: Option<String> = conn
+                    .query_row(
+                        "SELECT p.name FROM movie_credits c JOIN people p ON p.id = c.person_id WHERE c.movie_id = ? AND c.job = 'Director' LIMIT 1",
+                        params![nid],
+                        |r| r.get(0),
+                    )
+                    .ok();
+
+                let mut parts = Vec::new();
+                let lbl = if is_pt { "Filme" } else { "Movie" };
+                if let Some(y) = m.release_year {
+                    parts.push(format!("{} ({})", lbl, y));
+                } else {
+                    parts.push(lbl.to_string());
+                }
+                if let Some(ref d) = director {
+                    parts.push(format!("Dir. {}", d));
+                }
+                if let Some(r) = m.vote_average {
+                    let r_lbl = if is_pt { "Nota" } else { "Rating" };
+                    parts.push(format!("{} {:.1}", r_lbl, r));
+                }
+
+                let desc = parts.join(" • ");
+                let meta = json!({
+                    "entity_type": "movie",
+                    "year": m.release_year,
+                    "vote_average": m.vote_average,
+                    "director": director,
+                });
+                (desc, Some(meta))
+            } else {
+                let desc = if is_pt {
+                    "Filme".to_string()
+                } else {
+                    "Movie".to_string()
+                };
+                (desc, None)
+            }
+        }
+        "series" => {
+            if let Some(s) = state.catalog.series.get(&nid) {
+                let director: Option<String> = conn
+                    .query_row(
+                        "SELECT p.name FROM series_credits c JOIN people p ON p.id = c.person_id WHERE c.series_id = ? AND c.job = 'Director' LIMIT 1",
+                        params![nid],
+                        |r| r.get(0),
+                    )
+                    .ok();
+
+                let years_str = match (s.start_year, s.end_year) {
+                    (Some(st), Some(e)) if st != e => format!("{}-{}", st, e),
+                    (Some(st), _) => st.to_string(),
+                    _ => String::new(),
+                };
+                let type_label = if s.series_type == "tvMiniSeries" {
+                    if is_pt {
+                        "Minissérie"
+                    } else {
+                        "Mini-Series"
+                    }
+                } else if is_pt {
+                    "Série"
+                } else {
+                    "Series"
+                };
+
+                let mut parts = Vec::new();
+                if !years_str.is_empty() {
+                    parts.push(format!("{} ({})", type_label, years_str));
+                } else {
+                    parts.push(type_label.to_string());
+                }
+                if let Some(ref d) = director {
+                    parts.push(format!("Dir. {}", d));
+                }
+                if let Some(r) = s.vote_average {
+                    let r_lbl = if is_pt { "Nota" } else { "Rating" };
+                    parts.push(format!("{} {:.1}", r_lbl, r));
+                }
+
+                let desc = parts.join(" • ");
+                let meta = json!({
+                    "entity_type": "series",
+                    "series_type": s.series_type,
+                    "start_year": s.start_year,
+                    "end_year": s.end_year,
+                    "years_str": if !years_str.is_empty() { Some(years_str) } else { None },
+                    "vote_average": s.vote_average,
+                    "director": director,
+                });
+                (desc, Some(meta))
+            } else {
+                let desc = if is_pt {
+                    "Série".to_string()
+                } else {
+                    "Series".to_string()
+                };
+                (desc, None)
+            }
+        }
+        "game" => {
+            if let Some(g) = state.catalog.games.get(&nid) {
+                let developer: Option<String> = conn
+                    .query_row(
+                        "SELECT d.name FROM game_dev_links l JOIN game_developers d ON d.id = l.developer_id WHERE l.game_id = ? LIMIT 1",
+                        params![nid],
+                        |r| r.get(0),
+                    )
+                    .ok();
+
+                let mut parts = Vec::new();
+                let lbl = if is_pt { "Jogo" } else { "Game" };
+                if let Some(y) = g.release_year {
+                    parts.push(format!("{} ({})", lbl, y));
+                } else {
+                    parts.push(lbl.to_string());
+                }
+                if let Some(ref d) = developer {
+                    parts.push(d.clone());
+                }
+                let desc = parts.join(" • ");
+                let meta = json!({
+                    "entity_type": "game",
+                    "year": g.release_year,
+                    "developer": developer,
+                    "positive_reviews": g.positive_reviews,
+                });
+                (desc, Some(meta))
+            } else {
+                let desc = if is_pt {
+                    "Jogo".to_string()
+                } else {
+                    "Game".to_string()
+                };
+                (desc, None)
+            }
+        }
+        "book" => {
+            if let Some(b) = state.catalog.books.get(&nid) {
+                let author: Option<String> = conn
+                    .query_row(
+                        "SELECT a.name FROM book_author_links l JOIN book_authors a ON a.id = l.author_id WHERE l.book_id = ? LIMIT 1",
+                        params![nid],
+                        |r| r.get(0),
+                    )
+                    .ok();
+
+                let mut parts = Vec::new();
+                let lbl = if is_pt { "Livro" } else { "Book" };
+                if let Some(y) = b.first_publish_year {
+                    parts.push(format!("{} ({})", lbl, y));
+                } else {
+                    parts.push(lbl.to_string());
+                }
+                if let Some(ref a) = author {
+                    parts.push(a.clone());
+                }
+                let desc = parts.join(" • ");
+                let meta = json!({
+                    "entity_type": "book",
+                    "year": b.first_publish_year,
+                    "author": author,
+                });
+                (desc, Some(meta))
+            } else {
+                let desc = if is_pt {
+                    "Livro".to_string()
+                } else {
+                    "Book".to_string()
+                };
+                (desc, None)
+            }
+        }
+        "developer" => {
+            let desc = if is_pt {
+                "Estúdio de Desenvolvimento".to_string()
+            } else {
+                "Game Developer Studio".to_string()
+            };
+            (desc, None)
+        }
+        "keyword" => {
+            let desc = if is_pt {
+                "Tag Conceitual".to_string()
+            } else {
+                "Conceptual Tag".to_string()
+            };
+            (desc, None)
+        }
+        "person" => {
+            let desc = if is_pt {
+                "Diretor / Compositor / Roteirista".to_string()
+            } else {
+                "Director / Composer / Writer".to_string()
+            };
+            (desc, None)
+        }
+        "author" => {
+            let desc = if is_pt {
+                "Autor Literário".to_string()
+            } else {
+                "Literary Author".to_string()
+            };
+            (desc, None)
+        }
+        _ => (String::new(), None),
+    }
+}
+
+/// Enriches each graph node with descriptive tags, rich summary, and structured metadata
 pub fn enrich_graph_nodes(
     state: &AppState,
     conn: &Connection,
@@ -496,142 +908,27 @@ pub fn enrich_graph_nodes(
     graph_nodes: &mut [GraphNodePayload],
 ) {
     for n in graph_nodes.iter_mut() {
-        let Some((pfx, nid)) = parse_node_key(&n.id) else {
-            continue;
-        };
+        let (desc, meta) = resolve_node_metadata(state, conn, is_pt, &n.id);
+        if !desc.is_empty() {
+            n.desc = desc;
+        }
+        n.metadata = meta;
 
         let mut node_tags = collect_node_tags(&state.graph, &state.catalog, &n.id, 12);
-        let mut node_desc = String::new();
-
-        match pfx {
-            "artist" => {
-                node_desc = if is_pt {
-                    "Artista musical".to_string()
-                } else {
-                    "Musical Artist".to_string()
-                };
-            }
-            "track" => {
-                if let Ok((a_id, a_name, bpm)) = conn.query_row(
-                    "SELECT a.id, a.name, t.tempo FROM music_tracks t JOIN music_artists a ON a.id = t.artist_id WHERE t.id = ?",
-                    params![nid],
-                    |r| {
-                        Ok((
-                            r.get::<_, i64>(0)?,
-                            r.get::<_, String>(1)?,
-                            r.get::<_, Option<f64>>(2)?,
-                        ))
-                    },
-                ) {
-                    if node_tags.is_empty() {
+        if node_tags.is_empty() {
+            if let Some((pfx, nid)) = parse_node_key(&n.id) {
+                if pfx == "track" {
+                    if let Ok(a_id) = conn.query_row(
+                        "SELECT artist_id FROM music_tracks WHERE id = ?",
+                        params![nid],
+                        |r| r.get::<_, i64>(0),
+                    ) {
                         let art_key = format!("artist:{}", a_id);
-                        node_tags =
-                            collect_node_tags(&state.graph, &state.catalog, &art_key, 12);
-                    }
-                    let bpm_str = format!("{} BPM", bpm.unwrap_or(0.0).round() as i32);
-                    node_desc = if is_pt {
-                        format!("Faixa de {} • {}", a_name, bpm_str)
-                    } else {
-                        format!("Track by {} • {}", a_name, bpm_str)
-                    };
-                }
-            }
-            "game" => {
-                if let Some(g) = state.catalog.games.get(&nid) {
-                    if let Some(y) = g.release_year {
-                        node_desc = if is_pt {
-                            format!("Jogo ({})", y)
-                        } else {
-                            format!("Game ({})", y)
-                        };
+                        node_tags = collect_node_tags(&state.graph, &state.catalog, &art_key, 12);
                     }
                 }
             }
-            "movie" => {
-                if let Some(m) = state.catalog.movies.get(&nid) {
-                    let y_str = m
-                        .release_year
-                        .map(|y| y.to_string())
-                        .unwrap_or_else(|| "N/A".to_string());
-                    let r_str = m
-                        .vote_average
-                        .map(|v| format!("{:.1}", v))
-                        .unwrap_or_else(|| "N/A".to_string());
-                    node_desc = if is_pt {
-                        format!("Filme ({}) • Nota {}", y_str, r_str)
-                    } else {
-                        format!("Movie ({}) • Rating: {}", y_str, r_str)
-                    };
-                }
-            }
-            "series" => {
-                if let Some(s) = state.catalog.series.get(&nid) {
-                    let years_str = match (s.start_year, s.end_year) {
-                        (Some(st), Some(e)) if st != e => format!("{}-{}", st, e),
-                        (Some(st), _) => st.to_string(),
-                        _ => "N/A".to_string(),
-                    };
-                    let r_str = s
-                        .vote_average
-                        .map(|v| format!("{:.1}", v))
-                        .unwrap_or_else(|| "N/A".to_string());
-                    let type_label = if s.series_type == "tvMiniSeries" {
-                        if is_pt {
-                            "Minissérie"
-                        } else {
-                            "Mini-Series"
-                        }
-                    } else if is_pt {
-                        "Série"
-                    } else {
-                        "Series"
-                    };
-                    node_desc = if is_pt {
-                        format!("{} ({}) • Nota {}", type_label, years_str, r_str)
-                    } else {
-                        format!("{} ({}) • Rating: {}", type_label, years_str, r_str)
-                    };
-                }
-            }
-            "book" => {
-                node_desc = if is_pt {
-                    "Livro".to_string()
-                } else {
-                    "Book".to_string()
-                };
-            }
-            "developer" => {
-                node_desc = if is_pt {
-                    "Estúdio de Desenvolvimento".to_string()
-                } else {
-                    "Game Developer Studio".to_string()
-                };
-            }
-            "keyword" => {
-                node_desc = if is_pt {
-                    "Tag Conceitual".to_string()
-                } else {
-                    "Conceptual Tag".to_string()
-                };
-            }
-            "person" => {
-                node_desc = if is_pt {
-                    "Diretor / Compositor / Roteirista".to_string()
-                } else {
-                    "Director / Composer / Writer".to_string()
-                };
-            }
-            "author" => {
-                node_desc = if is_pt {
-                    "Autor Literário".to_string()
-                } else {
-                    "Literary Author".to_string()
-                };
-            }
-            _ => {}
         }
-
         n.tags = node_tags;
-        n.desc = node_desc;
     }
 }

@@ -276,6 +276,40 @@
                   </button>
                 </div>
 
+                <!-- Structured Metadata Chips -->
+                <div v-if="node.metadata" class="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2 border-t border-slate-200/80">
+                  <span v-if="node.metadata.artists && node.metadata.artists.length > 0" class="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 bg-white text-slate-700 rounded border border-slate-200 shadow-2xs">
+                    <span class="text-slate-400">artistas:</span> {{ node.metadata.artists.join(', ') }}
+                  </span>
+                  <span v-if="node.metadata.album" class="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 bg-white text-slate-700 rounded border border-slate-200 shadow-2xs">
+                    <span class="text-slate-400">álbum:</span> {{ node.metadata.album }}
+                  </span>
+                  <span v-if="node.metadata.year" class="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 bg-white text-slate-700 rounded border border-slate-200 shadow-2xs">
+                    <span class="text-slate-400">ano:</span> {{ node.metadata.year }}
+                  </span>
+                  <span v-if="node.metadata.tempo" class="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded border border-indigo-200 shadow-2xs">
+                    <span>⚡</span> {{ node.metadata.tempo }} BPM
+                  </span>
+                  <span v-if="node.metadata.duration_str" class="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 bg-white text-slate-700 rounded border border-slate-200 shadow-2xs">
+                    <span>⏱</span> {{ node.metadata.duration_str }}
+                  </span>
+                  <span v-if="node.metadata.director" class="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 bg-white text-slate-700 rounded border border-slate-200 shadow-2xs">
+                    <span class="text-slate-400">direção:</span> {{ node.metadata.director }}
+                  </span>
+                  <span v-if="node.metadata.vote_average" class="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 bg-amber-50 text-amber-800 rounded border border-amber-200 shadow-2xs">
+                    <span>★</span> {{ Number(node.metadata.vote_average).toFixed(1) }}
+                  </span>
+                  <span v-if="node.metadata.developer" class="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 bg-white text-slate-700 rounded border border-slate-200 shadow-2xs">
+                    <span class="text-slate-400">estúdio:</span> {{ node.metadata.developer }}
+                  </span>
+                  <span v-if="node.metadata.author" class="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 bg-white text-slate-700 rounded border border-slate-200 shadow-2xs">
+                    <span class="text-slate-400">autor:</span> {{ node.metadata.author }}
+                  </span>
+                  <span v-if="node.metadata.country" class="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 bg-white text-slate-700 rounded border border-slate-200 shadow-2xs">
+                    <span class="text-slate-400">país:</span> {{ node.metadata.country }}
+                  </span>
+                </div>
+
                 <!-- Clickable Tags -->
                 <div v-if="node.tags && node.tags.length > 0" class="mt-2.5 pt-2 border-t border-slate-200">
                   <span class="text-[8px] uppercase font-bold text-slate-400 tracking-wider block mb-1.5">
@@ -369,6 +403,34 @@
                         <span class="text-xs font-bold text-slate-800 truncate">{{ sug.title }}</span>
                       </div>
                       <p class="text-[10px] text-slate-400 mt-0.5">{{ sug.subtitle }}</p>
+
+                      <!-- Live Expansion Metadata Chips -->
+                      <div v-if="sug.metadata" class="flex flex-wrap items-center gap-1 mt-1.5">
+                        <span v-if="sug.metadata.artists && sug.metadata.artists.length > 0" class="text-[8px] font-mono px-1.5 py-0.2 bg-slate-100 text-slate-700 rounded border border-slate-200">
+                          {{ sug.metadata.artists.join(', ') }}
+                        </span>
+                        <span v-if="sug.metadata.album" class="text-[8px] font-mono px-1.5 py-0.2 bg-slate-100 text-slate-700 rounded border border-slate-200">
+                          {{ sug.metadata.album }}
+                        </span>
+                        <span v-if="sug.metadata.year" class="text-[8px] font-mono px-1.5 py-0.2 bg-slate-100 text-slate-700 rounded border border-slate-200">
+                          {{ sug.metadata.year }}
+                        </span>
+                        <span v-if="sug.metadata.tempo" class="text-[8px] font-mono px-1.5 py-0.2 bg-indigo-50 text-indigo-700 rounded border border-indigo-200">
+                          {{ sug.metadata.tempo }} BPM
+                        </span>
+                        <span v-if="sug.metadata.duration_str" class="text-[8px] font-mono px-1.5 py-0.2 bg-slate-100 text-slate-700 rounded border border-slate-200">
+                          {{ sug.metadata.duration_str }}
+                        </span>
+                        <span v-if="sug.metadata.director" class="text-[8px] font-mono px-1.5 py-0.2 bg-slate-100 text-slate-700 rounded border border-slate-200">
+                          Dir. {{ sug.metadata.director }}
+                        </span>
+                        <span v-if="sug.metadata.developer" class="text-[8px] font-mono px-1.5 py-0.2 bg-slate-100 text-slate-700 rounded border border-slate-200">
+                          {{ sug.metadata.developer }}
+                        </span>
+                        <span v-if="sug.metadata.author" class="text-[8px] font-mono px-1.5 py-0.2 bg-slate-100 text-slate-700 rounded border border-slate-200">
+                          {{ sug.metadata.author }}
+                        </span>
+                      </div>
                     </div>
                     <button
                       v-if="!isNodeInProfile(sug.id)"
@@ -441,6 +503,37 @@
                       </span>
                     </div>
                     <p class="text-[10px] text-slate-400 mt-0.5">{{ rec.subtitle }}</p>
+
+                    <!-- Discovery Metadata Chips -->
+                    <div v-if="rec.metadata" class="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      <span v-if="rec.metadata.artists && rec.metadata.artists.length > 0" class="text-[9px] font-mono px-1.5 py-0.5 bg-slate-50 text-slate-700 rounded border border-slate-200">
+                        {{ rec.metadata.artists.join(', ') }}
+                      </span>
+                      <span v-if="rec.metadata.album" class="text-[9px] font-mono px-1.5 py-0.5 bg-slate-50 text-slate-700 rounded border border-slate-200">
+                        {{ rec.metadata.album }}
+                      </span>
+                      <span v-if="rec.metadata.year" class="text-[9px] font-mono px-1.5 py-0.5 bg-slate-50 text-slate-700 rounded border border-slate-200">
+                        {{ rec.metadata.year }}
+                      </span>
+                      <span v-if="rec.metadata.tempo" class="text-[9px] font-mono px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded border border-indigo-200">
+                        {{ rec.metadata.tempo }} BPM
+                      </span>
+                      <span v-if="rec.metadata.duration_str" class="text-[9px] font-mono px-1.5 py-0.5 bg-slate-50 text-slate-700 rounded border border-slate-200">
+                        {{ rec.metadata.duration_str }}
+                      </span>
+                      <span v-if="rec.metadata.director" class="text-[9px] font-mono px-1.5 py-0.5 bg-slate-50 text-slate-700 rounded border border-slate-200">
+                        Dir. {{ rec.metadata.director }}
+                      </span>
+                      <span v-if="rec.metadata.developer" class="text-[9px] font-mono px-1.5 py-0.5 bg-slate-50 text-slate-700 rounded border border-slate-200">
+                        {{ rec.metadata.developer }}
+                      </span>
+                      <span v-if="rec.metadata.author" class="text-[9px] font-mono px-1.5 py-0.5 bg-slate-50 text-slate-700 rounded border border-slate-200">
+                        {{ rec.metadata.author }}
+                      </span>
+                      <span v-if="rec.metadata.vote_average" class="text-[9px] font-mono px-1.5 py-0.5 bg-amber-50 text-amber-800 rounded border border-amber-200">
+                        ★ {{ Number(rec.metadata.vote_average).toFixed(1) }}
+                      </span>
+                    </div>
                   </div>
 
                   <div class="flex flex-col items-end shrink-0 text-right">

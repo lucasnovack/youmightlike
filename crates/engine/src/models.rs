@@ -276,6 +276,8 @@ pub struct GraphNodePayload {
     pub tags: Vec<String>,
     #[serde(default)]
     pub desc: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

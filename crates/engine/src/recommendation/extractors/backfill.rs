@@ -141,6 +141,7 @@ pub fn extract_backfill(
                         val: 12.0,
                         tags: Vec::new(),
                         desc: String::new(),
+                        metadata: None,
                     });
                 }
             }
@@ -177,6 +178,7 @@ pub fn extract_backfill(
                         val: 12.0,
                         tags: Vec::new(),
                         desc: String::new(),
+                        metadata: None,
                     });
                 }
             }
@@ -213,6 +215,7 @@ pub fn extract_backfill(
                         val: 12.5,
                         tags: Vec::new(),
                         desc: String::new(),
+                        metadata: None,
                     });
                 }
             }
@@ -249,6 +252,7 @@ pub fn extract_backfill(
                         val: 12.5,
                         tags: Vec::new(),
                         desc: String::new(),
+                        metadata: None,
                     });
                 }
             }
@@ -292,6 +296,7 @@ pub fn extract_backfill(
                         val: 12.0,
                         tags: Vec::new(),
                         desc: String::new(),
+                        metadata: None,
                     });
                 }
             }

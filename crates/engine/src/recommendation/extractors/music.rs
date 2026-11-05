@@ -498,6 +498,7 @@ pub fn extract_music(
             val: 12.0,
             tags: Vec::new(),
             desc: String::new(),
+            metadata: None,
         });
 
         if let Some((b_key, b_label, b_type, b_weight)) = &c.best_bridge {
@@ -509,6 +510,7 @@ pub fn extract_music(
                     val: 9.0,
                     tags: Vec::new(),
                     desc: String::new(),
+                    metadata: None,
                 });
             }
             graph_links.push(GraphLinkPayload {
@@ -661,6 +663,7 @@ pub fn extract_music(
                                     val: 10.5,
                                     tags: Vec::new(),
                                     desc: String::new(),
+                                    metadata: None,
                                 });
 
                                 graph_links.push(GraphLinkPayload {
@@ -678,6 +681,7 @@ pub fn extract_music(
                                         val: 12.0,
                                         tags: Vec::new(),
                                         desc: String::new(),
+                                        metadata: None,
                                     });
                                 }
                                 if !graph_links.iter().any(|l| (l.source == t_key && l.target == art_key) || (l.source == art_key && l.target == t_key)) {
@@ -789,6 +793,7 @@ pub fn extract_music(
                                         val: 10.0,
                                         tags: Vec::new(),
                                         desc: String::new(),
+                                        metadata: None,
                                     });
 
                                     graph_links.push(GraphLinkPayload {
@@ -806,6 +811,7 @@ pub fn extract_music(
                                             val: 12.0,
                                             tags: Vec::new(),
                                             desc: String::new(),
+                                            metadata: None,
                                         });
                                     }
                                     if !graph_links.iter().any(|l| (l.source == t_key && l.target == art_key) || (l.source == art_key && l.target == t_key)) {
@@ -886,6 +892,7 @@ pub fn extract_music(
                         val: 9.5,
                         tags: Vec::new(),
                         desc: String::new(),
+                        metadata: None,
                     });
                     graph_links.push(GraphLinkPayload {
                         source: t_key,
@@ -955,6 +962,7 @@ pub fn extract_music(
                     val: 11.5,
                     tags: Vec::new(),
                     desc: String::new(),
+                    metadata: None,
                 });
             }
             graph_nodes.push(GraphNodePayload {
@@ -964,6 +972,7 @@ pub fn extract_music(
                 val: 10.5,
                 tags: Vec::new(),
                 desc: String::new(),
+                metadata: None,
             });
             graph_links.push(GraphLinkPayload {
                 source: t_key.clone(),
@@ -1061,6 +1070,7 @@ pub fn extract_music(
                         val: 11.5,
                         tags: Vec::new(),
                         desc: String::new(),
+                        metadata: None,
                     });
                 }
                 graph_nodes.push(GraphNodePayload {
@@ -1070,6 +1080,7 @@ pub fn extract_music(
                     val: 10.5,
                     tags: Vec::new(),
                     desc: String::new(),
+                    metadata: None,
                 });
                 graph_links.push(GraphLinkPayload {
                     source: item.node_key.clone(),
@@ -1178,6 +1189,7 @@ pub fn extract_music(
                         val: 11.5,
                         tags: Vec::new(),
                         desc: String::new(),
+                        metadata: None,
                     });
                 }
                 graph_nodes.push(GraphNodePayload {
@@ -1187,6 +1199,7 @@ pub fn extract_music(
                     val: 10.5,
                     tags: Vec::new(),
                     desc: String::new(),
+                    metadata: None,
                 });
                 graph_links.push(GraphLinkPayload {
                     source: t_key,

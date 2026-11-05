@@ -360,6 +360,7 @@ pub fn extract_games(
             val: 12.0,
             tags: Vec::new(),
             desc: String::new(),
+            metadata: None,
         });
 
         for (b_id, b_label, b_type) in cand.bridges.into_iter().take(2) {
@@ -371,6 +372,7 @@ pub fn extract_games(
                     val: 9.0,
                     tags: Vec::new(),
                     desc: String::new(),
+                    metadata: None,
                 });
             }
             graph_links.push(GraphLinkPayload {
@@ -447,6 +449,7 @@ pub fn extract_games(
                 val: 12.0,
                 tags: Vec::new(),
                 desc: String::new(),
+                metadata: None,
             });
 
             for (b_id, b_label, b_type) in cand.bridges.into_iter().take(2) {
@@ -458,6 +461,7 @@ pub fn extract_games(
                         val: 9.0,
                         tags: Vec::new(),
                         desc: String::new(),
+                        metadata: None,
                     });
                 }
                 graph_links.push(GraphLinkPayload {
