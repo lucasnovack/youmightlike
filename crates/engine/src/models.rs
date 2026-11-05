@@ -594,6 +594,143 @@ pub fn resolve_artist_track_and_collab(
     ))
 }
 
+fn extract_featured_artist_names(title: &str) -> Option<Vec<String>> {
+    let lower = title.to_lowercase();
+    let (start_idx, has_bracket) = if let Some(idx) = lower.find("(feat. ") {
+        (idx + 7, true)
+    } else if let Some(idx) = lower.find("(ft. ") {
+        (idx + 5, true)
+    } else if let Some(idx) = lower.find("[feat. ") {
+        (idx + 7, true)
+    } else if let Some(idx) = lower.find("[ft. ") {
+        (idx + 5, true)
+    } else if let Some(idx) = lower.find(" feat. ") {
+        (idx + 7, false)
+    } else if let Some(idx) = lower.find(" ft. ") {
+        (idx + 5, false)
+    } else {
+        return None;
+    };
+
+    let rem = &title[start_idx..];
+    let content = if has_bracket {
+        let end_idx = rem.find(')').or_else(|| rem.find(']'))?;
+        &rem[..end_idx]
+    } else if let Some(end_idx) = rem.find(" - ") {
+        &rem[..end_idx]
+    } else {
+        rem
+    };
+
+    let parts: Vec<String> = content
+        .split(|c| c == ',' || c == '&')
+        .flat_map(|s| s.split(" and "))
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts)
+    }
+}
+
+pub fn lookup_track_participating_artists(
+    conn: &Connection,
+    track_id: i64,
+) -> Option<(String, Vec<(i64, String)>)> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT t.title, t.artist_id, ma.name, t.spotify_id, t.album_id
+             FROM music_tracks t
+             JOIN music_artists ma ON ma.id = t.artist_id
+             WHERE t.id = ?",
+        )
+        .ok()?;
+
+    let (title, primary_aid, primary_name, spotify_id, album_id) = stmt
+        .query_row(params![track_id], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, i64>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, Option<String>>(3)?,
+                r.get::<_, Option<i64>>(4)?,
+            ))
+        })
+        .ok()?;
+
+    let mut artists: Vec<(i64, String)> = Vec::new();
+    let mut seen_aids: HashSet<i64> = HashSet::new();
+
+    artists.push((primary_aid, primary_name));
+    seen_aids.insert(primary_aid);
+
+    // Method 1: If spotify_id exists and raw parquet is available, query parquet for all co-artists
+    if let Some(ref sid) = spotify_id {
+        if std::path::Path::new("data/raw/music/spotify_56m_tracks.parquet").exists() {
+            let parquet_sql = "
+                SELECT DISTINCT ma.id, ma.name
+                FROM 'data/raw/music/spotify_56m_tracks.parquet' p
+                JOIN music_artists ma ON LOWER(TRIM(ma.name)) = LOWER(TRIM(p.artist_name))
+                WHERE p.track_id = ?
+            ";
+            if let Ok(mut p_stmt) = conn.prepare(parquet_sql) {
+                if let Ok(mut rows) = p_stmt.query(params![sid]) {
+                    while let Ok(Some(r)) = rows.next() {
+                        if let (Ok(aid), Ok(aname)) = (r.get::<_, i64>(0), r.get::<_, String>(1)) {
+                            if seen_aids.insert(aid) {
+                                artists.push((aid, aname));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Method 2: Fallback via shared album if fewer than 2 artists found
+    if artists.len() < 2 {
+        if let Some(alb_id) = album_id {
+            let alb_sql = "
+                SELECT DISTINCT ma.id, ma.name
+                FROM music_albums a
+                JOIN music_artists ma ON ma.id = a.artist_id
+                WHERE LOWER(TRIM(a.title)) = (SELECT LOWER(TRIM(title)) FROM music_albums WHERE id = ?)
+                  AND a.artist_id != ?
+                LIMIT 3
+            ";
+            if let Ok(mut a_stmt) = conn.prepare(alb_sql) {
+                if let Ok(mut rows) = a_stmt.query(params![alb_id, primary_aid]) {
+                    while let Ok(Some(r)) = rows.next() {
+                        if let (Ok(aid), Ok(aname)) = (r.get::<_, i64>(0), r.get::<_, String>(1)) {
+                            if seen_aids.insert(aid) {
+                                artists.push((aid, aname));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Method 3: Parse "(feat. ...)" or "(ft. ...)" from track title
+    if let Some(feat_list) = extract_featured_artist_names(&title) {
+        for cand in feat_list {
+            if let Ok(mut f_stmt) = conn.prepare("SELECT id, name FROM music_artists WHERE LOWER(TRIM(name)) = LOWER(?) LIMIT 1") {
+                if let Ok(r) = f_stmt.query_row(params![cand], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))) {
+                    if seen_aids.insert(r.0) {
+                        artists.push((r.0, r.1));
+                    }
+                }
+            }
+        }
+    }
+
+    Some((title, artists))
+}
+
 pub fn collect_node_tags(
     graph: &GraphCSR,
     catalog: &CatalogCache,

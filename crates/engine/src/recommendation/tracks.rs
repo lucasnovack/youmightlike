@@ -1,6 +1,9 @@
 //! Dedicated track recommendations with audio feature affinity.
 
-use crate::models::{parse_node_key, AppState, TrackRecommendRequest, TrackRecommendationItem};
+use crate::models::{
+    lookup_track_participating_artists, parse_node_key, AppState, TrackRecommendRequest,
+    TrackRecommendationItem,
+};
 use crate::ppr::run_personalized_pagerank_filtered;
 use anyhow::Result;
 use duckdb::params;
@@ -28,20 +31,23 @@ pub fn compute_track_recommendations_sync(
             seed_artist_ids.insert(id);
         } else if pfx == "track" {
             seed_track_ids.insert(id);
-            if let Ok((a_id, tempo, valence, energy, dance)) = conn.query_row(
-                "SELECT artist_id, tempo, valence, energy, danceability FROM music_tracks WHERE id = ?",
+            if let Some((_, artists)) = lookup_track_participating_artists(&conn, id) {
+                for (aid, _) in artists {
+                    seed_artist_ids.insert(aid);
+                }
+            }
+            if let Ok((tempo, valence, energy, dance)) = conn.query_row(
+                "SELECT tempo, valence, energy, danceability FROM music_tracks WHERE id = ?",
                 params![id],
                 |r| {
                     Ok((
-                        r.get::<_, i64>(0)?,
+                        r.get::<_, Option<f64>>(0)?,
                         r.get::<_, Option<f64>>(1)?,
                         r.get::<_, Option<f64>>(2)?,
                         r.get::<_, Option<f64>>(3)?,
-                        r.get::<_, Option<f64>>(4)?,
                     ))
                 },
             ) {
-                seed_artist_ids.insert(a_id);
                 if let Some(t) = tempo {
                     seed_audio_features.push((
                         t,

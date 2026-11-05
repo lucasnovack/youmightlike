@@ -13,7 +13,7 @@ pub fn init_subgraph_anchors(
     state: &AppState,
     conn: &Connection,
     seeds_resolved: &[EntityItem],
-    track_seed_artists: &HashMap<String, (i64, String)>,
+    track_seed_artists: &HashMap<String, Vec<(i64, String)>>,
     seed_tag_counts: &HashMap<i64, usize>,
     diffusion_seeds: &[String],
     graph_nodes: &mut Vec<GraphNodePayload>,
@@ -30,24 +30,31 @@ pub fn init_subgraph_anchors(
         });
 
         if seed_item.entity_type == "track" {
-            if let Some((a_id, a_name)) = track_seed_artists.get(&seed_item.id) {
-                let art_key = format!("artist:{}", a_id);
-                if !graph_nodes.iter().any(|n| n.id == art_key) {
-                    graph_nodes.push(GraphNodePayload {
-                        id: art_key.clone(),
-                        label: a_name.clone(),
-                        node_type: "artist".to_string(),
-                        val: 14.0,
-                        tags: Vec::new(),
-                        desc: String::new(),
-                    });
+            if let Some(artists) = track_seed_artists.get(&seed_item.id) {
+                for (a_id, a_name) in artists {
+                    let art_key = format!("artist:{}", a_id);
+                    if !graph_nodes.iter().any(|n| n.id == art_key) {
+                        graph_nodes.push(GraphNodePayload {
+                            id: art_key.clone(),
+                            label: a_name.clone(),
+                            node_type: "artist".to_string(),
+                            val: 14.0,
+                            tags: Vec::new(),
+                            desc: String::new(),
+                        });
+                    }
+                    if !graph_links.iter().any(|l| {
+                        (l.source == seed_item.id && l.target == art_key)
+                            || (l.source == art_key && l.target == seed_item.id)
+                    }) {
+                        graph_links.push(GraphLinkPayload {
+                            source: seed_item.id.clone(),
+                            target: art_key,
+                            label: "performed_by".to_string(),
+                            weight: 2.5,
+                        });
+                    }
                 }
-                graph_links.push(GraphLinkPayload {
-                    source: seed_item.id.clone(),
-                    target: art_key,
-                    label: "performed_by".to_string(),
-                    weight: 2.5,
-                });
             }
         }
 

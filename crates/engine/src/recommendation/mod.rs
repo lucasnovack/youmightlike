@@ -14,11 +14,11 @@ use graph_builder::{build_subgraph_and_prune, enrich_graph_nodes, init_subgraph_
 use std::collections::{HashMap, HashSet};
 
 use crate::models::{
-    is_tag_relation, lookup_artist_meta, parse_node_key, AppState, EntityItem, GraphLinkPayload,
-    GraphNodePayload, GraphPayload, RecommendationRequest, RecommendationResponse,
+    is_tag_relation, lookup_artist_meta, lookup_track_participating_artists, parse_node_key,
+    AppState, EntityItem, GraphLinkPayload, GraphNodePayload, GraphPayload, RecommendationRequest,
+    RecommendationResponse,
 };
 use crate::ppr::{run_personalized_pagerank_scores, top_k_from_scores};
-use duckdb::params;
 use serde_json::Value;
 
 /// Runs the full personalized recommendation pipeline and generates the associated explanation subgraph
@@ -57,7 +57,7 @@ pub fn run_recommendation_pipeline(
     let mut seeds_resolved: Vec<EntityItem> = Vec::new();
     let mut diffusion_seeds: Vec<String> = Vec::new();
     let mut seed_artist_names: HashMap<String, String> = HashMap::new();
-    let mut track_seed_artists: HashMap<String, (i64, String)> = HashMap::new();
+    let mut track_seed_artists: HashMap<String, Vec<(i64, String)>> = HashMap::new();
 
     let conn = state.open_read_conn()?;
 
@@ -139,24 +139,33 @@ pub fn run_recommendation_pipeline(
                 }
             }
             "track" => {
-                if let Ok((t_title, a_name, a_id)) = conn.query_row(
-                    "SELECT t.title, ma.name, t.artist_id FROM music_tracks t JOIN music_artists ma ON ma.id = t.artist_id WHERE t.id = ?",
-                    params![nid],
-                    |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?)),
-                ) {
+                if let Some((t_title, artists)) = lookup_track_participating_artists(&conn, nid) {
+                    let artist_names: Vec<String> =
+                        artists.iter().map(|(_, name)| name.clone()).collect();
+                    let subtitle = if artist_names.is_empty() {
+                        None
+                    } else {
+                        Some(artist_names.join(", "))
+                    };
+
                     seeds_resolved.push(EntityItem {
                         id: s.clone(),
                         name: t_title,
                         entity_type: "track".to_string(),
-                        subtitle: Some(a_name.clone()),
+                        subtitle,
                         extra: None,
                     });
-                    track_seed_artists.insert(s.clone(), (a_id, a_name.clone()));
-                    let art_node = format!("artist:{}", a_id);
-                    seed_artist_names.insert(art_node.clone(), a_name);
-                    if !diffusion_seeds.contains(&art_node) {
-                        diffusion_seeds.push(art_node);
+
+                    track_seed_artists.insert(s.clone(), artists.clone());
+
+                    for (a_id, a_name) in artists {
+                        let art_node = format!("artist:{}", a_id);
+                        seed_artist_names.insert(art_node.clone(), a_name);
+                        if !diffusion_seeds.contains(&art_node) {
+                            diffusion_seeds.push(art_node);
+                        }
                     }
+
                     if state.graph.get_node_id(s).is_some() && !diffusion_seeds.contains(s) {
                         diffusion_seeds.push(s.clone());
                     }
