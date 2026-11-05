@@ -51,10 +51,11 @@ pub fn load_app_state(db_path: &str) -> Result<Arc<AppState>> {
     let t0 = Instant::now();
     let graph = crate::graph::GraphCSR::load_semantic_graph(db_path)?;
     println!(
-        "[server] graph loaded in {:?}: {} nodes, {} edges",
+        "[server] graph loaded in {:?}: {} nodes, {} edges, domain_gamma={:.2}",
         t0.elapsed(),
         graph.num_nodes,
-        graph.num_edges
+        graph.num_edges,
+        graph.domain_gamma
     );
 
     println!("[server] opening duckdb connection for metadata and search...");

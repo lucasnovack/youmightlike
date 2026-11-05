@@ -30,3 +30,7 @@ path = "src/main.rs"
 name = "youmightlike-server"
 path = "src/bin/server.rs"
 
+[[bin]]
+name = "domain-report"
+path = "src/bin/domain_report.rs"
+

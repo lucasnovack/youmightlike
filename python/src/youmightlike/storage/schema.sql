@@ -358,6 +358,8 @@ FROM people p
 JOIN music_artists a ON p.wikidata_id = a.wikidata_id
 WHERE p.wikidata_id IS NOT NULL
 UNION ALL
+-- Name-only fallback is restricted to people with a credited music role (composer):
+-- an unrestricted name join links screenwriters/directors to unrelated homonym musicians.
 SELECT 
     'person:' || CAST(p.id AS VARCHAR) AS source_id,
     'artist:' || CAST(a.id AS VARCHAR) AS target_id,
@@ -365,7 +367,12 @@ SELECT
     3.0 AS base_weight
 FROM people p
 JOIN music_artists a ON LOWER(TRIM(p.name)) = LOWER(TRIM(a.name))
-WHERE p.wikidata_id IS NULL OR a.wikidata_id IS NULL
+WHERE (p.wikidata_id IS NULL OR a.wikidata_id IS NULL)
+  AND p.id IN (
+      SELECT person_id FROM movie_credits WHERE job = 'Original Music Composer'
+      UNION
+      SELECT person_id FROM series_credits WHERE job = 'Original Music Composer'
+  )
 UNION ALL
 -- Artist ➔ Album (released)
 SELECT 
