@@ -259,6 +259,23 @@ pub fn extract_series(
             });
         }
 
+        // Direct link to seed series if sharing creator
+        let seed_series_keys: Vec<String> = ctx.seed_set.iter().filter(|s| s.starts_with("series:")).cloned().collect();
+        for s_skey in &seed_series_keys {
+            let shares_person = ctx.state.graph.out_edges_by_key(s_skey).iter().any(|e| {
+                matches!(e.relation_type, "has_director" | "has_writer")
+                    && ctx.state.graph.out_edges_by_key(nkey).iter().any(|ne| ne.target_key == e.target_key)
+            });
+            if shares_person && !graph_links.iter().any(|l| (l.source == *s_skey && l.target == *nkey) || (l.source == *nkey && l.target == *s_skey)) {
+                graph_links.push(GraphLinkPayload {
+                    source: s_skey.clone(),
+                    target: nkey.clone(),
+                    label: if ctx.is_pt { "mesmo_criador".to_string() } else { "same_creator".to_string() },
+                    weight: 3.5,
+                });
+            }
+        }
+
         series_recs_added += 1;
     }
 }

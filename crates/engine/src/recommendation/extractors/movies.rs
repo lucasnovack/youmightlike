@@ -240,6 +240,23 @@ pub fn extract_movies(
             });
         }
 
+        // Direct link to seed movie if sharing director or composer
+        let seed_movie_keys: Vec<String> = ctx.seed_set.iter().filter(|s| s.starts_with("movie:")).cloned().collect();
+        for s_mkey in &seed_movie_keys {
+            let shares_person = ctx.state.graph.out_edges_by_key(s_mkey).iter().any(|e| {
+                matches!(e.relation_type, "has_director" | "has_writer" | "soundtrack_composer")
+                    && ctx.state.graph.out_edges_by_key(nkey).iter().any(|ne| ne.target_key == e.target_key)
+            });
+            if shares_person && !graph_links.iter().any(|l| (l.source == *s_mkey && l.target == *nkey) || (l.source == *nkey && l.target == *s_mkey)) {
+                graph_links.push(GraphLinkPayload {
+                    source: s_mkey.clone(),
+                    target: nkey.clone(),
+                    label: if ctx.is_pt { "mesmo_realizador".to_string() } else { "same_director".to_string() },
+                    weight: 3.5,
+                });
+            }
+        }
+
         movie_recs_added += 1;
     }
 }

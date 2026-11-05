@@ -566,6 +566,266 @@ pub fn extract_music(
         let mut seen_rec_track_ids: HashSet<i64> = HashSet::new();
         let mut seen_rec_track_artists: HashSet<i64> = HashSet::new();
 
+        // 0A. Direct track-to-track recommendations from active seed tracks!
+        // (Album sibling tracks + Audio vibe affinity radio)
+        let seed_track_keys: Vec<String> = ctx
+            .seed_set
+            .iter()
+            .filter(|s| s.starts_with("track:"))
+            .cloned()
+            .collect();
+
+        for s_key in &seed_track_keys {
+            if track_recs_added >= track_quota {
+                break;
+            }
+            let Some(("track", s_tid)) = parse_node_key(s_key) else {
+                continue;
+            };
+
+            let meta_res: Result<(String, i64, Option<i64>, Option<f64>), _> = ctx.conn.query_row(
+                "SELECT t.title, t.artist_id, t.album_id, t.tempo
+                 FROM music_tracks t
+                 WHERE t.id = ?",
+                params![s_tid],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            );
+
+            if let Ok((seed_title, seed_aid, seed_alb_id, seed_tempo)) = meta_res {
+                // 1. Same Album Tracks (e.g. Watch The Throne -> Ni**as In Paris, Otis, Who Gon Stop Me)
+                if let Some(alb_id) = seed_alb_id {
+                    let album_sql = "
+                        SELECT t.id, t.title, t.popularity, t.tempo, ma.name, ma.id, alb.title
+                        FROM music_tracks t
+                        JOIN music_artists ma ON ma.id = t.artist_id
+                        JOIN music_albums alb ON alb.id = t.album_id
+                        WHERE LOWER(TRIM(alb.title)) = (SELECT LOWER(TRIM(title)) FROM music_albums WHERE id = ?)
+                          AND t.id != ?
+                        ORDER BY t.popularity DESC NULLS LAST
+                        LIMIT 4
+                    ";
+                    if let Ok(mut stmt) = ctx.conn.prepare(album_sql) {
+                        if let Ok(mut rows) = stmt.query(params![alb_id, s_tid]) {
+                            while let Ok(Some(r)) = rows.next() {
+                                if track_recs_added >= track_quota {
+                                    break;
+                                }
+                                let (Ok(r_id), Ok(r_title), Ok(r_aname), Ok(r_aid), Ok(r_albtitle)) = (
+                                    r.get::<_, i64>(0),
+                                    r.get::<_, String>(1),
+                                    r.get::<_, String>(4),
+                                    r.get::<_, i64>(5),
+                                    r.get::<_, String>(6),
+                                ) else {
+                                    continue;
+                                };
+                                let r_pop: Option<i32> = r.get(2).ok();
+                                let _r_tempo: Option<f64> = r.get(3).ok();
+
+                                if !seen_rec_track_ids.insert(r_id) || ctx.seed_set.contains(&format!("track:{}", r_id)) {
+                                    continue;
+                                }
+
+                                let t_key = format!("track:{}", r_id);
+                                let art_key = format!("artist:{}", r_aid);
+
+                                let trk_subtitle = if ctx.is_pt {
+                                    format!("Música de {} • Álbum: {}", r_aname, r_albtitle)
+                                } else {
+                                    format!("Track by {} • Album: {}", r_aname, r_albtitle)
+                                };
+
+                                let trk_reason = if ctx.is_pt {
+                                    format!("Mesmo álbum de {} ({})", seed_title, r_albtitle)
+                                } else {
+                                    format!("Same album as {} ({})", seed_title, r_albtitle)
+                                };
+
+                                results.push(json!({
+                                    "id": t_key,
+                                    "title": r_title,
+                                    "type": "track",
+                                    "subtitle": trk_subtitle,
+                                    "score": 10.0,
+                                    "top_track": {
+                                        "title": r_title,
+                                        "popularity": r_pop.unwrap_or(75),
+                                    },
+                                    "reason": trk_reason,
+                                }));
+
+                                graph_nodes.push(GraphNodePayload {
+                                    id: t_key.clone(),
+                                    label: r_title.clone(),
+                                    node_type: "track".to_string(),
+                                    val: 10.5,
+                                    tags: Vec::new(),
+                                    desc: String::new(),
+                                });
+
+                                graph_links.push(GraphLinkPayload {
+                                    source: s_key.clone(),
+                                    target: t_key.clone(),
+                                    label: if ctx.is_pt { "mesmo_álbum".to_string() } else { "same_album".to_string() },
+                                    weight: 3.5,
+                                });
+
+                                if !graph_nodes.iter().any(|n| n.id == art_key) {
+                                    graph_nodes.push(GraphNodePayload {
+                                        id: art_key.clone(),
+                                        label: r_aname,
+                                        node_type: "artist".to_string(),
+                                        val: 12.0,
+                                        tags: Vec::new(),
+                                        desc: String::new(),
+                                    });
+                                }
+                                if !graph_links.iter().any(|l| (l.source == t_key && l.target == art_key) || (l.source == art_key && l.target == t_key)) {
+                                    graph_links.push(GraphLinkPayload {
+                                        source: t_key,
+                                        target: art_key,
+                                        label: "performed_by".to_string(),
+                                        weight: 2.5,
+                                    });
+                                }
+
+                                track_recs_added += 1;
+                            }
+                        }
+                    }
+                }
+
+                // 2. Spotify Radio / Vibe Affinity (similar BPM audio features)
+                if let Some(bpm) = seed_tempo {
+                    if bpm > 0.0 && track_recs_added < track_quota {
+                        let min_bpm = bpm - 12.0;
+                        let max_bpm = bpm + 12.0;
+
+                        let mut pool_aids: Vec<i64> = ctx
+                            .affinitive_artist_keys
+                            .iter()
+                            .filter_map(|k| parse_node_key(k).and_then(|(p, id)| if p == "artist" { Some(id) } else { None }))
+                            .take(20)
+                            .collect();
+                        if !pool_aids.contains(&seed_aid) {
+                            pool_aids.push(seed_aid);
+                        }
+
+                        let placeholders = pool_aids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+                        let vibe_sql = format!(
+                            "SELECT t.id, t.title, t.popularity, t.tempo, ma.name, ma.id, alb.title
+                             FROM music_tracks t
+                             JOIN music_artists ma ON ma.id = t.artist_id
+                             LEFT JOIN music_albums alb ON alb.id = t.album_id
+                             WHERE t.artist_id IN ({})
+                               AND t.id != ?
+                               AND t.tempo BETWEEN ? AND ?
+                             ORDER BY t.popularity DESC NULLS LAST
+                             LIMIT 3",
+                            placeholders
+                        );
+
+                        if let Ok(mut v_stmt) = ctx.conn.prepare(&vibe_sql) {
+                            let mut params_vec: Vec<Box<dyn duckdb::ToSql>> = pool_aids.into_iter().map(|id| Box::new(id) as Box<dyn duckdb::ToSql>).collect();
+                            params_vec.push(Box::new(s_tid));
+                            params_vec.push(Box::new(min_bpm));
+                            params_vec.push(Box::new(max_bpm));
+                            let params_ref: Vec<&dyn duckdb::ToSql> = params_vec.iter().map(|b| &**b).collect();
+
+                            if let Ok(mut v_rows) = v_stmt.query(&params_ref[..]) {
+                                while let Ok(Some(r)) = v_rows.next() {
+                                    if track_recs_added >= track_quota {
+                                        break;
+                                    }
+                                    let (Ok(r_id), Ok(r_title), Ok(r_aname), Ok(r_aid)) = (
+                                        r.get::<_, i64>(0),
+                                        r.get::<_, String>(1),
+                                        r.get::<_, String>(4),
+                                        r.get::<_, i64>(5),
+                                    ) else {
+                                        continue;
+                                    };
+                                    let r_pop: Option<i32> = r.get(2).ok();
+                                    let r_bpm: Option<f64> = r.get(3).ok();
+                                    let r_albtitle: Option<String> = r.get(6).ok();
+
+                                    if !seen_rec_track_ids.insert(r_id) || ctx.seed_set.contains(&format!("track:{}", r_id)) {
+                                        continue;
+                                    }
+
+                                    let t_key = format!("track:{}", r_id);
+                                    let art_key = format!("artist:{}", r_aid);
+                                    let bpm_display = r_bpm.map(|b| format!("~{} BPM", b.round() as i32)).unwrap_or_else(|| "BPM similar".to_string());
+
+                                    let trk_subtitle = if let Some(ref alb) = r_albtitle {
+                                        if ctx.is_pt { format!("Música de {} • {}", r_aname, alb) } else { format!("Track by {} • {}", r_aname, alb) }
+                                    } else {
+                                        if ctx.is_pt { format!("Música de {}", r_aname) } else { format!("Track by {}", r_aname) }
+                                    };
+
+                                    let trk_reason = if ctx.is_pt {
+                                        format!("Vibe sonora e andamento similar a {} ({})", seed_title, bpm_display)
+                                    } else {
+                                        format!("Similar vibe and tempo to {} ({})", seed_title, bpm_display)
+                                    };
+
+                                    results.push(json!({
+                                        "id": t_key,
+                                        "title": r_title,
+                                        "type": "track",
+                                        "subtitle": trk_subtitle,
+                                        "score": 9.2,
+                                        "top_track": {
+                                            "title": r_title,
+                                            "popularity": r_pop.unwrap_or(65),
+                                        },
+                                        "reason": trk_reason,
+                                    }));
+
+                                    graph_nodes.push(GraphNodePayload {
+                                        id: t_key.clone(),
+                                        label: r_title.clone(),
+                                        node_type: "track".to_string(),
+                                        val: 10.0,
+                                        tags: Vec::new(),
+                                        desc: String::new(),
+                                    });
+
+                                    graph_links.push(GraphLinkPayload {
+                                        source: s_key.clone(),
+                                        target: t_key.clone(),
+                                        label: if ctx.is_pt { "vibe_similar".to_string() } else { "similar_vibe".to_string() },
+                                        weight: 2.8,
+                                    });
+
+                                    if !graph_nodes.iter().any(|n| n.id == art_key) {
+                                        graph_nodes.push(GraphNodePayload {
+                                            id: art_key.clone(),
+                                            label: r_aname,
+                                            node_type: "artist".to_string(),
+                                            val: 12.0,
+                                            tags: Vec::new(),
+                                            desc: String::new(),
+                                        });
+                                    }
+                                    if !graph_links.iter().any(|l| (l.source == t_key && l.target == art_key) || (l.source == art_key && l.target == t_key)) {
+                                        graph_links.push(GraphLinkPayload {
+                                            source: t_key,
+                                            target: art_key,
+                                            label: "performed_by".to_string(),
+                                            weight: 2.5,
+                                        });
+                                    }
+
+                                    track_recs_added += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // 0. Seminal works from the active seed artists themselves!
         // When user chooses Kanye West or Phantogram, they expect to see their seminal works in the canvas and recs.
         if has_music_seeds {

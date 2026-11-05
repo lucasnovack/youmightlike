@@ -407,7 +407,20 @@ pub fn run_recommendation_pipeline(
                     (rem * 20 / 100).max(2)
                 };
                 let s_q = rem.saturating_sub(a_q + t_q + m_q).max(2);
-                (a_q, t_q, m_q, s_q, g_q, 1)
+
+                let has_track_seed = seeds_resolved.iter().any(|s| s.entity_type == "track");
+                let has_game_seed = seeds_resolved.iter().any(|s| s.entity_type == "game");
+                let has_movie_seed = seeds_resolved.iter().any(|s| s.entity_type == "movie");
+                let has_series_seed = seeds_resolved.iter().any(|s| s.entity_type == "series");
+                let has_book_seed = seeds_resolved.iter().any(|s| s.entity_type == "book");
+
+                let final_t_q = if has_track_seed { t_q.max(5) } else { t_q };
+                let final_g_q = if has_game_seed { g_q.max(5) } else { g_q };
+                let final_m_q = if has_movie_seed { m_q.max(5) } else { m_q };
+                let final_s_q = if has_series_seed { s_q.max(5) } else { s_q };
+                let final_b_q = if has_book_seed { 5 } else { 1 };
+
+                (a_q, final_t_q, final_m_q, final_s_q, final_g_q, final_b_q)
             }
         };
 

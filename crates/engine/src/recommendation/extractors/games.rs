@@ -28,7 +28,7 @@ pub fn extract_games(
     game_quota: usize,
     results: &mut Vec<Value>,
     graph_nodes: &mut Vec<GraphNodePayload>,
-    _graph_links: &mut Vec<GraphLinkPayload>,
+    graph_links: &mut Vec<GraphLinkPayload>,
 ) {
     if game_quota == 0 {
         return;
@@ -365,12 +365,34 @@ pub fn extract_games(
         for (b_id, b_label, b_type) in cand.bridges.into_iter().take(2) {
             if !graph_nodes.iter().any(|n| n.id == b_id) {
                 graph_nodes.push(GraphNodePayload {
-                    id: b_id,
+                    id: b_id.clone(),
                     label: b_label,
                     node_type: b_type,
                     val: 9.0,
                     tags: Vec::new(),
                     desc: String::new(),
+                });
+            }
+            graph_links.push(GraphLinkPayload {
+                source: cand.nkey.clone(),
+                target: b_id,
+                label: if ctx.is_pt { "conectado_a".to_string() } else { "connected_to".to_string() },
+                weight: 2.5,
+            });
+        }
+
+        // Direct link to seed game if sharing developer
+        let seed_game_keys: Vec<String> = ctx.seed_set.iter().filter(|s| s.starts_with("game:")).cloned().collect();
+        for s_gkey in &seed_game_keys {
+            let shares_dev = ctx.state.graph.out_edges_by_key(s_gkey).iter().any(|e| {
+                e.relation_type == "developed_by" && parse_node_key(e.target_key).map(|(_, did)| cand.dev_ids.contains(&did)).unwrap_or(false)
+            });
+            if shares_dev && !graph_links.iter().any(|l| (l.source == *s_gkey && l.target == cand.nkey) || (l.source == cand.nkey && l.target == *s_gkey)) {
+                graph_links.push(GraphLinkPayload {
+                    source: s_gkey.clone(),
+                    target: cand.nkey.clone(),
+                    label: if ctx.is_pt { "mesmo_estúdio".to_string() } else { "same_developer".to_string() },
+                    weight: 3.5,
                 });
             }
         }
@@ -430,12 +452,33 @@ pub fn extract_games(
             for (b_id, b_label, b_type) in cand.bridges.into_iter().take(2) {
                 if !graph_nodes.iter().any(|n| n.id == b_id) {
                     graph_nodes.push(GraphNodePayload {
-                        id: b_id,
+                        id: b_id.clone(),
                         label: b_label,
                         node_type: b_type,
                         val: 9.0,
                         tags: Vec::new(),
                         desc: String::new(),
+                    });
+                }
+                graph_links.push(GraphLinkPayload {
+                    source: cand.nkey.clone(),
+                    target: b_id,
+                    label: if ctx.is_pt { "conectado_a".to_string() } else { "connected_to".to_string() },
+                    weight: 2.5,
+                });
+            }
+
+            let seed_game_keys: Vec<String> = ctx.seed_set.iter().filter(|s| s.starts_with("game:")).cloned().collect();
+            for s_gkey in &seed_game_keys {
+                let shares_dev = ctx.state.graph.out_edges_by_key(s_gkey).iter().any(|e| {
+                    e.relation_type == "developed_by" && parse_node_key(e.target_key).map(|(_, did)| cand.dev_ids.contains(&did)).unwrap_or(false)
+                });
+                if shares_dev && !graph_links.iter().any(|l| (l.source == *s_gkey && l.target == cand.nkey) || (l.source == cand.nkey && l.target == *s_gkey)) {
+                    graph_links.push(GraphLinkPayload {
+                        source: s_gkey.clone(),
+                        target: cand.nkey.clone(),
+                        label: if ctx.is_pt { "mesmo_estúdio".to_string() } else { "same_developer".to_string() },
+                        weight: 3.5,
                     });
                 }
             }
