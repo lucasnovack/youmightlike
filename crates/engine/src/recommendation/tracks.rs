@@ -96,8 +96,14 @@ pub fn compute_track_recommendations_sync(
         return Ok(Vec::new());
     }
 
+    let max_score = rust_results.first().map(|r| r.score).unwrap_or(0.0);
+    let min_score_cutoff = (max_score * 0.05).max(1e-6);
+
     let mut scored_map: HashMap<i64, f64> = HashMap::new();
     for r in &rust_results {
+        if r.score < min_score_cutoff {
+            continue;
+        }
         if let Some(("artist", aid)) = parse_node_key(&r.node_key) {
             scored_map.insert(aid, r.score as f64);
         }

@@ -1,8 +1,8 @@
 // Main Vue 3 Application Controller for youmightlike
-import { createTranslator } from './i18n.js';
-import { getTypeBadgeClass, getTypeIcon, getSeedDotColor, getAffinityLabel, getAffinityBadgeClass, getRawType } from './config.js';
-import { searchEntities, fetchRecommendations } from './api.js';
-import { ConstellationEngine } from './constellation.js';
+import { createTranslator } from './i18n.js?v=2.7';
+import { getTypeBadgeClass, getTypeIcon, getSeedDotColor, getAffinityLabel, getAffinityBadgeClass, getRawType } from './config.js?v=2.7';
+import { searchEntities, fetchRecommendations } from './api.js?v=2.7';
+import { ConstellationEngine } from './constellation.js?v=2.7';
 
 const { createApp, ref, computed, onMounted } = Vue;
 
@@ -32,6 +32,24 @@ createApp({
 
     const onlySharedBridges = ref(false);
     const hideTrackNodes = ref(false);
+    const layoutMode = ref('galaxy'); // 'galaxy' (Obsidian) | 'flow' (Sankey)
+    const graphSpacing = ref('comfortable'); // 'compact', 'comfortable', 'spacious'
+
+    const setLayoutMode = (mode) => {
+      layoutMode.value = mode;
+      rebuildConstellation();
+    };
+
+    const getSpacingScale = (spacing) => {
+      if (spacing === 'compact') return 1.05;
+      if (spacing === 'spacious') return 1.70;
+      return 1.35; // comfortable
+    };
+
+    const setGraphSpacing = (spacing) => {
+      graphSpacing.value = spacing;
+      rebuildConstellation();
+    };
 
     let searchAbortController = null;
     let fullServerGraph = { nodes: [], links: [] };
@@ -54,7 +72,22 @@ createApp({
       const saved = localStorage.getItem('ym_taste_profile');
       if (saved) {
         try {
-          profileSeeds.value = JSON.parse(saved);
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            const seenIds = new Set();
+            const seenWorkKeys = new Set();
+            const deduped = [];
+            for (const s of parsed) {
+              if (!s || !s.id || seenIds.has(s.id)) continue;
+              const workKey = `${s.type || ''}:${(s.name || '').trim().toLowerCase()}`;
+              if (s.name && seenWorkKeys.has(workKey)) continue;
+              seenIds.add(s.id);
+              if (s.name) seenWorkKeys.add(workKey);
+              deduped.push(s);
+            }
+            profileSeeds.value = deduped;
+            saveProfile();
+          }
         } catch (e) {
           console.error('Failed to parse saved taste profile:', e);
         }
@@ -184,12 +217,27 @@ createApp({
     };
 
     // Seeds & Profile Actions
-    const isNodeInProfile = (nodeId) => {
-      return profileSeeds.value.some(s => s.id === nodeId);
+    const isNodeInProfile = (nodeId, nodeName) => {
+      if (profileSeeds.value.some(s => s.id === nodeId)) return true;
+      if (nodeName) {
+        const clean = nodeName.trim().toLowerCase();
+        return profileSeeds.value.some(s => s.name && s.name.trim().toLowerCase() === clean);
+      }
+      return false;
     };
 
     const addSeed = (item) => {
-      if (!profileSeeds.value.find(s => s.id === item.id)) {
+      if (!item || !item.id) return;
+      const cleanName = item.name ? item.name.trim().toLowerCase() : '';
+      const cleanType = item.type || '';
+      const alreadyInProfile = profileSeeds.value.some(s => {
+        if (s.id === item.id) return true;
+        if (cleanName && s.name && s.name.trim().toLowerCase() === cleanName && s.type === cleanType) {
+          return true;
+        }
+        return false;
+      });
+      if (!alreadyInProfile) {
         profileSeeds.value.push(item);
         saveProfile();
         computeRecommendations();
@@ -198,7 +246,7 @@ createApp({
     };
 
     const addNodeToProfile = (node) => {
-      if (!node || !node.id || isNodeInProfile(node.id)) return;
+      if (!node || !node.id || isNodeInProfile(node.id, node.label)) return;
       const rawType = getRawType(node);
       addSeed({
         id: node.id,
@@ -257,6 +305,7 @@ createApp({
       recommendations.value = [];
       selectedNodeIds.value = [];
       inspectorRecs.value = [];
+      sidebarMode.value = 'seeds';
       saveProfile();
       fullServerGraph = { nodes: [], links: [] };
       if (constellation) {
@@ -329,8 +378,10 @@ createApp({
           fullServerGraph = data.graph || { nodes: [], links: [] };
           if (constellation) {
             constellation.setGraphData(fullServerGraph, profileSeeds.value, {
+              layoutMode: layoutMode.value,
               onlySharedBridges: onlySharedBridges.value,
               hideTrackNodes: hideTrackNodes.value,
+              spacingScale: getSpacingScale(graphSpacing.value),
             });
           }
         } catch (err) {
@@ -370,8 +421,10 @@ createApp({
     const rebuildConstellation = () => {
       if (constellation) {
         constellation.setOptions({
+          layoutMode: layoutMode.value,
           onlySharedBridges: onlySharedBridges.value,
           hideTrackNodes: hideTrackNodes.value,
+          spacingScale: getSpacingScale(graphSpacing.value),
         });
       }
     };
@@ -429,6 +482,8 @@ createApp({
 
       if (profileSeeds.value.length > 0) {
         computeRecommendations();
+      } else {
+        sidebarMode.value = 'seeds';
       }
     });
 
@@ -481,6 +536,10 @@ createApp({
       focusNodeOnGraph,
       onlySharedBridges,
       hideTrackNodes,
+      layoutMode,
+      setLayoutMode,
+      graphSpacing,
+      setGraphSpacing,
       rebuildConstellation,
       fitGraphView,
     };

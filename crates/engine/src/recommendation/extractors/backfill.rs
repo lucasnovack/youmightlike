@@ -61,11 +61,18 @@ pub fn extract_backfill(
         Some(needed * 10),
     );
 
+    let max_score = best_remaining.first().map(|i| i.score).unwrap_or(0.0);
+    let min_score_cutoff = if max_score > 0.0 {
+        (max_score * 0.01).max(1e-6)
+    } else {
+        ctx.min_rec_score
+    };
+
     for item in best_remaining {
         if results.len() >= limit {
             break;
         }
-        if item.score < ctx.min_rec_score {
+        if item.score < min_score_cutoff {
             break;
         }
         let nkey = &item.node_key;
@@ -280,24 +287,85 @@ pub fn extract_backfill(
                         "Aesthetic graph affinity".to_string()
                     };
 
+                    let top_trk_row = ctx
+                        .conn
+                        .query_row(
+                            "SELECT id, title, popularity FROM music_tracks WHERE artist_id = ? ORDER BY popularity DESC NULLS LAST LIMIT 1",
+                            duckdb::params![nid],
+                            |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<i32>>(2)?)),
+                        )
+                        .ok();
+
+                    let top_track_val = top_trk_row
+                        .as_ref()
+                        .map(|(_, ttitle, pop)| {
+                            json!({
+                                "title": ttitle,
+                                "popularity": pop.unwrap_or(65),
+                            })
+                        })
+                        .unwrap_or(Value::Null);
+
                     results.push(json!({
                         "id": nkey,
                         "title": aname,
                         "type": "artist",
                         "subtitle": sub,
                         "score": ((item.score as f64) * 1000.0 * 100.0).round() / 100.0,
-                        "top_track": Value::Null,
+                        "top_track": top_track_val,
                         "reason": reason,
                     }));
                     graph_nodes.push(GraphNodePayload {
                         id: nkey.clone(),
-                        label: aname,
+                        label: aname.clone(),
                         node_type: "artist".to_string(),
                         val: 12.0,
                         tags: Vec::new(),
                         desc: String::new(),
                         metadata: None,
                     });
+
+                    if let Some((trk_id, trk_title, trk_pop)) = top_trk_row {
+                        let t_key = format!("track:{}", trk_id);
+                        let norm_t = crate::models::norm_track_title(&trk_title);
+                        if results.len() < limit
+                            && !already_chosen.contains(&t_key)
+                            && !norm_t.is_empty()
+                        {
+                            already_chosen.insert(t_key.clone());
+                            let trk_sub = if ctx.is_pt {
+                                format!("Música de {}", aname)
+                            } else {
+                                format!("Track by {}", aname)
+                            };
+                            let trk_reason = if ctx.is_pt {
+                                format!("Faixa destaque de {}", aname)
+                            } else {
+                                format!("Featured track by {}", aname)
+                            };
+                            results.push(json!({
+                                "id": t_key,
+                                "title": trk_title,
+                                "type": "track",
+                                "subtitle": trk_sub,
+                                "score": ((item.score as f64) * 920.0 * 100.0).round() / 100.0,
+                                "top_track": {
+                                    "title": trk_title,
+                                    "popularity": trk_pop.unwrap_or(60),
+                                },
+                                "reason": trk_reason,
+                            }));
+                            graph_nodes.push(GraphNodePayload {
+                                id: t_key.clone(),
+                                label: trk_title,
+                                node_type: "track".to_string(),
+                                val: 10.0,
+                                tags: Vec::new(),
+                                desc: String::new(),
+                                metadata: None,
+                            });
+                        }
+                    }
                 }
             }
             _ => {}

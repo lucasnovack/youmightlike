@@ -13,6 +13,7 @@ pub struct RecContext<'a> {
     pub seed_set: &'a HashSet<String>,
     pub active_seed_set: &'a HashSet<String>,
     pub affinitive_artist_keys: &'a HashSet<String>,
+    pub top_diffused_artist_ids: &'a [i64],
     pub seed_artist_names: &'a HashMap<String, String>,
     pub seed_tag_counts: &'a HashMap<i64, usize>,
     pub seed_people: &'a HashSet<i64>,

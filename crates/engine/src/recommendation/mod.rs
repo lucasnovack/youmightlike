@@ -16,9 +16,9 @@ use graph_builder::{
 use std::collections::{HashMap, HashSet};
 
 use crate::models::{
-    is_tag_relation, lookup_artist_meta, lookup_track_participating_artists, parse_node_key,
-    AppState, EntityItem, GraphLinkPayload, GraphNodePayload, GraphPayload, RecommendationRequest,
-    RecommendationResponse,
+    is_tag_relation, lookup_artist_meta, lookup_track_participating_artists, norm_track_title,
+    parse_node_key, AppState, EntityItem, GraphLinkPayload, GraphNodePayload, GraphPayload,
+    RecommendationRequest, RecommendationResponse,
 };
 use crate::ppr::{run_personalized_pagerank_scores, top_k_from_scores};
 use serde_json::Value;
@@ -41,6 +41,7 @@ pub fn run_recommendation_pipeline(
 
     let mut sorted_seeds = req.seeds.clone();
     sorted_seeds.sort();
+    sorted_seeds.dedup();
     let cache_key = format!(
         "{}:{}:{}:{}",
         sorted_seeds.join(","),
@@ -55,22 +56,27 @@ pub fn run_recommendation_pipeline(
         }
     }
 
-    let seed_set: HashSet<String> = req.seeds.iter().cloned().collect();
+    let seed_set: HashSet<String> = sorted_seeds.iter().cloned().collect();
     let mut seeds_resolved: Vec<EntityItem> = Vec::new();
     let mut diffusion_seeds: Vec<String> = Vec::new();
     let mut seed_artist_names: HashMap<String, String> = HashMap::new();
     let mut track_seed_artists: HashMap<String, Vec<(i64, String)>> = HashMap::new();
+    let mut seen_seed_canonical: HashSet<(String, String)> = HashSet::new();
 
     let conn = state.open_read_conn()?;
 
     // 1. Resolve seed node metadata
-    for s in &req.seeds {
+    for s in &sorted_seeds {
         let Some((prefix, nid)) = parse_node_key(s) else {
             continue;
         };
         match prefix {
             "artist" => {
                 if let Some((name, country)) = lookup_artist_meta(&conn, nid) {
+                    let norm_key = ("artist".to_string(), name.trim().to_lowercase());
+                    if !seen_seed_canonical.insert(norm_key) {
+                        continue;
+                    }
                     seed_artist_names.insert(s.clone(), name.clone());
                     seeds_resolved.push(EntityItem {
                         id: s.clone(),
@@ -86,6 +92,10 @@ pub fn run_recommendation_pipeline(
             }
             "movie" => {
                 if let Some(m) = state.catalog.movies.get(&nid) {
+                    let norm_key = ("movie".to_string(), m.title.trim().to_lowercase());
+                    if !seen_seed_canonical.insert(norm_key) {
+                        continue;
+                    }
                     seeds_resolved.push(EntityItem {
                         id: s.clone(),
                         name: m.title.clone(),
@@ -100,6 +110,10 @@ pub fn run_recommendation_pipeline(
             }
             "series" => {
                 if let Some(s_meta) = state.catalog.series.get(&nid) {
+                    let norm_key = ("series".to_string(), s_meta.title.trim().to_lowercase());
+                    if !seen_seed_canonical.insert(norm_key) {
+                        continue;
+                    }
                     seeds_resolved.push(EntityItem {
                         id: s.clone(),
                         name: s_meta.title.clone(),
@@ -114,6 +128,10 @@ pub fn run_recommendation_pipeline(
             }
             "game" => {
                 if let Some(g) = state.catalog.games.get(&nid) {
+                    let norm_key = ("game".to_string(), g.title.trim().to_lowercase());
+                    if !seen_seed_canonical.insert(norm_key) {
+                        continue;
+                    }
                     seeds_resolved.push(EntityItem {
                         id: s.clone(),
                         name: g.title.clone(),
@@ -128,6 +146,10 @@ pub fn run_recommendation_pipeline(
             }
             "book" => {
                 if let Some(b) = state.catalog.books.get(&nid) {
+                    let norm_key = ("book".to_string(), b.title.trim().to_lowercase());
+                    if !seen_seed_canonical.insert(norm_key) {
+                        continue;
+                    }
                     seeds_resolved.push(EntityItem {
                         id: s.clone(),
                         name: b.title.clone(),
@@ -142,6 +164,10 @@ pub fn run_recommendation_pipeline(
             }
             "track" => {
                 if let Some((t_title, artists)) = lookup_track_participating_artists(&conn, nid) {
+                    let norm_key = ("track".to_string(), norm_track_title(&t_title));
+                    if !seen_seed_canonical.insert(norm_key) {
+                        continue;
+                    }
                     let artist_names: Vec<String> =
                         artists.iter().map(|(_, name)| name.clone()).collect();
                     let subtitle = if artist_names.is_empty() {
@@ -258,14 +284,24 @@ pub fn run_recommendation_pipeline(
     let top_diffused_artists =
         top_k_from_scores(&state.graph, &p, &exclude_ids, "artist:", Some(100));
 
+    let max_diffused_artist_score = top_diffused_artists.first().map(|a| a.score).unwrap_or(0.0);
+    let min_artist_aff_cutoff = (max_diffused_artist_score * 0.05).max(1e-6);
+
     let active_seed_set: HashSet<String> = active_seeds.iter().map(|s| s.to_string()).collect();
     let mut affinitive_artist_keys: HashSet<String> = active_seed_set
         .iter()
         .filter(|s| s.starts_with("artist:"))
         .cloned()
         .collect();
-    for a in top_diffused_artists.iter().take(50) {
-        affinitive_artist_keys.insert(a.node_key.clone());
+
+    let mut top_diffused_artist_ids: Vec<i64> = Vec::new();
+    for a in top_diffused_artists.iter() {
+        if a.score >= min_artist_aff_cutoff {
+            affinitive_artist_keys.insert(a.node_key.clone());
+            if let Some(("artist", aid)) = parse_node_key(&a.node_key) {
+                top_diffused_artist_ids.push(aid);
+            }
+        }
     }
 
     // Pre-compute seed neighbor maps for instant in-memory path explanations
@@ -416,7 +452,7 @@ pub fn run_recommendation_pipeline(
                 let has_series_seed = seeds_resolved.iter().any(|s| s.entity_type == "series");
                 let has_book_seed = seeds_resolved.iter().any(|s| s.entity_type == "book");
 
-                let final_t_q = if has_track_seed { t_q.max(5) } else { t_q };
+                let final_t_q = if has_track_seed || music_affinity_seeds > 0 { t_q.max(6) } else { t_q };
                 let final_g_q = if has_game_seed { g_q.max(5) } else { g_q };
                 let final_m_q = if has_movie_seed { m_q.max(5) } else { m_q };
                 let final_s_q = if has_series_seed { s_q.max(5) } else { s_q };
@@ -436,6 +472,7 @@ pub fn run_recommendation_pipeline(
         seed_set: &seed_set,
         active_seed_set: &active_seed_set,
         affinitive_artist_keys: &affinitive_artist_keys,
+        top_diffused_artist_ids: &top_diffused_artist_ids,
         seed_artist_names: &seed_artist_names,
         seed_tag_counts: &seed_tag_counts,
         seed_people: &seed_people,

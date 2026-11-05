@@ -596,7 +596,7 @@ pub fn resolve_artist_track_and_collab(
     ))
 }
 
-fn extract_featured_artist_names(title: &str) -> Option<Vec<String>> {
+pub fn extract_featured_artist_names(title: &str) -> Option<Vec<String>> {
     let lower = title.to_lowercase();
     let (start_idx, has_bracket) = if let Some(idx) = lower.find("(feat. ") {
         (idx + 7, true)
@@ -651,7 +651,7 @@ pub fn lookup_track_participating_artists(
         )
         .ok()?;
 
-    let (title, primary_aid, primary_name, spotify_id, album_id) = stmt
+    let (title, primary_aid, primary_name, _spotify_id, album_id) = stmt
         .query_row(params![track_id], |r| {
             Ok((
                 r.get::<_, String>(0)?,
@@ -669,38 +669,28 @@ pub fn lookup_track_participating_artists(
     artists.push((primary_aid, primary_name));
     seen_aids.insert(primary_aid);
 
-    // Method 1: If spotify_id exists and raw parquet is available, query parquet for all co-artists
-    if let Some(ref sid) = spotify_id {
-        if std::path::Path::new("data/raw/music/spotify_56m_tracks.parquet").exists() {
-            let parquet_sql = "
-                SELECT DISTINCT ma.id, ma.name
-                FROM 'data/raw/music/spotify_56m_tracks.parquet' p
-                JOIN music_artists ma ON LOWER(TRIM(ma.name)) = LOWER(TRIM(p.artist_name))
-                WHERE p.track_id = ?
-            ";
-            if let Ok(mut p_stmt) = conn.prepare(parquet_sql) {
-                if let Ok(mut rows) = p_stmt.query(params![sid]) {
-                    while let Ok(Some(r)) = rows.next() {
-                        if let (Ok(aid), Ok(aname)) = (r.get::<_, i64>(0), r.get::<_, String>(1)) {
-                            if seen_aids.insert(aid) {
-                                artists.push((aid, aname));
-                            }
-                        }
+    // Method 1: Parse "(feat. ...)" or "(ft. ...)" from track title (instant in-memory)
+    if let Some(feat_list) = extract_featured_artist_names(&title) {
+        for cand in feat_list {
+            if let Ok(mut f_stmt) = conn.prepare("SELECT id, name FROM music_artists WHERE name = ? OR name ILIKE ? LIMIT 1") {
+                if let Ok(r) = f_stmt.query_row(params![cand, cand], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))) {
+                    if seen_aids.insert(r.0) {
+                        artists.push((r.0, r.1));
                     }
                 }
             }
         }
     }
 
-    // Method 2: Fallback via shared album if fewer than 2 artists found
+    // Method 2: Fast indexed album check if fewer than 2 artists found
     if artists.len() < 2 {
         if let Some(alb_id) = album_id {
             let alb_sql = "
                 SELECT DISTINCT ma.id, ma.name
-                FROM music_albums a
-                JOIN music_artists ma ON ma.id = a.artist_id
-                WHERE LOWER(TRIM(a.title)) = (SELECT LOWER(TRIM(title)) FROM music_albums WHERE id = ?)
-                  AND a.artist_id != ?
+                FROM music_tracks t
+                JOIN music_artists ma ON ma.id = t.artist_id
+                WHERE t.album_id = ?
+                  AND t.artist_id != ?
                 LIMIT 3
             ";
             if let Ok(mut a_stmt) = conn.prepare(alb_sql) {
@@ -717,20 +707,21 @@ pub fn lookup_track_participating_artists(
         }
     }
 
-    // Method 3: Parse "(feat. ...)" or "(ft. ...)" from track title
-    if let Some(feat_list) = extract_featured_artist_names(&title) {
-        for cand in feat_list {
-            if let Ok(mut f_stmt) = conn.prepare("SELECT id, name FROM music_artists WHERE LOWER(TRIM(name)) = LOWER(?) LIMIT 1") {
-                if let Ok(r) = f_stmt.query_row(params![cand], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))) {
-                    if seen_aids.insert(r.0) {
-                        artists.push((r.0, r.1));
-                    }
-                }
-            }
-        }
-    }
-
     Some((title, artists))
+}
+
+/// Normalizes track titles for canonical deduplication (strips remasters, live tags, etc.)
+pub fn norm_track_title(t: &str) -> String {
+    let mut s = t.trim().to_lowercase();
+    s = s.replace(['’', '‘', '`'], "'")
+         .replace(['\u{2010}', '\u{2011}', '\u{2012}', '\u{2013}', '\u{2014}'], "-");
+    if let Some(pos) = s.find(" - ") {
+        s.truncate(pos);
+    }
+    if let Some(pos) = s.find(" (") {
+        s.truncate(pos);
+    }
+    s.trim().to_string()
 }
 
 pub fn collect_node_tags(

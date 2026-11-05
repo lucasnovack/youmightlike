@@ -143,11 +143,27 @@ impl GraphCSR {
             }
         };
 
+        const COUNTRY_KEYWORD_IDS: &[&str] = &[
+            "keyword:300", "keyword:301", "keyword:529", "keyword:647", "keyword:652",
+            "keyword:700", "keyword:974", "keyword:978", "keyword:1098", "keyword:1259",
+            "keyword:1370", "keyword:1473", "keyword:1489", "keyword:2043", "keyword:15288",
+            "keyword:19064", "keyword:19557", "keyword:19654", "keyword:36572", "keyword:42169", "keyword:42224",
+        ];
+
         while let Some(row) = rows.next()? {
             let src_key: String = row.get(0)?;
             let dst_key: String = row.get(1)?;
-            let base_w: f64 = row.get(2)?;
+            let mut base_w: f64 = row.get(2)?;
             let rel_str: String = row.get(3).unwrap_or_else(|_| "connected".to_string());
+
+            // Country tags are geographic metadata, NOT stylistic/aesthetic genres.
+            // Heavily attenuate them when attached to artists so diffusion does not leak
+            // from underground trap to gospel/samba merely because both are from Brazil.
+            if (src_key.starts_with("artist:") && COUNTRY_KEYWORD_IDS.contains(&dst_key.as_str()))
+                || (dst_key.starts_with("artist:") && COUNTRY_KEYWORD_IDS.contains(&src_key.as_str()))
+            {
+                base_w *= 0.05;
+            }
 
             push_edge(
                 &src_key,
@@ -172,14 +188,18 @@ impl GraphCSR {
             anyhow::bail!("No edges found in DuckDB query.");
         }
 
-        // 1. Applies in-memory Adamic-Adar / IDF attenuation: w = base_w / ln(1 + degree(v))
-        // and calculates out-degree sums for each node u for stochastic normalization
+        // 1. Applies in-memory Adamic-Adar / IDF attenuation with square-root penalty for large hubs:
+        // prevents supernode leaking across domains.
         let mut out_sums: Vec<f32> = vec![0.0f32; num_nodes];
         let mut adjusted_edges: Vec<(u32, u32, f32)> = Vec::with_capacity(num_edges);
 
         for (u, v, base_w) in raw_edges {
             let deg = in_degrees[v as usize].max(1) as f32;
-            let idf = 1.0f32 / (1.0f32 + deg).ln().max(1.0f32);
+            let idf = if deg > 80.0 {
+                1.0f32 / deg.sqrt()
+            } else {
+                1.0f32 / (1.0f32 + deg).ln().max(1.0f32)
+            };
             let eff_w = base_w * idf;
             out_sums[u as usize] += eff_w;
             adjusted_edges.push((u, v, eff_w));

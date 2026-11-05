@@ -2,8 +2,8 @@
 
 use super::context::is_steam_noise_tag;
 use crate::models::{
-    collect_node_tags, lookup_artist_meta, lookup_track_participating_artists, parse_node_key,
-    AppState, EntityItem, GraphLinkPayload, GraphNodePayload,
+    collect_node_tags, lookup_artist_meta, parse_node_key, AppState, EntityItem, GraphLinkPayload,
+    GraphNodePayload,
 };
 use duckdb::{params, Connection};
 use serde_json::{json, Value};
@@ -21,15 +21,17 @@ pub fn init_subgraph_anchors(
     graph_links: &mut Vec<GraphLinkPayload>,
 ) {
     for seed_item in seeds_resolved {
-        graph_nodes.push(GraphNodePayload {
-            id: seed_item.id.clone(),
-            label: seed_item.name.clone(),
-            node_type: "seed".to_string(),
-            val: 18.0,
-            tags: Vec::new(),
-            desc: String::new(),
-            metadata: None,
-        });
+        if !graph_nodes.iter().any(|n| n.id == seed_item.id) {
+            graph_nodes.push(GraphNodePayload {
+                id: seed_item.id.clone(),
+                label: seed_item.name.clone(),
+                node_type: "seed".to_string(),
+                val: 18.0,
+                tags: Vec::new(),
+                desc: String::new(),
+                metadata: None,
+            });
+        }
 
         if seed_item.entity_type == "track" {
             if let Some(artists) = track_seed_artists.get(&seed_item.id) {
@@ -577,19 +579,16 @@ pub fn resolve_node_metadata(
                 tempo_opt,
                 duration_ms_opt,
                 popularity_opt,
-                spotify_id_opt,
+                _spotify_id_opt,
             )) = track_row
             {
-                let mut artist_names = Vec::new();
-                if let Some((_, parts)) = lookup_track_participating_artists(conn, nid) {
-                    for (_, a_name) in parts {
-                        if !artist_names.contains(&a_name) {
-                            artist_names.push(a_name);
+                let mut artist_names = vec![primary_name.clone()];
+                if let Some(feats) = crate::models::extract_featured_artist_names(&title) {
+                    for f in feats {
+                        if !artist_names.contains(&f) {
+                            artist_names.push(f);
                         }
                     }
-                }
-                if artist_names.is_empty() {
-                    artist_names.push(primary_name.clone());
                 }
                 let artists_str = artist_names.join(", ");
 
@@ -604,35 +603,6 @@ pub fn resolve_node_metadata(
                     ) {
                         album_title = at;
                         release_year = ay;
-                    }
-                }
-
-                if (release_year.is_none() || album_title.is_none()) && spotify_id_opt.is_some() {
-                    if let Some(ref sid) = spotify_id_opt {
-                        if std::path::Path::new("data/raw/music/spotify_56m_tracks.parquet").exists()
-                        {
-                            let parquet_sql = "
-                                SELECT album_name, CAST(substr(CAST(album_release_date AS VARCHAR), 1, 4) AS INT)
-                                FROM 'data/raw/music/spotify_56m_tracks.parquet'
-                                WHERE track_id = ?
-                                LIMIT 1
-                            ";
-                            if let Ok((p_alb, p_yr)) =
-                                conn.query_row(parquet_sql, params![sid], |r| {
-                                    Ok((
-                                        r.get::<_, Option<String>>(0)?,
-                                        r.get::<_, Option<i32>>(1)?,
-                                    ))
-                                })
-                            {
-                                if album_title.is_none() {
-                                    album_title = p_alb;
-                                }
-                                if release_year.is_none() {
-                                    release_year = p_yr;
-                                }
-                            }
-                        }
                     }
                 }
 

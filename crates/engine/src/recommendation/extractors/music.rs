@@ -3,7 +3,7 @@
 
 use super::super::context::{is_steam_noise_tag, RecContext};
 use crate::models::{
-    is_tag_relation, lookup_artist_meta, lookup_seed_top_tracks, parse_node_key,
+    is_tag_relation, lookup_artist_meta, lookup_seed_top_tracks, norm_track_title, parse_node_key,
     resolve_artist_track_and_collab, GraphLinkPayload, GraphNodePayload, TopTrackRow,
 };
 use crate::ppr::top_k_from_scores;
@@ -567,6 +567,24 @@ pub fn extract_music(
         let mut track_recs_added = 0usize;
         let mut seen_rec_track_ids: HashSet<i64> = HashSet::new();
         let mut seen_rec_track_artists: HashSet<i64> = HashSet::new();
+        let mut seen_rec_track_titles: HashSet<String> = HashSet::new();
+
+        // Initialize with all track seed titles so no seed work is ever recommended back to the user
+        for s_key in ctx.seed_set.iter().filter(|s| s.starts_with("track:")) {
+            if let Some(("track", tid)) = parse_node_key(s_key) {
+                seen_rec_track_ids.insert(tid);
+                if let Ok(stitle) = ctx.conn.query_row(
+                    "SELECT title FROM music_tracks WHERE id = ?",
+                    params![tid],
+                    |r| r.get::<_, String>(0),
+                ) {
+                    let norm = norm_track_title(&stitle);
+                    if !norm.is_empty() {
+                        seen_rec_track_titles.insert(norm);
+                    }
+                }
+            }
+        }
 
         // 0A. Direct track-to-track recommendations from active seed tracks!
         // (Album sibling tracks + Audio vibe affinity radio)
@@ -601,7 +619,7 @@ pub fn extract_music(
                         FROM music_tracks t
                         JOIN music_artists ma ON ma.id = t.artist_id
                         JOIN music_albums alb ON alb.id = t.album_id
-                        WHERE LOWER(TRIM(alb.title)) = (SELECT LOWER(TRIM(title)) FROM music_albums WHERE id = ?)
+                        WHERE t.album_id = ?
                           AND t.id != ?
                         ORDER BY t.popularity DESC NULLS LAST
                         LIMIT 4
@@ -624,7 +642,12 @@ pub fn extract_music(
                                 let r_pop: Option<i32> = r.get(2).ok();
                                 let _r_tempo: Option<f64> = r.get(3).ok();
 
-                                if !seen_rec_track_ids.insert(r_id) || ctx.seed_set.contains(&format!("track:{}", r_id)) {
+                                let norm_t = norm_track_title(&r_title);
+                                if norm_t.is_empty()
+                                    || !seen_rec_track_titles.insert(norm_t)
+                                    || !seen_rec_track_ids.insert(r_id)
+                                    || ctx.seed_set.contains(&format!("track:{}", r_id))
+                                {
                                     continue;
                                 }
 
@@ -705,14 +728,29 @@ pub fn extract_music(
                         let min_bpm = bpm - 12.0;
                         let max_bpm = bpm + 12.0;
 
-                        let mut pool_aids: Vec<i64> = ctx
-                            .affinitive_artist_keys
-                            .iter()
-                            .filter_map(|k| parse_node_key(k).and_then(|(p, id)| if p == "artist" { Some(id) } else { None }))
-                            .take(20)
-                            .collect();
-                        if !pool_aids.contains(&seed_aid) {
-                            pool_aids.push(seed_aid);
+                        let mut pool_aids: Vec<i64> = vec![seed_aid];
+
+                        // Direct musical peers from artist_similarities
+                        let sim_sql = "SELECT target_artist_id FROM artist_similarities WHERE source_artist_id = ?
+                                       UNION
+                                       SELECT source_artist_id FROM artist_similarities WHERE target_artist_id = ? LIMIT 10";
+                        if let Ok(mut s_stmt) = ctx.conn.prepare(sim_sql) {
+                            if let Ok(mut s_rows) = s_stmt.query([seed_aid, seed_aid]) {
+                                while let Ok(Some(sr)) = s_rows.next() {
+                                    if let Ok(aid) = sr.get::<_, i64>(0) {
+                                        if !pool_aids.contains(&aid) {
+                                            pool_aids.push(aid);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Also include top high-affinity diffused artists (filtered by score threshold)
+                        for &aid in ctx.top_diffused_artist_ids.iter().take(5) {
+                            if !pool_aids.contains(&aid) {
+                                pool_aids.push(aid);
+                            }
                         }
 
                         let placeholders = pool_aids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
@@ -753,7 +791,12 @@ pub fn extract_music(
                                     let r_bpm: Option<f64> = r.get(3).ok();
                                     let r_albtitle: Option<String> = r.get(6).ok();
 
-                                    if !seen_rec_track_ids.insert(r_id) || ctx.seed_set.contains(&format!("track:{}", r_id)) {
+                                    let norm_t = norm_track_title(&r_title);
+                                    if norm_t.is_empty()
+                                        || !seen_rec_track_titles.insert(norm_t)
+                                        || !seen_rec_track_ids.insert(r_id)
+                                        || ctx.seed_set.contains(&format!("track:{}", r_id))
+                                    {
                                         continue;
                                     }
 
@@ -848,12 +891,18 @@ pub fn extract_music(
                     .cloned()
                     .unwrap_or_else(|| s_key.clone());
 
-                let seed_tracks = lookup_seed_top_tracks(ctx.conn, s_aid, 1);
+                let max_seed_tracks = if seed_artist_keys.len() == 1 { 3 } else { 2 };
+                let seed_tracks = lookup_seed_top_tracks(ctx.conn, s_aid, max_seed_tracks);
                 for trk in seed_tracks {
                     if track_recs_added >= track_quota {
                         break;
                     }
-                    if !seen_rec_track_ids.insert(trk.track_id) {
+                    let norm_t = norm_track_title(&trk.title);
+                    if norm_t.is_empty()
+                        || !seen_rec_track_titles.insert(norm_t)
+                        || !seen_rec_track_ids.insert(trk.track_id)
+                        || ctx.seed_set.contains(&format!("track:{}", trk.track_id))
+                    {
                         continue;
                     }
                     seen_rec_track_artists.insert(s_aid);
@@ -919,7 +968,10 @@ pub fn extract_music(
             if track_recs_added >= track_quota {
                 break;
             }
-            if ctx.seed_set.contains(&format!("track:{}", c_item.track.track_id))
+            let norm_t = norm_track_title(&c_item.track.title);
+            if norm_t.is_empty()
+                || !seen_rec_track_titles.insert(norm_t)
+                || ctx.seed_set.contains(&format!("track:{}", c_item.track.track_id))
                 || !seen_rec_track_ids.insert(c_item.track.track_id)
                 || !seen_rec_track_artists.insert(c_item.artist_id)
             {
@@ -1032,7 +1084,15 @@ pub fn extract_music(
                 continue;
             };
 
-            if seen_rec_track_ids.insert(tid) && seen_rec_track_artists.insert(aid) {
+            let norm_t = norm_track_title(&ttitle);
+            if norm_t.is_empty()
+                || !seen_rec_track_titles.insert(norm_t)
+                || !seen_rec_track_ids.insert(tid)
+                || ctx.seed_set.contains(&item.node_key)
+                || !seen_rec_track_artists.insert(aid)
+            {
+                continue;
+            }
                 let bpm_str = bpm
                     .filter(|&b| b > 0.0)
                     .map(|b| format!(" • {} BPM", b.round() as i32))
@@ -1089,7 +1149,6 @@ pub fn extract_music(
                     weight: 2.5,
                 });
                 track_recs_added += 1;
-            }
         }
 
         // 3. Essential tracks from the balanced recommended artists
@@ -1142,7 +1201,10 @@ pub fn extract_music(
                     break;
                 }
                 let t_key = format!("track:{}", item.track.track_id);
-                if ctx.seed_set.contains(&t_key)
+                let norm_t = norm_track_title(&item.track.title);
+                if norm_t.is_empty()
+                    || !seen_rec_track_titles.insert(norm_t)
+                    || ctx.seed_set.contains(&t_key)
                     || !seen_rec_track_ids.insert(item.track.track_id)
                     || !seen_rec_track_artists.insert(item.artist_id)
                 {

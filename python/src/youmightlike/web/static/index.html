@@ -9,6 +9,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="js/tailwind-config.js"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 
   <!-- Typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -64,10 +65,13 @@
             v-if="searchQuery.length > 0 || searchResults.length > 0 || hasSearched"
             type="button"
             @click="clearSearch"
-            class="px-2 text-slate-400 hover:text-rose-600 font-bold text-xs cursor-pointer"
+            class="px-2 text-slate-400 hover:text-rose-600 font-bold text-xs cursor-pointer flex items-center justify-center"
             :title="t('clearSearchBtn')"
           >
-            ×
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
           </button>
 
           <button
@@ -105,12 +109,32 @@
         </div>
         <div v-else-if="hasSearched && !isSearching" class="absolute top-11 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl px-4 py-3 z-50 text-xs text-slate-500 flex items-center justify-between">
           <span>{{ t('noSearchResults') }}</span>
-          <button @click="clearSearch" class="text-[10px] font-bold text-rose-600 hover:underline cursor-pointer">[fechar]</button>
+          <button @click="clearSearch" class="text-[10px] font-bold text-rose-600 hover:underline cursor-pointer flex items-center gap-1">
+            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+            <span>[fechar]</span>
+          </button>
         </div>
       </div>
 
       <!-- Right Controls -->
-      <div class="flex items-center gap-3 text-xs text-slate-500">
+      <div class="flex items-center gap-2.5 text-xs text-slate-500">
+        <!-- Primary Action: Calcular Difusão -->
+        <button
+          @click="computeRecommendations"
+          :disabled="profileSeeds.length === 0 || isLoadingRecs"
+          class="bg-indigo-600 hover:bg-indigo-700 active:scale-98 disabled:opacity-30 disabled:pointer-events-none text-white font-mono font-bold text-[11px] py-1.5 px-3 rounded-xl transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+          :title="profileSeeds.length === 0 ? 'Adicione sementes para calcular a difusão' : 'Calcular difusão no grafo'"
+        >
+          <span v-if="isLoadingRecs" class="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+          <svg v-else class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+          <span>{{ isLoadingRecs ? t('computingPpr') : t('runDiffusion') }}</span>
+        </button>
+
         <div class="flex items-center border border-slate-200 rounded-lg bg-slate-50 overflow-hidden text-[10px] font-mono font-bold">
           <button
             @click="setLang('pt')"
@@ -127,14 +151,6 @@
             EN
           </button>
         </div>
-
-        <button
-          @click="clearProfile"
-          v-if="profileSeeds.length > 0"
-          class="text-[10px] font-bold text-rose-600 hover:underline transition-colors cursor-pointer"
-        >
-          [{{ t('reset') }}]
-        </button>
       </div>
     </header>
 
@@ -145,26 +161,41 @@
       <aside class="w-[430px] border-r border-slate-200 flex flex-col bg-white z-10 shrink-0 shadow-sm">
 
         <!-- Sidebar Tab Switcher -->
-        <div class="border-b border-slate-200 bg-slate-50 px-3.5 pt-2.5 pb-2 shrink-0">
-          <div class="grid grid-cols-2 gap-1.5 bg-slate-200/60 p-1 rounded-xl border border-slate-200">
+        <div class="border-b border-slate-200 bg-slate-50 px-3 pt-2.5 pb-2 shrink-0">
+          <div class="grid grid-cols-3 gap-1 bg-slate-200/60 p-1 rounded-xl border border-slate-200">
+            <!-- TAB 1: DESCOBERTAS -->
             <button
               @click="sidebarMode = 'discoveries'"
               :class="sidebarMode === 'discoveries' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'"
-              class="py-1.5 px-2.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              class="py-1.5 px-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 cursor-pointer truncate"
             >
               <span>{{ t('modeDiscoveries') }}</span>
-              <span class="px-1.5 py-0.2 rounded-full text-[9px]" :class="sidebarMode === 'discoveries' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'bg-slate-200 text-slate-600'">
+              <span class="px-1.5 py-0.2 rounded-full text-[9px] shrink-0" :class="sidebarMode === 'discoveries' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'bg-slate-200 text-slate-600'">
                 {{ recommendations.length }}
               </span>
             </button>
+
+            <!-- TAB 2: SEMENTES -->
+            <button
+              @click="sidebarMode = 'seeds'"
+              :class="sidebarMode === 'seeds' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'"
+              class="py-1.5 px-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 cursor-pointer truncate"
+            >
+              <span>{{ t('modeSeeds') }}</span>
+              <span class="px-1.5 py-0.2 rounded-full text-[9px] shrink-0" :class="sidebarMode === 'seeds' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'bg-slate-200 text-slate-600'">
+                {{ profileSeeds.length }}
+              </span>
+            </button>
+
+            <!-- TAB 3: INSPETOR -->
             <button
               @click="sidebarMode = 'inspector'"
               :class="sidebarMode === 'inspector' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'"
-              class="py-1.5 px-2.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              class="py-1.5 px-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 cursor-pointer truncate"
             >
-              <span v-if="selectedNodeIds.length > 0" class="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span>
+              <span v-if="selectedNodeIds.length > 0" class="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse shrink-0"></span>
               <span>{{ t('modeInspector') }}</span>
-              <span v-if="selectedNodeIds.length > 0" class="px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-50 text-indigo-700 font-bold">
+              <span v-if="selectedNodeIds.length > 0" class="px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-50 text-indigo-700 font-bold shrink-0">
                 {{ selectedNodeIds.length }}
               </span>
             </button>
@@ -213,9 +244,147 @@
         </div>
 
         <!-- =============================================================== -->
-        <!-- MODE 1: LIVE NODE INSPECTOR                                     -->
+        <!-- MODE 1: ACTIVE SEEDS                                            -->
         <!-- =============================================================== -->
-        <div v-if="sidebarMode === 'inspector'" class="flex-1 overflow-y-auto p-4 space-y-3.5">
+        <div v-if="sidebarMode === 'seeds'" class="flex-1 overflow-y-auto p-4 flex flex-col justify-between">
+          <div class="space-y-3">
+            <!-- Header of the Seeds Tab -->
+            <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div>
+                <h3 class="text-xs font-bold text-slate-900">{{ t('tasteProfile') }}</h3>
+                <p class="text-[10px] text-slate-500">{{ profileSeeds.length }} {{ t('seedsCount') }}</p>
+              </div>
+              <button
+                v-if="profileSeeds.length > 0"
+                @click="clearProfile"
+                class="text-[9px] font-bold text-rose-600 hover:underline uppercase cursor-pointer"
+              >
+                [{{ t('clearAll') }}]
+              </button>
+            </div>
+
+            <!-- Profile Action: Calcular Difusão -->
+            <div v-if="profileSeeds.length > 0">
+              <button
+                @click="computeRecommendations"
+                :disabled="isLoadingRecs"
+                class="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-98 disabled:opacity-40 text-white font-mono font-bold text-xs py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+              >
+                <span v-if="isLoadingRecs" class="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                <svg v-else class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                </svg>
+                <span>{{ isLoadingRecs ? t('computingPpr') : t('runDiffusion') }}</span>
+              </button>
+            </div>
+
+            <!-- Empty State -->
+            <div v-if="profileSeeds.length === 0" class="text-center py-12 px-4 border border-dashed border-slate-200 rounded-2xl bg-slate-50/50 space-y-3">
+              <div class="w-8 h-8 mx-auto rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">
+                <svg class="w-4 h-4 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                </svg>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-slate-800 mb-1">{{ t('emptySeedsTitle') }}</div>
+                <p class="text-[11px] text-slate-500 leading-relaxed">
+                  {{ t('emptySeedsDesc') }}
+                </p>
+              </div>
+
+              <!-- Quick Add Suggestions -->
+              <div class="pt-3 border-t border-slate-200/60">
+                <span class="text-[9px] uppercase font-bold text-slate-400 tracking-wider block mb-2">{{ t('quickSuggestions') }}</span>
+                <div class="flex flex-wrap justify-center gap-1.5">
+                  <button @click="quickAdd('The Elder Scrolls V: Skyrim')" class="text-[10px] font-mono font-bold bg-white hover:bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg text-slate-700 transition-colors cursor-pointer shadow-2xs">
+                    + Skyrim
+                  </button>
+                  <button @click="quickAdd('Kanye West')" class="text-[10px] font-mono font-bold bg-white hover:bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg text-slate-700 transition-colors cursor-pointer shadow-2xs">
+                    + Kanye West
+                  </button>
+                  <button @click="quickAdd('Phantogram')" class="text-[10px] font-mono font-bold bg-white hover:bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg text-slate-700 transition-colors cursor-pointer shadow-2xs">
+                    + Phantogram
+                  </button>
+                  <button @click="quickAdd('Blade Runner')" class="text-[10px] font-mono font-bold bg-white hover:bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg text-slate-700 transition-colors cursor-pointer shadow-2xs">
+                    + Blade Runner
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Seed Items Vertical List -->
+            <div v-else class="space-y-2">
+              <div
+                v-for="seed in profileSeeds"
+                :key="seed.id"
+                class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 hover:border-slate-300 transition-all flex items-center justify-between gap-2.5 group shadow-2xs"
+              >
+                <div class="flex items-center gap-2 truncate">
+                  <span
+                    :class="getTypeBadgeClass(seed.type)"
+                    class="text-[8px] uppercase font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 text-center"
+                  >
+                    {{ seed.type }}
+                  </span>
+                  <div class="truncate">
+                    <div class="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
+                      {{ seed.name }}
+                    </div>
+                    <div v-if="seed.subtitle" class="text-[10px] text-slate-400 truncate">
+                      {{ seed.subtitle }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <button
+                    @click="focusNodeOnGraph(seed.id)"
+                    class="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 hover:text-indigo-600 transition-colors cursor-pointer flex items-center justify-center shadow-2xs"
+                    :title="t('focusInGraph')"
+                  >
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="3"></circle>
+                      <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+                      <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+                      <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+                      <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+                    </svg>
+                  </button>
+                  <button
+                    @click="removeSeed(seed.id)"
+                    class="p-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white transition-colors cursor-pointer flex items-center justify-center shadow-2xs"
+                    :title="t('removeFromLikes')"
+                  >
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom bar in seeds tab -->
+          <div v-if="profileSeeds.length > 0" class="pt-4 border-t border-slate-100 text-[10px] text-slate-400 flex items-center justify-between">
+            <span>{{ profileSeeds.length }} {{ t('seedsCount') }}</span>
+            <button
+              @click="sidebarMode = 'discoveries'"
+              class="text-indigo-600 font-bold hover:underline cursor-pointer flex items-center gap-1"
+            >
+              <span>{{ t('viewDiscoveries') }}</span>
+              <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- =============================================================== -->
+        <!-- MODE 2: LIVE NODE INSPECTOR                                     -->
+        <!-- =============================================================== -->
+        <div v-else-if="sidebarMode === 'inspector'" class="flex-1 overflow-y-auto p-4 space-y-3.5">
           <div v-if="inspectedNodes.length === 0" class="text-center py-20 px-6 border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
             <div class="w-6 h-6 mx-auto mb-2 rounded-full border border-slate-300 flex items-center justify-center text-slate-400 font-mono text-[10px]">
               +
@@ -261,7 +430,7 @@
                   </div>
 
                   <button
-                    v-if="!isNodeInProfile(node.id)"
+                    v-if="!isNodeInProfile(node.id, node.label)"
                     @click="addNodeToProfile(node)"
                     class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[9px] font-bold shrink-0 cursor-pointer transition-colors"
                   >
@@ -288,16 +457,26 @@
                     <span class="text-slate-400">ano:</span> {{ node.metadata.year }}
                   </span>
                   <span v-if="node.metadata.tempo" class="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded border border-indigo-200 shadow-2xs">
-                    <span>⚡</span> {{ node.metadata.tempo }} BPM
+                    <svg class="w-3 h-3 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                    </svg>
+                    <span>{{ node.metadata.tempo }} BPM</span>
                   </span>
                   <span v-if="node.metadata.duration_str" class="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 bg-white text-slate-700 rounded border border-slate-200 shadow-2xs">
-                    <span>⏱</span> {{ node.metadata.duration_str }}
+                    <svg class="w-3 h-3 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    <span>{{ node.metadata.duration_str }}</span>
                   </span>
                   <span v-if="node.metadata.director" class="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 bg-white text-slate-700 rounded border border-slate-200 shadow-2xs">
                     <span class="text-slate-400">direção:</span> {{ node.metadata.director }}
                   </span>
                   <span v-if="node.metadata.vote_average" class="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 bg-amber-50 text-amber-800 rounded border border-amber-200 shadow-2xs">
-                    <span>★</span> {{ Number(node.metadata.vote_average).toFixed(1) }}
+                    <svg class="w-3 h-3 text-amber-500 fill-amber-400" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                    </svg>
+                    <span>{{ Number(node.metadata.vote_average).toFixed(1) }}</span>
                   </span>
                   <span v-if="node.metadata.developer" class="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 bg-white text-slate-700 rounded border border-slate-200 shadow-2xs">
                     <span class="text-slate-400">estúdio:</span> {{ node.metadata.developer }}
@@ -433,7 +612,7 @@
                       </div>
                     </div>
                     <button
-                      v-if="!isNodeInProfile(sug.id)"
+                      v-if="!isNodeInProfile(sug.id, sug.title)"
                       @click="addSeed({ id: sug.id, name: sug.title, type: sug.type, subtitle: sug.subtitle })"
                       class="px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-[9px] font-bold shrink-0 hover:bg-indigo-700 transition-colors cursor-pointer"
                     >
@@ -530,8 +709,11 @@
                       <span v-if="rec.metadata.author" class="text-[9px] font-mono px-1.5 py-0.5 bg-slate-50 text-slate-700 rounded border border-slate-200">
                         {{ rec.metadata.author }}
                       </span>
-                      <span v-if="rec.metadata.vote_average" class="text-[9px] font-mono px-1.5 py-0.5 bg-amber-50 text-amber-800 rounded border border-amber-200">
-                        ★ {{ Number(rec.metadata.vote_average).toFixed(1) }}
+                      <span v-if="rec.metadata.vote_average" class="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 bg-amber-50 text-amber-800 rounded border border-amber-200">
+                        <svg class="w-2.5 h-2.5 text-amber-500 fill-amber-400" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                        </svg>
+                        <span>{{ Number(rec.metadata.vote_average).toFixed(1) }}</span>
                       </span>
                     </div>
                   </div>
@@ -555,24 +737,40 @@
                   class="mt-2 text-[10px] px-2.5 py-1.5 rounded-lg border flex items-start gap-1.5 leading-relaxed"
                   :class="isBridgeReason(rec.reason) ? 'bg-indigo-50/80 border-indigo-200 text-indigo-900 font-semibold' : 'bg-slate-50 border-slate-200/80 text-slate-600'"
                 >
-                  <span class="font-bold shrink-0 mt-0.5" :class="isBridgeReason(rec.reason) ? 'text-indigo-600' : 'text-slate-400'">↳</span>
+                  <svg class="w-3 h-3 shrink-0 mt-0.5" :class="isBridgeReason(rec.reason) ? 'text-indigo-600' : 'text-slate-400'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
                   <span class="break-words">{{ rec.reason }}</span>
                 </div>
 
                 <div v-if="rec.top_track" class="mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500">
-                  <span class="truncate text-slate-800 font-medium">♪ {{ rec.top_track.title }}</span>
+                  <span class="truncate text-slate-800 font-medium flex items-center gap-1">
+                    <svg class="w-3 h-3 text-slate-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M9 18V5l12-2v13"></path>
+                      <circle cx="6" cy="18" r="3"></circle>
+                      <circle cx="18" cy="16" r="3"></circle>
+                    </svg>
+                    <span class="truncate">{{ rec.top_track.title }}</span>
+                  </span>
                   <span class="text-teal-600 font-mono font-bold shrink-0">{{ t('pop') }} {{ rec.top_track.popularity }}</span>
                 </div>
 
                 <div class="mt-2.5 flex items-center justify-between pt-1.5 border-t border-slate-100">
                   <button
                     @click="focusNodeOnGraph(rec.id)"
-                    class="text-[9px] font-bold text-slate-400 hover:text-slate-800 cursor-pointer flex items-center gap-1"
+                    class="text-[9px] font-bold text-slate-500 hover:text-slate-900 cursor-pointer flex items-center gap-1"
                   >
-                    ◎ {{ t('focusInGraph') }}
+                    <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="3"></circle>
+                      <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+                      <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+                      <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+                      <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+                    </svg>
+                    <span>{{ t('focusInGraph') }}</span>
                   </button>
                   <button
-                    v-if="!isNodeInProfile(rec.id)"
+                    v-if="!isNodeInProfile(rec.id, rec.title)"
                     @click="addSeed({ id: rec.id, name: rec.title, type: rec.type, subtitle: rec.subtitle })"
                     class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-lg text-[9px] font-bold transition-colors cursor-pointer"
                   >
@@ -597,18 +795,18 @@
         <div class="constellation-controls flex flex-col items-start gap-2 max-w-sm text-[10px]">
           <div class="glass-panel border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-sm flex flex-wrap items-center gap-1.5">
             <button
-              @click="showLegend = !showLegend"
-              :class="showLegend ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400'"
-              class="px-2.5 py-1 rounded-lg border text-[9px] font-bold transition-colors cursor-pointer flex items-center gap-1"
-            >
-              <span>{{ showLegend ? t('hideLegendBtn') : t('showLegendBtn') }}</span>
-            </button>
-
-            <button
               @click="fitGraphView"
-              class="px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-[9px] font-bold text-indigo-600 transition-colors cursor-pointer"
+              class="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-[9px] font-bold text-indigo-600 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+              :title="t('fitView')"
             >
-              {{ t('fitView') }}
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="22" y1="12" x2="18" y2="12"></line>
+                <line x1="6" y1="12" x2="2" y2="12"></line>
+                <line x1="12" y1="6" x2="12" y2="2"></line>
+                <line x1="12" y1="22" x2="12" y2="18"></line>
+              </svg>
+              <span>{{ t('fitView') }}</span>
             </button>
 
             <span class="h-3.5 w-px bg-slate-200 mx-0.5"></span>
@@ -627,6 +825,49 @@
             >
               {{ t('toggleHideTracks') }}
             </button>
+
+            <span class="h-3.5 w-px bg-slate-200 mx-0.5"></span>
+
+            <!-- Graph Spacing Mode -->
+            <div class="flex items-center border border-slate-200 rounded-lg bg-slate-50 overflow-hidden text-[9px] font-mono font-bold">
+              <button
+                @click="setGraphSpacing('compact')"
+                :class="{'bg-slate-800 text-white': graphSpacing === 'compact', 'text-slate-500 hover:text-slate-900': graphSpacing !== 'compact'}"
+                class="px-2 py-1 transition-colors cursor-pointer"
+                :title="t('spacingCompact')"
+              >
+                {{ t('spacingCompact') }}
+              </button>
+              <button
+                @click="setGraphSpacing('comfortable')"
+                :class="{'bg-slate-800 text-white': graphSpacing === 'comfortable', 'text-slate-500 hover:text-slate-900': graphSpacing !== 'comfortable'}"
+                class="px-2 py-1 border-l border-slate-200 transition-colors cursor-pointer"
+                :title="t('spacingComfortable')"
+              >
+                {{ t('spacingComfortable') }}
+              </button>
+              <button
+                @click="setGraphSpacing('spacious')"
+                :class="{'bg-slate-800 text-white': graphSpacing === 'spacious', 'text-slate-500 hover:text-slate-900': graphSpacing !== 'spacious'}"
+                class="px-2 py-1 border-l border-slate-200 transition-colors cursor-pointer"
+                :title="t('spacingSpacious')"
+              >
+                {{ t('spacingSpacious') }}
+              </button>
+            </div>
+
+            <span class="h-3.5 w-px bg-slate-200 mx-0.5"></span>
+
+            <button
+              @click="showLegend = !showLegend"
+              :class="showLegend ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400'"
+              class="px-2.5 py-1 rounded-lg border text-[9px] font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <span>{{ showLegend ? t('hideLegendBtn') : t('showLegendBtn') }}</span>
+              <svg class="w-3 h-3 transition-transform" :class="showLegend ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
           </div>
 
           <!-- Collapsible Legend Card -->
@@ -636,7 +877,12 @@
           >
             <div class="flex items-center justify-between border-b border-slate-200 pb-1.5">
               <span class="font-bold text-slate-900 text-[11px]">{{ t('topologicalField') }}</span>
-              <button @click="showLegend = false" class="text-slate-400 hover:text-rose-600 font-bold text-xs cursor-pointer">×</button>
+              <button @click="showLegend = false" class="text-slate-400 hover:text-rose-600 cursor-pointer flex items-center justify-center">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
             </div>
 
             <p class="text-slate-500 leading-relaxed text-[9px]">
@@ -686,80 +932,6 @@
           <canvas id="constellation-canvas"></canvas>
         </div>
 
-        <!-- =============================================================== -->
-        <!-- FLOATING TASTE PROFILE DOCK (Centered at Bottom of Canvas)       -->
-        <!-- =============================================================== -->
-        <div class="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 pointer-events-auto max-w-[90%]">
-          <div class="border border-slate-200/90 shadow-xl rounded-xl px-3.5 py-2 flex items-center gap-3 backdrop-blur-md bg-white/95 transition-all">
-
-            <!-- Profile Badge & Reset -->
-            <div class="flex items-center gap-2 shrink-0 pr-3 border-r border-slate-200">
-              <div class="flex items-center gap-1.5 font-mono">
-                <span class="w-2 h-2 rounded-full bg-slate-900"></span>
-                <span class="text-[11px] font-bold text-slate-900 uppercase tracking-tight">{{ t('tasteProfile') }}</span>
-                <span class="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
-                  {{ profileSeeds.length }}
-                </span>
-              </div>
-              <button
-                v-if="profileSeeds.length > 0"
-                @click="clearProfile"
-                class="text-[10px] font-bold text-slate-400 hover:text-rose-600 transition-colors cursor-pointer ml-1 font-mono"
-                :title="t('reset')"
-              >
-                [{{ t('reset') }}]
-              </button>
-            </div>
-
-            <!-- Active Profile Seeds List -->
-            <div class="flex items-center gap-1.5 overflow-x-auto max-w-[55vw] py-0.5 no-scrollbar">
-              <div v-if="profileSeeds.length === 0" class="text-slate-400 text-[11px] flex items-center gap-2 shrink-0">
-                <span>{{ t('emptyProfile') }}</span>
-                <button @click="quickAdd('The Elder Scrolls V: Skyrim')" class="text-[10px] font-mono font-bold bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 transition-colors cursor-pointer">
-                  + Skyrim
-                </button>
-                <button @click="quickAdd('Kanye West')" class="text-[10px] font-mono font-bold bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 transition-colors cursor-pointer">
-                  + Kanye West
-                </button>
-                <button @click="quickAdd('Phantogram')" class="text-[10px] font-mono font-bold bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 transition-colors cursor-pointer">
-                  + Phantogram
-                </button>
-                <button @click="quickAdd('Blade Runner')" class="text-[10px] font-mono font-bold bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 transition-colors cursor-pointer">
-                  + Blade Runner
-                </button>
-              </div>
-
-              <div
-                v-for="seed in profileSeeds"
-                :key="seed.id"
-                @click="focusNodeOnGraph(seed.id)"
-                class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 hover:bg-slate-100 rounded-md border border-slate-200 transition-all shrink-0 text-[11px] cursor-pointer group shadow-2xs hover:border-slate-400"
-              >
-                <span class="w-1.5 h-1.5 rounded-full shrink-0" :style="{ backgroundColor: getSeedDotColor(seed.type) }"></span>
-                <span class="font-semibold text-slate-800">{{ seed.name }}</span>
-                <button
-                  @click.stop="removeSeed(seed.id)"
-                  class="text-slate-400 hover:text-rose-600 font-bold ml-1 cursor-pointer text-xs"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-
-            <!-- Action Button -->
-            <div class="shrink-0 pl-3 border-l border-slate-200">
-              <button
-                @click="computeRecommendations"
-                :disabled="profileSeeds.length === 0 || isLoadingRecs"
-                class="bg-slate-900 hover:bg-slate-800 active:scale-98 disabled:opacity-30 disabled:pointer-events-none text-white font-mono font-bold text-[11px] py-1.5 px-3.5 rounded-lg transition-all flex items-center gap-2 shadow-xs cursor-pointer tracking-tight"
-              >
-                <span v-if="isLoadingRecs" class="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                <span>{{ isLoadingRecs ? t('computingPpr') : t('runDiffusion') }}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
       </section>
 
     </div>
@@ -767,6 +939,6 @@
   </div>
 
   <!-- Modular Application Entry Point (Native ES Module) -->
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/app.js?v=2.7"></script>
 </body>
 </html>

@@ -12,7 +12,7 @@ export async function searchEntities(query, entityType = '', signal = null) {
   return await res.json();
 }
 
-export async function fetchRecommendations({ seeds, targetType = null, limit = 20, lang = 'pt', signal = null }) {
+export async function fetchRecommendations({ seeds, targetType = null, limit = 24, lang = 'pt', signal = null }) {
   const payload = {
     seeds: [...seeds],
     target_type: targetType || null,
