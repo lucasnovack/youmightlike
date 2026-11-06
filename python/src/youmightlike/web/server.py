@@ -900,6 +900,42 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
 
 
 
+# Service Worker and Web App Manifest routes
+@app.get("/sw.js")
+def serve_sw():
+    sw_file = STATIC_DIR / "sw.js"
+    if sw_file.exists():
+        return FileResponse(
+            sw_file,
+            media_type="application/javascript",
+            headers={
+                "Service-Worker-Allowed": "/",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+            },
+        )
+    return {"error": "sw.js not found"}
+
+
+@app.get("/manifest.json")
+def serve_manifest():
+    manifest_file = STATIC_DIR / "manifest.json"
+    if manifest_file.exists():
+        return FileResponse(
+            manifest_file,
+            media_type="application/manifest+json",
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
+    return {"error": "manifest.json not found"}
+
+
+@app.get("/favicon.ico")
+def serve_favicon():
+    icon_file = STATIC_DIR / "icons" / "icon-192.png"
+    if icon_file.exists():
+        return FileResponse(icon_file, media_type="image/png")
+    return FileResponse(STATIC_DIR / "icons" / "icon.svg", media_type="image/svg+xml")
+
+
 # Serve a SPA estática
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -911,3 +947,4 @@ def serve_index():
     if index_file.exists():
         return FileResponse(index_file)
     return {"message": "youmightlike API online. UI static files not yet created."}
+
