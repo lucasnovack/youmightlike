@@ -18,23 +18,39 @@ pub fn run_personalized_pagerank_scores(
     max_iter: usize,
     tol: f32,
 ) -> Result<Vec<f32>> {
-    let n = graph.num_nodes;
-    let mut seed_indices: Vec<u32> = Vec::new();
+    let seed_weights: Vec<(&str, f32)> = seed_keys.iter().map(|&k| (k, 1.0f32)).collect();
+    run_personalized_pagerank_scores_weighted(graph, &seed_weights, alpha, max_iter, tol)
+}
 
-    for &key in seed_keys {
-        if let Some(id) = graph.get_node_id(key) {
-            seed_indices.push(id);
+/// Executes Personalized PageRank with explicit seed probability weights `(node_key, weight)`.
+/// Weights are normalized so that sum(weights) = 1.0.
+pub fn run_personalized_pagerank_scores_weighted(
+    graph: &GraphCSR,
+    seed_weights: &[(&str, f32)],
+    alpha: f32,
+    max_iter: usize,
+    tol: f32,
+) -> Result<Vec<f32>> {
+    let n = graph.num_nodes;
+    let mut resolved: Vec<(u32, f32)> = Vec::new();
+    let mut total_w = 0.0f32;
+
+    for &(key, w) in seed_weights {
+        if w > 0.0 {
+            if let Some(id) = graph.get_node_id(key) {
+                resolved.push((id, w));
+                total_w += w;
+            }
         }
     }
 
-    if seed_indices.is_empty() {
+    if resolved.is_empty() || total_w <= 0.0 {
         anyhow::bail!("None of the specified seed keys were found in the loaded graph.");
     }
 
     let mut s = vec![0.0f32; n];
-    let seed_prob = 1.0f32 / seed_indices.len() as f32;
-    for &id in &seed_indices {
-        s[id as usize] = seed_prob;
+    for (id, w) in resolved {
+        s[id as usize] += w / total_w;
     }
 
     let mut p = s.clone();

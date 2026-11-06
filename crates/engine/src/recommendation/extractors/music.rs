@@ -312,7 +312,29 @@ pub fn extract_music(
             explanation_parts.join(" • ")
         };
 
-        // Score weighting with multi-seed confluence boost and hub degree normalization
+        // Score weighting with multi-seed confluence boost, dead-end damping, and hub normalization
+        let cand_deg = out_edges.len();
+
+        let mut max_sim_weight = 0.0f32;
+        for e in &out_edges {
+            if e.relation_type == "similar_to" && ctx.active_seed_set.contains(e.target_key) {
+                if e.base_weight > max_sim_weight {
+                    max_sim_weight = e.base_weight;
+                }
+            }
+        }
+        for (s_key, peers) in &seed_peer_maps {
+            if peers.contains(nkey) {
+                for e in ctx.state.graph.out_edges_by_key(s_key) {
+                    if e.target_key == nkey && e.relation_type == "similar_to" {
+                        if e.base_weight > max_sim_weight {
+                            max_sim_weight = e.base_weight;
+                        }
+                    }
+                }
+            }
+        }
+
         let mut boost = 1.0f32;
         if connected_seeds.len() >= 2 {
             // Highly prized confluence node bridging multiple seeds
@@ -322,6 +344,24 @@ pub fn extract_music(
             let deg = seed_degrees.get(s_key).copied().unwrap_or(300);
             let deg_factor = ((deg as f32) / 300.0).sqrt().clamp(1.0, 2.3);
             boost *= deg_factor;
+        }
+
+        // Direct high-confidence peer boost (e.g. Kanye <-> Jay-Z has weight 0.74)
+        if max_sim_weight > 0.0 {
+            boost *= 1.0 + max_sim_weight * 2.2;
+        }
+
+        // Dead-End Damping: single-edge dead ends should NOT surpass major collaborative peers
+        if cand_deg <= 2 {
+            boost *= 0.25;
+        } else if cand_deg <= 5 {
+            boost *= 0.65;
+        }
+
+        // Hub degree normalization: compensate large catalog artists whose probability gets diluted across 20+ edges
+        if cand_deg >= 20 {
+            let hub_factor = ((cand_deg as f32) / 20.0).powf(0.35).clamp(1.0, 2.5);
+            boost *= hub_factor;
         }
 
         let boosted_score = item.score * boost;
@@ -346,14 +386,12 @@ pub fn extract_music(
     }
 
     // -----------------------------------------------------------------------
-    // Balanced Multi-Seed Artist Selection
+    // Balanced Multi-Seed Artist Selection (Round-Robin Fair Draft)
     // -----------------------------------------------------------------------
     let mut chosen_candidates: Vec<CandidateArtist> = Vec::new();
     let mut chosen_keys: HashSet<String> = HashSet::new();
 
     if seed_artist_keys.len() > 1 && artist_quota > 0 {
-        let per_seed_quota = (artist_quota / seed_artist_keys.len()).max(1);
-
         // Pass 1: Prioritize multi-seed confluence candidates (e.g. Lady Gaga bridging Kanye & Phantogram)
         let mut confluence_cands: Vec<&CandidateArtist> = candidate_pool
             .iter()
@@ -375,28 +413,46 @@ pub fn extract_music(
             }
         }
 
-        // Pass 2: Fair per-seed allocation (ensures each seed gets its own top artists)
+        // Pass 2: Round-Robin fair draft across all active seed artists
+        let mut seed_queues: HashMap<String, Vec<&CandidateArtist>> = HashMap::new();
         for s_key in &seed_artist_keys {
-            let mut seed_cands: Vec<&CandidateArtist> = candidate_pool
+            let mut list: Vec<&CandidateArtist> = candidate_pool
                 .iter()
                 .filter(|c| {
                     (c.primary_seed.as_ref() == Some(s_key) || c.connected_seeds.contains(s_key))
                         && !chosen_keys.contains(&c.nkey)
                 })
                 .collect();
-            seed_cands.sort_by(|a, b| {
+            list.sort_by(|a, b| {
                 b.boosted_score
                     .partial_cmp(&a.boosted_score)
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
+            seed_queues.insert(s_key.clone(), list);
+        }
 
-            for c in seed_cands.into_iter().take(per_seed_quota) {
+        let mut round = 0;
+        let mut made_progress = true;
+        while chosen_candidates.len() < artist_quota && made_progress {
+            made_progress = false;
+            for s_key in &seed_artist_keys {
                 if chosen_candidates.len() >= artist_quota {
                     break;
                 }
-                if chosen_keys.insert(c.nkey.clone()) {
-                    chosen_candidates.push(c.clone());
+                if let Some(queue) = seed_queues.get_mut(s_key) {
+                    while !queue.is_empty() {
+                        let cand = queue.remove(0);
+                        if chosen_keys.insert(cand.nkey.clone()) {
+                            chosen_candidates.push(cand.clone());
+                            made_progress = true;
+                            break;
+                        }
+                    }
                 }
+            }
+            round += 1;
+            if round > 10 {
+                break;
             }
         }
 
@@ -595,8 +651,36 @@ pub fn extract_music(
             .cloned()
             .collect();
 
+        let mut seen_rec_album_counts: HashMap<i64, usize> = HashMap::new();
+
+        // Reserve track recommendation slots for active seed artists that don't have track seeds (e.g. Kanye West)
+        let artists_without_track_seeds: Vec<String> = seed_artist_keys
+            .iter()
+            .filter(|ak| {
+                if let Some(("artist", aid)) = parse_node_key(ak) {
+                    !seed_track_keys.iter().any(|tk| {
+                        if let Some(("track", tid)) = parse_node_key(tk) {
+                            ctx.conn.query_row(
+                                "SELECT artist_id FROM music_tracks WHERE id = ?",
+                                params![tid],
+                                |r| r.get::<_, i64>(0),
+                            ).map(|a| a == aid).unwrap_or(false)
+                        } else {
+                            false
+                        }
+                    })
+                } else {
+                    false
+                }
+            })
+            .cloned()
+            .collect();
+
+        let reserved_slots = (artists_without_track_seeds.len() * 2).min(track_quota / 2);
+        let max_from_step_0a = track_quota.saturating_sub(reserved_slots).max(2);
+
         for s_key in &seed_track_keys {
-            if track_recs_added >= track_quota {
+            if track_recs_added >= max_from_step_0a {
                 break;
             }
             let Some(("track", s_tid)) = parse_node_key(s_key) else {
@@ -614,6 +698,11 @@ pub fn extract_music(
             if let Ok((seed_title, seed_aid, seed_alb_id, seed_tempo)) = meta_res {
                 // 1. Same Album Tracks (e.g. Watch The Throne -> Ni**as In Paris, Otis, Who Gon Stop Me)
                 if let Some(alb_id) = seed_alb_id {
+                    let alb_count = seen_rec_album_counts.entry(alb_id).or_insert(0);
+                    if *alb_count >= 2 {
+                        continue;
+                    }
+
                     let album_sql = "
                         SELECT t.id, t.title, t.popularity, t.tempo, ma.name, ma.id, alb.title
                         FROM music_tracks t
@@ -622,12 +711,12 @@ pub fn extract_music(
                         WHERE t.album_id = ?
                           AND t.id != ?
                         ORDER BY t.popularity DESC NULLS LAST
-                        LIMIT 4
+                        LIMIT 2
                     ";
                     if let Ok(mut stmt) = ctx.conn.prepare(album_sql) {
                         if let Ok(mut rows) = stmt.query(params![alb_id, s_tid]) {
                             while let Ok(Some(r)) = rows.next() {
-                                if track_recs_added >= track_quota {
+                                if track_recs_added >= max_from_step_0a || *seen_rec_album_counts.entry(alb_id).or_insert(0) >= 2 {
                                     break;
                                 }
                                 let (Ok(r_id), Ok(r_title), Ok(r_aname), Ok(r_aid), Ok(r_albtitle)) = (

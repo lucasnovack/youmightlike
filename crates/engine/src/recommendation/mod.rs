@@ -20,7 +20,7 @@ use crate::models::{
     parse_node_key, AppState, EntityItem, GraphLinkPayload, GraphNodePayload, GraphPayload,
     RecommendationRequest, RecommendationResponse,
 };
-use crate::ppr::{run_personalized_pagerank_scores, top_k_from_scores};
+use crate::ppr::{run_personalized_pagerank_scores_weighted, top_k_from_scores};
 use serde_json::Value;
 
 /// Runs the full personalized recommendation pipeline and generates the associated explanation subgraph
@@ -259,14 +259,60 @@ pub fn run_recommendation_pipeline(
         }
     }
 
-    // 2. Run PPR in-memory diffusion and obtain full stationary probability vector `p`
+    // 2. Run PPR in-memory diffusion with multi-seed cluster balancing
     let active_seeds: Vec<&str> = if diffusion_seeds.is_empty() {
         req.seeds.iter().map(|s| s.as_str()).collect()
     } else {
         diffusion_seeds.iter().map(|s| s.as_str()).collect()
     };
 
-    let p = run_personalized_pagerank_scores(&state.graph, &active_seeds, 0.85, 25, 1e-6)
+    // Group active seeds by cultural root cluster to prevent multi-track or niche amplification
+    let mut cluster_seeds: HashMap<String, Vec<&str>> = HashMap::new();
+    for &s in &active_seeds {
+        let cluster_key = if s.starts_with("track:") {
+            if let Some(artists) = track_seed_artists.get(s) {
+                if let Some((first_aid, _)) = artists.first() {
+                    format!("artist:{}", first_aid)
+                } else {
+                    s.to_string()
+                }
+            } else {
+                s.to_string()
+            }
+        } else {
+            s.to_string()
+        };
+        cluster_seeds.entry(cluster_key).or_default().push(s);
+    }
+
+    let num_clusters = cluster_seeds.len().max(1) as f32;
+    let cluster_budget = 1.0f32 / num_clusters;
+    let mut seed_weights: Vec<(&str, f32)> = Vec::new();
+
+    for (c_key, seeds_in_cluster) in &cluster_seeds {
+        let has_parent_artist = seeds_in_cluster.iter().any(|&s| s == c_key);
+        let track_count = seeds_in_cluster.iter().filter(|&s| s.starts_with("track:")).count();
+        if has_parent_artist && track_count > 0 {
+            let artist_share = cluster_budget * 0.5;
+            let track_share = (cluster_budget * 0.5) / (track_count as f32);
+            for &s in seeds_in_cluster {
+                if s == c_key {
+                    seed_weights.push((s, artist_share));
+                } else if s.starts_with("track:") {
+                    seed_weights.push((s, track_share));
+                } else {
+                    seed_weights.push((s, track_share));
+                }
+            }
+        } else {
+            let equal_share = cluster_budget / (seeds_in_cluster.len() as f32);
+            for &s in seeds_in_cluster {
+                seed_weights.push((s, equal_share));
+            }
+        }
+    }
+
+    let p = run_personalized_pagerank_scores_weighted(&state.graph, &seed_weights, 0.85, 25, 1e-6)
         .unwrap_or_else(|_| vec![0.0; state.graph.num_nodes]);
 
     let mut exclude_ids: HashSet<u32> = HashSet::new();
