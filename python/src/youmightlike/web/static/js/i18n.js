@@ -84,6 +84,11 @@ export const I18N = {
     emptySeedsDesc: "Busque por jogos, músicas, artistas, filmes ou séries no campo acima, ou dê duplo-clique em nós do grafo para adicioná-los.",
     viewDiscoveries: "Ver Descobertas",
     quickSuggestions: "Sugestões rápidas para começar:",
+    offlineBadge: "OFFLINE",
+    offlineNotice: "Modo offline ativo. Exibindo dados locais em cache.",
+    onlineRestored: "Conexão restabelecida. Motor online.",
+    offlineSearchNotice: "Modo offline: exibindo apenas buscas previamente cacheadas.",
+    offlineRecommendNotice: "Modo offline: exibindo recomendação do cache local.",
   },
   en: {
     nodes: "nodes",
@@ -169,6 +174,11 @@ export const I18N = {
     emptySeedsDesc: "Search for games, music, artists, movies, or series above, or double-click nodes on the graph to add them.",
     viewDiscoveries: "View Discoveries",
     quickSuggestions: "Quick suggestions to start:",
+    offlineBadge: "OFFLINE",
+    offlineNotice: "Offline mode active. Displaying local cached data.",
+    onlineRestored: "Connection restored. Engine online.",
+    offlineSearchNotice: "Offline mode: showing only previously cached searches.",
+    offlineRecommendNotice: "Offline mode: showing recommendations from local cache.",
   }
 };
 

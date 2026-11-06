@@ -1,5 +1,3 @@
-// HTTP API Client for youmightlike backend
-
 export async function searchEntities(query, entityType = '', signal = null) {
   let url = `/api/search?q=${encodeURIComponent(query)}`;
   if (entityType) {
@@ -9,7 +7,11 @@ export async function searchEntities(query, entityType = '', signal = null) {
   if (!res.ok) {
     throw new Error(`Search request failed with status: ${res.status}`);
   }
-  return await res.json();
+  const data = await res.json();
+  if (res.headers.get('X-YouMightLike-Offline') === '1') {
+    data.offlineCached = true;
+  }
+  return data;
 }
 
 export async function fetchRecommendations({ seeds, targetType = null, limit = 24, lang = 'pt', signal = null }) {
@@ -31,5 +33,10 @@ export async function fetchRecommendations({ seeds, targetType = null, limit = 2
     throw new Error(`Recommendation request failed with status: ${res.status}`);
   }
 
-  return await res.json();
+  const data = await res.json();
+  if (res.headers.get('X-YouMightLike-Offline') === '1') {
+    data.offlineCached = true;
+  }
+  return data;
 }
+

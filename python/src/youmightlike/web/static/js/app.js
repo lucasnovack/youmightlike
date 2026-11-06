@@ -1,8 +1,8 @@
 // Main Vue 3 Application Controller for youmightlike
-import { createTranslator } from './i18n.js?v=2.7';
-import { getTypeBadgeClass, getTypeIcon, getSeedDotColor, getAffinityLabel, getAffinityBadgeClass, getRawType } from './config.js?v=2.7';
-import { searchEntities, fetchRecommendations } from './api.js?v=2.7';
-import { ConstellationEngine } from './constellation.js?v=2.7';
+import { createTranslator } from './i18n.js?v=2.8';
+import { getTypeBadgeClass, getTypeIcon, getSeedDotColor, getAffinityLabel, getAffinityBadgeClass, getRawType } from './config.js?v=2.8';
+import { searchEntities, fetchRecommendations } from './api.js?v=2.8';
+import { ConstellationEngine } from './constellation.js?v=2.8';
 
 const { createApp, ref, computed, onMounted } = Vue;
 
@@ -10,6 +10,9 @@ createApp({
   setup() {
     const currentLang = ref(localStorage.getItem('ym_lang') || 'pt');
     const t = createTranslator(currentLang);
+
+    const isOffline = ref(!navigator.onLine);
+    const isOfflineCached = ref(false);
 
     const sidebarMode = ref('discoveries');
     const searchQuery = ref('');
@@ -200,7 +203,8 @@ createApp({
       isSearching.value = true;
       hasSearched.value = true;
       try {
-        searchResults.value = await searchEntities(q, searchType.value, searchAbortController.signal);
+        const res = await searchEntities(q, searchType.value, searchAbortController.signal);
+        searchResults.value = Array.isArray(res) ? res : (res.results || []);
       } catch (err) {
         if (err.name !== 'AbortError') {
           console.error('Search error:', err);
@@ -374,15 +378,21 @@ createApp({
             lang: currentLang.value,
             signal: recsAbortController.signal,
           });
-          recommendations.value = data.results || [];
-          fullServerGraph = data.graph || { nodes: [], links: [] };
-          if (constellation) {
-            constellation.setGraphData(fullServerGraph, profileSeeds.value, {
-              layoutMode: layoutMode.value,
-              onlySharedBridges: onlySharedBridges.value,
-              hideTrackNodes: hideTrackNodes.value,
-              spacingScale: getSpacingScale(graphSpacing.value),
-            });
+          isOfflineCached.value = !!data.offlineCached;
+          if (data.offline && (!data.results || data.results.length === 0)) {
+            // Em offline sem cache, preserva visualização atual
+            console.warn('[Offline] Sem dados em cache para esta combinação de sementes.');
+          } else {
+            recommendations.value = data.results || [];
+            fullServerGraph = data.graph || { nodes: [], links: [] };
+            if (constellation) {
+              constellation.setGraphData(fullServerGraph, profileSeeds.value, {
+                layoutMode: layoutMode.value,
+                onlySharedBridges: onlySharedBridges.value,
+                hideTrackNodes: hideTrackNodes.value,
+                spacingScale: getSpacingScale(graphSpacing.value),
+              });
+            }
           }
         } catch (err) {
           if (err.name !== 'AbortError') {
@@ -480,6 +490,25 @@ createApp({
         }
       });
 
+      window.addEventListener('online', () => {
+        isOffline.value = false;
+      });
+
+      window.addEventListener('offline', () => {
+        isOffline.value = true;
+      });
+
+      // Service Worker Registration for Offline Support & PWA
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          .then((registration) => {
+            console.log('[SW] Service Worker registrado com sucesso no escopo:', registration.scope);
+          })
+          .catch((error) => {
+            console.warn('[SW] Falha ao registrar Service Worker:', error);
+          });
+      }
+
       if (profileSeeds.value.length > 0) {
         computeRecommendations();
       } else {
@@ -491,6 +520,8 @@ createApp({
       currentLang,
       setLang,
       t,
+      isOffline,
+      isOfflineCached,
       sidebarMode,
       searchQuery,
       searchType,
