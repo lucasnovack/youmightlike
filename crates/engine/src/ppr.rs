@@ -88,6 +88,18 @@ pub fn run_personalized_pagerank_scores_weighted(
     Ok(p)
 }
 
+/// Applies repulsive negative feedback penalty:
+/// p_pos[v] = max(0.0, p_pos[v] - beta * p_neg[v])
+/// Executed in parallel using Rayon across all nodes.
+pub fn penalize_negative_scores(p_pos: &mut [f32], p_neg: &[f32], beta: f32) {
+    p_pos
+        .par_iter_mut()
+        .zip(p_neg.par_iter())
+        .for_each(|(pos, &neg)| {
+            *pos = (*pos - beta * neg).max(0.0);
+        });
+}
+
 /// Extracts top-K nodes from `p` that start with `prefix` (or any prefix if `prefix.is_empty()`),
 /// ignoring nodes present in `exclude_ids`, in O(N) time via `select_nth_unstable_by`.
 pub fn top_k_from_scores(
@@ -178,3 +190,27 @@ pub fn run_personalized_pagerank_filtered(
         limit,
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_penalize_negative_scores() {
+        let mut p_pos = vec![0.5f32, 0.3, 0.2, 0.05];
+        let p_neg = vec![0.1f32, 0.4, 0.0, 0.1];
+        let beta = 1.5f32;
+
+        penalize_negative_scores(&mut p_pos, &p_neg, beta);
+
+        // index 0: 0.5 - 1.5 * 0.1 = 0.35
+        assert!((p_pos[0] - 0.35).abs() < 1e-6);
+        // index 1: 0.3 - 1.5 * 0.4 = -0.3 -> clamped to 0.0
+        assert_eq!(p_pos[1], 0.0);
+        // index 2: 0.2 - 0 = 0.2
+        assert!((p_pos[2] - 0.2).abs() < 1e-6);
+        // index 3: 0.05 - 1.5 * 0.1 = -0.1 -> clamped to 0.0
+        assert_eq!(p_pos[3], 0.0);
+    }
+}
+

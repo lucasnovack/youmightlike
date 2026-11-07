@@ -54,16 +54,17 @@ class EntityItem(BaseModel):
 
 class RecommendationRequest(BaseModel):
     seeds: List[str]  # Lista de IDs: ['artist:11', 'movie:12406']
+    negative_seeds: List[str] = []
     target_type: Optional[str] = None  # None ou 'music', 'movie', 'game', 'book'
     limit: int = 12
     lang: str = "pt"  # 'pt' | 'en'
-
+    beta: float = 1.2
 
 
 class GraphNode(BaseModel):
     id: str
     label: str
-    type: str  # 'seed' | 'artist' | 'track' | 'movie' | 'game' | 'book' | 'tag' | 'person'
+    type: str  # 'seed' | 'anti_seed' | 'artist' | 'track' | 'movie' | 'game' | 'book' | 'tag' | 'person'
     val: float  # tamanho do nó
 
 
@@ -76,6 +77,7 @@ class GraphEdge(BaseModel):
 
 class RecommendationResponse(BaseModel):
     seeds: List[EntityItem]
+    negative_seeds: List[EntityItem] = []
     results: List[Dict[str, Any]]
     graph: Dict[str, Any]  # {'nodes': [...], 'links': [...]}
 

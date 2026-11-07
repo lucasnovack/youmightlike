@@ -20,7 +20,9 @@ use crate::models::{
     parse_node_key, AppState, EntityItem, GraphLinkPayload, GraphNodePayload, GraphPayload,
     RecommendationRequest, RecommendationResponse,
 };
-use crate::ppr::{run_personalized_pagerank_scores_weighted, top_k_from_scores};
+use crate::ppr::{
+    penalize_negative_scores, run_personalized_pagerank_scores_weighted, top_k_from_scores,
+};
 use serde_json::Value;
 
 /// Runs the full personalized recommendation pipeline and generates the associated explanation subgraph
@@ -31,6 +33,7 @@ pub fn run_recommendation_pipeline(
     if req.seeds.is_empty() {
         return Ok(RecommendationResponse {
             seeds: Vec::new(),
+            negative_seeds: Vec::new(),
             results: Vec::new(),
             graph: GraphPayload {
                 nodes: Vec::new(),
@@ -39,15 +42,24 @@ pub fn run_recommendation_pipeline(
         });
     }
 
+    let is_pt = req.lang == "pt";
+
     let mut sorted_seeds = req.seeds.clone();
     sorted_seeds.sort();
     sorted_seeds.dedup();
+
+    let mut sorted_neg_seeds = req.negative_seeds.clone();
+    sorted_neg_seeds.sort();
+    sorted_neg_seeds.dedup();
+
     let cache_key = format!(
-        "{}:{}:{}:{}",
+        "{}:{}:{}:{}:{}:{}",
         sorted_seeds.join(","),
+        sorted_neg_seeds.join(","),
         req.target_type.as_deref().unwrap_or("all"),
         req.limit,
-        req.lang
+        req.lang,
+        req.beta
     );
 
     if let Ok(cache) = state.cache.lock() {
@@ -259,7 +271,201 @@ pub fn run_recommendation_pipeline(
         }
     }
 
-    // 2. Run PPR in-memory diffusion with multi-seed cluster balancing
+    // 2. Resolve negative seeds (anti-seeds / repulsive poles)
+    let mut negative_seeds_resolved: Vec<EntityItem> = Vec::new();
+    let mut negative_diffusion_seeds: Vec<String> = Vec::new();
+    let mut seen_neg_canonical: HashSet<(String, String)> = HashSet::new();
+
+    for s in &sorted_neg_seeds {
+        let Some((prefix, nid)) = parse_node_key(s) else {
+            continue;
+        };
+        match prefix {
+            "artist" => {
+                if let Some((name, country)) = lookup_artist_meta(&conn, nid) {
+                    let norm_key = ("artist".to_string(), name.trim().to_lowercase());
+                    if !seen_neg_canonical.insert(norm_key) {
+                        continue;
+                    }
+                    negative_seeds_resolved.push(EntityItem {
+                        id: s.clone(),
+                        name,
+                        entity_type: "artist".to_string(),
+                        subtitle: country,
+                        extra: None,
+                    });
+                    if !negative_diffusion_seeds.contains(s) {
+                        negative_diffusion_seeds.push(s.clone());
+                    }
+                }
+            }
+            "movie" => {
+                if let Some(m) = state.catalog.movies.get(&nid) {
+                    let norm_key = ("movie".to_string(), m.title.trim().to_lowercase());
+                    if !seen_neg_canonical.insert(norm_key) {
+                        continue;
+                    }
+                    negative_seeds_resolved.push(EntityItem {
+                        id: s.clone(),
+                        name: m.title.clone(),
+                        entity_type: "movie".to_string(),
+                        subtitle: m.release_year.map(|y| y.to_string()),
+                        extra: None,
+                    });
+                    if !negative_diffusion_seeds.contains(s) {
+                        negative_diffusion_seeds.push(s.clone());
+                    }
+                }
+            }
+            "series" => {
+                if let Some(s_meta) = state.catalog.series.get(&nid) {
+                    let norm_key = ("series".to_string(), s_meta.title.trim().to_lowercase());
+                    if !seen_neg_canonical.insert(norm_key) {
+                        continue;
+                    }
+                    negative_seeds_resolved.push(EntityItem {
+                        id: s.clone(),
+                        name: s_meta.title.clone(),
+                        entity_type: "series".to_string(),
+                        subtitle: s_meta.start_year.map(|y| y.to_string()),
+                        extra: None,
+                    });
+                    if !negative_diffusion_seeds.contains(s) {
+                        negative_diffusion_seeds.push(s.clone());
+                    }
+                }
+            }
+            "game" => {
+                if let Some(g) = state.catalog.games.get(&nid) {
+                    let norm_key = ("game".to_string(), g.title.trim().to_lowercase());
+                    if !seen_neg_canonical.insert(norm_key) {
+                        continue;
+                    }
+                    negative_seeds_resolved.push(EntityItem {
+                        id: s.clone(),
+                        name: g.title.clone(),
+                        entity_type: "game".to_string(),
+                        subtitle: g.release_year.map(|y| y.to_string()),
+                        extra: None,
+                    });
+                    if !negative_diffusion_seeds.contains(s) {
+                        negative_diffusion_seeds.push(s.clone());
+                    }
+                }
+            }
+            "book" => {
+                if let Some(b) = state.catalog.books.get(&nid) {
+                    let norm_key = ("book".to_string(), b.title.trim().to_lowercase());
+                    if !seen_neg_canonical.insert(norm_key) {
+                        continue;
+                    }
+                    negative_seeds_resolved.push(EntityItem {
+                        id: s.clone(),
+                        name: b.title.clone(),
+                        entity_type: "book".to_string(),
+                        subtitle: b.first_publish_year.map(|y| y.to_string()),
+                        extra: None,
+                    });
+                    if !negative_diffusion_seeds.contains(s) {
+                        negative_diffusion_seeds.push(s.clone());
+                    }
+                }
+            }
+            "track" => {
+                if let Some((t_title, artists)) = lookup_track_participating_artists(&conn, nid) {
+                    let norm_key = ("track".to_string(), norm_track_title(&t_title));
+                    if !seen_neg_canonical.insert(norm_key) {
+                        continue;
+                    }
+                    let artist_names: Vec<String> =
+                        artists.iter().map(|(_, name)| name.clone()).collect();
+                    let subtitle = if artist_names.is_empty() {
+                        None
+                    } else {
+                        Some(artist_names.join(", "))
+                    };
+
+                    negative_seeds_resolved.push(EntityItem {
+                        id: s.clone(),
+                        name: t_title,
+                        entity_type: "track".to_string(),
+                        subtitle,
+                        extra: None,
+                    });
+
+                    for (a_id, _) in artists {
+                        let art_node = format!("artist:{}", a_id);
+                        if !negative_diffusion_seeds.contains(&art_node) {
+                            negative_diffusion_seeds.push(art_node);
+                        }
+                    }
+
+                    if state.graph.get_node_id(s).is_some() && !negative_diffusion_seeds.contains(s) {
+                        negative_diffusion_seeds.push(s.clone());
+                    }
+                }
+            }
+            "keyword" => {
+                if let Some(kname) = state.catalog.keywords.get(&nid) {
+                    negative_seeds_resolved.push(EntityItem {
+                        id: s.clone(),
+                        name: format!("#{}", kname),
+                        entity_type: "keyword".to_string(),
+                        subtitle: Some("Tag".to_string()),
+                        extra: None,
+                    });
+                    if !negative_diffusion_seeds.contains(s) {
+                        negative_diffusion_seeds.push(s.clone());
+                    }
+                }
+            }
+            "person" => {
+                if let Some(pname) = state.catalog.people.get(&nid) {
+                    negative_seeds_resolved.push(EntityItem {
+                        id: s.clone(),
+                        name: pname.clone(),
+                        entity_type: "person".to_string(),
+                        subtitle: Some("Person".to_string()),
+                        extra: None,
+                    });
+                    if !negative_diffusion_seeds.contains(s) {
+                        negative_diffusion_seeds.push(s.clone());
+                    }
+                }
+            }
+            "developer" => {
+                if let Some(dname) = state.catalog.developers.get(&nid) {
+                    negative_seeds_resolved.push(EntityItem {
+                        id: s.clone(),
+                        name: dname.clone(),
+                        entity_type: "developer".to_string(),
+                        subtitle: Some("Studio".to_string()),
+                        extra: None,
+                    });
+                    if !negative_diffusion_seeds.contains(s) {
+                        negative_diffusion_seeds.push(s.clone());
+                    }
+                }
+            }
+            "author" => {
+                if let Some(aname) = state.catalog.authors.get(&nid) {
+                    negative_seeds_resolved.push(EntityItem {
+                        id: s.clone(),
+                        name: aname.clone(),
+                        entity_type: "author".to_string(),
+                        subtitle: Some("Author".to_string()),
+                        extra: None,
+                    });
+                    if !negative_diffusion_seeds.contains(s) {
+                        negative_diffusion_seeds.push(s.clone());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // 3. Run PPR in-memory diffusion with multi-seed cluster balancing
     let active_seeds: Vec<&str> = if diffusion_seeds.is_empty() {
         req.seeds.iter().map(|s| s.as_str()).collect()
     } else {
@@ -312,8 +518,23 @@ pub fn run_recommendation_pipeline(
         }
     }
 
-    let p = run_personalized_pagerank_scores_weighted(&state.graph, &seed_weights, 0.85, 25, 1e-6)
+    let mut p = run_personalized_pagerank_scores_weighted(&state.graph, &seed_weights, 0.85, 25, 1e-6)
         .unwrap_or_else(|_| vec![0.0; state.graph.num_nodes]);
+
+    // Apply repulsive negative feedback diffusion if negative seeds are active
+    let active_neg_seeds: Vec<&str> = if negative_diffusion_seeds.is_empty() {
+        sorted_neg_seeds.iter().map(|s| s.as_str()).collect()
+    } else {
+        negative_diffusion_seeds.iter().map(|s| s.as_str()).collect()
+    };
+
+    if !active_neg_seeds.is_empty() {
+        let neg_weights: Vec<(&str, f32)> = active_neg_seeds.iter().map(|&s| (s, 1.0f32)).collect();
+        if let Ok(p_neg) = run_personalized_pagerank_scores_weighted(&state.graph, &neg_weights, 0.85, 25, 1e-6) {
+            let beta = (req.beta as f32).max(0.1);
+            penalize_negative_scores(&mut p, &p_neg, beta);
+        }
+    }
 
     let mut exclude_ids: HashSet<u32> = HashSet::new();
     for s in &req.seeds {
@@ -324,6 +545,18 @@ pub fn run_recommendation_pipeline(
     for &s in &active_seeds {
         if let Some(uid) = state.graph.get_node_id(s) {
             exclude_ids.insert(uid);
+        }
+    }
+    for s in &sorted_neg_seeds {
+        if let Some(uid) = state.graph.get_node_id(s) {
+            exclude_ids.insert(uid);
+            p[uid as usize] = 0.0;
+        }
+    }
+    for &s in &active_neg_seeds {
+        if let Some(uid) = state.graph.get_node_id(s) {
+            exclude_ids.insert(uid);
+            p[uid as usize] = 0.0;
         }
     }
 
@@ -416,9 +649,11 @@ pub fn run_recommendation_pipeline(
         state,
         &conn,
         &seeds_resolved,
+        &negative_seeds_resolved,
         &track_seed_artists,
         &seed_tag_counts,
         &diffusion_seeds,
+        is_pt,
         &mut graph_nodes,
         &mut graph_links,
     );
@@ -602,6 +837,7 @@ pub fn run_recommendation_pipeline(
 
     let resp_obj = RecommendationResponse {
         seeds: seeds_resolved,
+        negative_seeds: negative_seeds_resolved,
         results,
         graph: GraphPayload {
             nodes: graph_nodes,

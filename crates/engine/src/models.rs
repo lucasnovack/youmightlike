@@ -250,11 +250,15 @@ pub fn default_search_limit() -> usize {
 #[derive(Debug, Clone, Deserialize)]
 pub struct RecommendationRequest {
     pub seeds: Vec<String>,
+    #[serde(default, alias = "negative_seed_ids", alias = "anti_seeds")]
+    pub negative_seeds: Vec<String>,
     pub target_type: Option<String>,
     #[serde(default = "default_rec_limit")]
     pub limit: usize,
     #[serde(default = "default_lang")]
     pub lang: String,
+    #[serde(default = "default_beta")]
+    pub beta: f64,
 }
 
 pub fn default_rec_limit() -> usize {
@@ -263,6 +267,10 @@ pub fn default_rec_limit() -> usize {
 
 pub fn default_lang() -> String {
     "pt".to_string()
+}
+
+pub fn default_beta() -> f64 {
+    1.2
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -297,6 +305,8 @@ pub struct GraphPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecommendationResponse {
     pub seeds: Vec<EntityItem>,
+    #[serde(default)]
+    pub negative_seeds: Vec<EntityItem>,
     pub results: Vec<Value>,
     pub graph: GraphPayload,
 }

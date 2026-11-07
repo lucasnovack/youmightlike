@@ -14,9 +14,11 @@ pub fn init_subgraph_anchors(
     state: &AppState,
     conn: &Connection,
     seeds_resolved: &[EntityItem],
+    negative_seeds_resolved: &[EntityItem],
     track_seed_artists: &HashMap<String, Vec<(i64, String)>>,
     seed_tag_counts: &HashMap<i64, usize>,
     diffusion_seeds: &[String],
+    is_pt: bool,
     graph_nodes: &mut Vec<GraphNodePayload>,
     graph_links: &mut Vec<GraphLinkPayload>,
 ) {
@@ -32,6 +34,63 @@ pub fn init_subgraph_anchors(
                 metadata: None,
             });
         }
+    }
+
+    for anti_item in negative_seeds_resolved {
+        if !graph_nodes.iter().any(|n| n.id == anti_item.id) {
+            graph_nodes.push(GraphNodePayload {
+                id: anti_item.id.clone(),
+                label: anti_item.name.clone(),
+                node_type: "anti_seed".to_string(),
+                val: 18.0,
+                tags: Vec::new(),
+                desc: if is_pt {
+                    "Anti-semente (Pólo Repulsivo)".to_string()
+                } else {
+                    "Anti-seed (Repulsive Pole)".to_string()
+                },
+                metadata: None,
+            });
+        }
+
+        // Structural anchor for anti-seed: connect to up to 1 top tag so user can visualize what it repels
+        for e in state.graph.out_edges_by_key(&anti_item.id) {
+            if e.relation_type == "has_tag" {
+                if let Some(("keyword", tid)) = parse_node_key(e.target_key) {
+                    if let Some(kname) = state.catalog.keywords.get(&tid) {
+                        if !is_steam_noise_tag(kname.as_str()) {
+                            let tag_key = format!("keyword:{}", tid);
+                            if !graph_nodes.iter().any(|n| n.id == tag_key) {
+                                graph_nodes.push(GraphNodePayload {
+                                    id: tag_key.clone(),
+                                    label: format!("#{}", kname),
+                                    node_type: "keyword".to_string(),
+                                    val: 9.0,
+                                    tags: Vec::new(),
+                                    desc: "Bridge".to_string(),
+                                    metadata: None,
+                                });
+                            }
+                            if !graph_links.iter().any(|l| {
+                                (l.source == anti_item.id && l.target == tag_key)
+                                    || (l.source == tag_key && l.target == anti_item.id)
+                            }) {
+                                graph_links.push(GraphLinkPayload {
+                                    source: anti_item.id.clone(),
+                                    target: tag_key,
+                                    label: "repelled_by".to_string(),
+                                    weight: 1.2,
+                                });
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for seed_item in seeds_resolved {
 
         if seed_item.entity_type == "track" {
             if let Some(artists) = track_seed_artists.get(&seed_item.id) {
@@ -482,7 +541,9 @@ pub fn build_subgraph_and_prune(
         }
     }
     for n in graph_nodes.iter() {
-        if n.node_type == "seed" && reachable_from_seeds.insert(n.id.clone()) {
+        if (n.node_type == "seed" || n.node_type == "anti_seed")
+            && reachable_from_seeds.insert(n.id.clone())
+        {
             queue.push_back(&n.id);
         }
     }
