@@ -786,15 +786,20 @@ createApp({
         isOffline.value = true;
       });
 
-      // Service Worker Registration for Offline Support & PWA
+      // Purge any lingering Service Workers and caches from previous versions
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' })
-          .then((registration) => {
-            console.log('[SW] Service Worker registrado com sucesso no escopo:', registration.scope);
-          })
-          .catch((error) => {
-            console.warn('[SW] Falha ao registrar Service Worker:', error);
-          });
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (const reg of registrations) {
+            reg.unregister();
+          }
+        });
+      }
+      if ('caches' in window) {
+        caches.keys().then((keys) => {
+          for (const key of keys) {
+            caches.delete(key);
+          }
+        });
       }
 
       if (profileSeeds.value.length > 0) {

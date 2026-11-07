@@ -1,3 +1,8 @@
+/* Prevent Flash of Unstyled Content (FOUC) before Vue mounts */
+[v-cloak] {
+  display: none !important;
+}
+
 /* Design Tokens & Global Resets */
 :root {
   --color-canvas-bg: #f8fafc;

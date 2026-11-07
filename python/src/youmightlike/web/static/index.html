@@ -5,6 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>youmightlike — Constellation Graph Engine</title>
 
+  <script>
+    // Self-healing: Automatically purge any lingering legacy Service Workers and caches
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        for (var i = 0; i < regs.length; i++) regs[i].unregister();
+      });
+    }
+    if ('caches' in window) {
+      caches.keys().then(function(keys) {
+        for (var i = 0; i < keys.length; i++) caches.delete(keys[i]);
+      });
+    }
+  </script>
+
   <!-- Local-First Core Libraries (Zero External CDN Dependency) -->
   <script src="vendor/tailwindcss.js"></script>
   <script src="js/tailwind-config.js"></script>
@@ -26,13 +40,16 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="youmightlike">
 
-  <!-- Modular Stylesheets -->
+  <!-- Modular Stylesheets & FOUC Prevention -->
+  <style>
+    [v-cloak] { display: none !important; }
+  </style>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/constellation.css">
 </head>
 <body class="h-screen overflow-hidden flex flex-col font-mono text-[12px] leading-relaxed antialiased bg-slate-50 text-slate-800">
-  <div id="app" class="flex flex-col h-full relative">
+  <div id="app" v-cloak class="flex flex-col h-full relative">
 
     <!-- Top Header -->
     <header class="h-14 border-b border-slate-200 bg-white/95 backdrop-blur px-5 py-2.5 flex items-center justify-between z-30 shrink-0">
@@ -1235,6 +1252,7 @@
     <!-- RECEIPT MODAL (CULTURAL TASTE RECEIPT & POSTER) -->
     <div
       v-if="showReceiptModal"
+      v-cloak
       class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto"
       @click.self="closeReceiptModal"
       @keydown.escape="closeReceiptModal"

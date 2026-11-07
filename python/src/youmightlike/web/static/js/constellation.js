@@ -284,6 +284,7 @@ export class ConstellationEngine {
     const nodeById = new Map();
 
     const createNodeRecord = (n, x, y, isSeed, isBridge, isTrack) => {
+      const sNbrs = Array.from(seedNeighbors.get(n.id) || []);
       let r = 11.5;
       if (isSeed) r = 15;
       else if (isBridge) r = sNbrs.length >= 2 ? 6.5 : 5.0;
@@ -297,7 +298,7 @@ export class ConstellationEngine {
         ...n,
         rawType: getRawType(n),
         isSeed,
-        isAntiSeed,
+        isAntiSeed: false,
         isBridge,
         isTrack,
         sharedSeedsCount: sNbrs.length,
