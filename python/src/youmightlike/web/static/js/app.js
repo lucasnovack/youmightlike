@@ -1,8 +1,8 @@
-import { createTranslator } from './i18n.js?v=2.9';
-import { getTypeBadgeClass, getTypeIcon, getSeedDotColor, getAffinityLabel, getAffinityBadgeClass, getRawType } from './config.js?v=2.9';
-import { searchEntities, fetchRecommendations } from './api.js?v=2.9';
-import { ConstellationEngine } from './constellation.js?v=2.9';
-import { generateCulturalReceipt } from './receipt.js?v=2.9';
+import { createTranslator } from './i18n.js?v=3.0';
+import { getTypeBadgeClass, getTypeIcon, getSeedDotColor, getAffinityLabel, getAffinityBadgeClass, getRawType } from './config.js?v=3.0';
+import { searchEntities, fetchRecommendations } from './api.js?v=3.0';
+import { ConstellationEngine } from './constellation.js?v=3.0';
+import { generateCulturalReceipt } from './receipt.js?v=3.0';
 
 const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
@@ -851,12 +851,14 @@ createApp({
       removeNegativeSeed,
       clearNegativeSeeds,
       clearProfile,
+      saveProfile,
       computeRecommendations,
       getSearchPlaceholder,
       getRawType,
       getTypeIcon,
       getSeedDotColor,
       getTypeBadgeClass,
+      getAffinityBadgeClass,
       getAffinityLabel: (score) => getAffinityLabel(score, t),
       isBridgeReason: (reason) => reason && (
         reason.includes('Ponte') ||
