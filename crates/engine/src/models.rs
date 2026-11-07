@@ -320,6 +320,8 @@ pub struct TrackRecommendRequest {
     pub min_popularity: i32,
     #[serde(default = "default_audio_weight")]
     pub audio_weight: f64,
+    #[serde(default)]
+    pub language: Option<String>,
 }
 
 pub fn default_min_pop() -> i32 {

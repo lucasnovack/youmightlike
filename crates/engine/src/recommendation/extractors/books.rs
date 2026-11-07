@@ -62,9 +62,9 @@ pub fn extract_books(
                     };
                     if let Some(scr_title) = title {
                         book_explanation.push(if ctx.is_pt {
-                            format!("Obra adaptada em '{}'", scr_title)
+                            format!("Livro que originou a adaptação audiovisual '{}'", scr_title)
                         } else {
-                            format!("Adapted into '{}'", scr_title)
+                            format!("Literary source for '{}'", scr_title)
                         });
                         best_book_bridge = Some((
                             e.target_key.to_string(),
@@ -113,7 +113,7 @@ pub fn extract_books(
 
         if let Some(aname) = found_author {
             book_explanation.push(if ctx.is_pt {
-                format!("Mesmo autor ({})", aname)
+                format!("Mesma autoria ({})", aname)
             } else {
                 format!("Same author ({})", aname)
             });
@@ -121,9 +121,9 @@ pub fn extract_books(
         if !shared_book_tags.is_empty() {
             let tag_str = shared_book_tags.join(", ");
             book_explanation.push(if ctx.is_pt {
-                format!("Temas em comum: {}", tag_str)
+                format!("Temas literários em comum: {}", tag_str)
             } else {
-                format!("Shared subjects: {}", tag_str)
+                format!("Shared literary subjects: {}", tag_str)
             });
         }
 

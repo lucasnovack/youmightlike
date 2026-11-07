@@ -92,15 +92,15 @@ pub fn extract_music(
     }
 
     // Pre-compute direct similar peer map and seed degree for all active music seeds
-    let mut seed_peer_maps: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut seed_peer_maps: HashMap<String, HashMap<String, f32>> = HashMap::new();
     let mut seed_degrees: HashMap<String, usize> = HashMap::new();
     for s_key in &seed_artist_keys {
         let edges = ctx.state.graph.out_edges_by_key(s_key);
         seed_degrees.insert(s_key.clone(), edges.len());
-        let mut peers = HashSet::new();
+        let mut peers = HashMap::new();
         for e in edges {
             if e.relation_type == "similar_to" {
-                peers.insert(e.target_key.to_string());
+                peers.insert(e.target_key.to_string(), e.base_weight);
             }
         }
         seed_peer_maps.insert(s_key.clone(), peers);
@@ -145,6 +145,7 @@ pub fn extract_music(
 
         let out_edges = ctx.state.graph.out_edges_by_key(nkey);
         let mut connected_seeds: Vec<String> = Vec::new();
+        let mut seed_similarities: HashMap<String, f32> = HashMap::new();
         let mut shared_tags: Vec<String> = Vec::new();
         let mut best_artist_bridge: Option<(String, String, String, f32)> = None;
         let mut matched_seed_game: Option<i64> = None;
@@ -172,6 +173,7 @@ pub fn extract_music(
                 if !connected_seeds.contains(&e.target_key.to_string()) {
                     connected_seeds.push(e.target_key.to_string());
                 }
+                seed_similarities.entry(e.target_key.to_string()).or_insert(e.base_weight);
                 if best_artist_bridge.is_none() {
                     let s_name = ctx
                         .seed_artist_names
@@ -211,8 +213,11 @@ pub fn extract_music(
 
         // Also check if any seed artist points to this candidate via similar_to
         for (s_key, peers) in &seed_peer_maps {
-            if peers.contains(nkey) && !connected_seeds.contains(s_key) {
-                connected_seeds.push(s_key.clone());
+            if let Some(&weight) = peers.get(nkey) {
+                if !connected_seeds.contains(s_key) {
+                    connected_seeds.push(s_key.clone());
+                }
+                seed_similarities.entry(s_key.clone()).or_insert(weight);
                 if best_artist_bridge.is_none() {
                     let s_name = ctx
                         .seed_artist_names
@@ -223,7 +228,7 @@ pub fn extract_music(
                         s_key.clone(),
                         s_name,
                         "artist".to_string(),
-                        1.5,
+                        weight,
                     ));
                 }
             }
@@ -275,39 +280,61 @@ pub fn extract_music(
                 })
                 .collect();
             explanation_parts.push(if ctx.is_pt {
-                format!("Ponte de afinidade entre {}", names.join(" e "))
+                format!("Ponte de co-escuta no Last.fm entre {}", names.join(" e "))
             } else {
-                format!("Affinity bridge between {}", names.join(" and "))
+                format!("Last.fm co-listening bridge between {}", names.join(" and "))
             });
         } else if connected_seeds.len() == 1 {
+            let s_key = &connected_seeds[0];
             let s_name = ctx
                 .seed_artist_names
-                .get(&connected_seeds[0])
+                .get(s_key)
                 .cloned()
-                .unwrap_or_else(|| connected_seeds[0].clone());
+                .unwrap_or_else(|| s_key.clone());
+            let pct_str = seed_similarities.get(s_key).map(|&w| {
+                let p = ((w / 2.0).clamp(0.05, 1.0) * 100.0).round() as i32;
+                format!(" ({}% de sobreposição)", p)
+            }).unwrap_or_default();
+            let pct_str_en = seed_similarities.get(s_key).map(|&w| {
+                let p = ((w / 2.0).clamp(0.05, 1.0) * 100.0).round() as i32;
+                format!(" ({}% overlap)", p)
+            }).unwrap_or_default();
+
             explanation_parts.push(if ctx.is_pt {
-                format!("Similaridade direta com {}", s_name)
+                format!("Co-escuta no Last.fm com {}{}", s_name, pct_str)
             } else {
-                format!("Direct similarity with {}", s_name)
+                format!("Last.fm co-listening with {}{}", s_name, pct_str_en)
             });
         }
 
         if !shared_tags.is_empty() {
             let tags_joined = shared_tags.join(", ");
             explanation_parts.push(if ctx.is_pt {
-                format!("Tags compartilhadas: {}", tags_joined)
+                format!("Tags estéticas em comum: {}", tags_joined)
             } else {
-                format!("Shared tags: {}", tags_joined)
+                format!("Shared aesthetic tags: {}", tags_joined)
             });
         }
 
-        let default_reason = if ctx.is_pt {
-            "Afinidade e proximidade no grafo musical"
+        let default_reason = if let Some((_, ref b_label, ref b_type, _)) = best_artist_bridge {
+            if b_type == "keyword" {
+                if ctx.is_pt {
+                    format!("Convergência estética via {}", b_label)
+                } else {
+                    format!("Aesthetic convergence via {}", b_label)
+                }
+            } else if ctx.is_pt {
+                format!("Ressonância de cluster com {}", b_label)
+            } else {
+                format!("Cluster resonance with {}", b_label)
+            }
+        } else if ctx.is_pt {
+            "Afinidade e proximidade no grafo musical".to_string()
         } else {
-            "Graph diffusion affinity and proximity"
+            "Graph diffusion affinity and proximity".to_string()
         };
         let full_reason = if explanation_parts.is_empty() {
-            default_reason.to_string()
+            default_reason
         } else {
             explanation_parts.join(" • ")
         };
@@ -323,14 +350,10 @@ pub fn extract_music(
                 }
             }
         }
-        for (s_key, peers) in &seed_peer_maps {
-            if peers.contains(nkey) {
-                for e in ctx.state.graph.out_edges_by_key(s_key) {
-                    if e.target_key == nkey && e.relation_type == "similar_to" {
-                        if e.base_weight > max_sim_weight {
-                            max_sim_weight = e.base_weight;
-                        }
-                    }
+        for (_s_key, peers) in &seed_peer_maps {
+            if let Some(&w) = peers.get(nkey) {
+                if w > max_sim_weight {
+                    max_sim_weight = w;
                 }
             }
         }

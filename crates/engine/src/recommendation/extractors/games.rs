@@ -244,9 +244,9 @@ pub fn extract_games(
             composer_id_opt = Some(cid);
             if is_direct || touches_seed_dev {
                 game_explanation.push(if ctx.is_pt {
-                    format!("Trilha sonora por {}", cname)
+                    format!("Trilha sonora composta por {}", cname)
                 } else {
-                    format!("Soundtrack by {}", cname)
+                    format!("Soundtrack composed by {}", cname)
                 });
                 if candidate_bridges.len() < 3 {
                     candidate_bridges.push((
@@ -259,17 +259,17 @@ pub fn extract_games(
         }
         if let Some((_gid, ref gtitle, _w)) = found_similar_game {
             game_explanation.push(if ctx.is_pt {
-                format!("Jogadores de '{}' também jogam", gtitle)
+                format!("Co-jogabilidade na Steam: Jogadores de '{}' também jogam", gtitle)
             } else {
-                format!("Players of '{}' also play", gtitle)
+                format!("Steam co-play: Players of '{}' also play", gtitle)
             });
         }
         if let Some(dname) = found_dev {
             if touches_seed_dev {
                 game_explanation.push(if ctx.is_pt {
-                    format!("Mesmo estúdio ({})", dname)
+                    format!("Mesmo estúdio desenvolvedor ({})", dname)
                 } else {
-                    format!("Same studio ({})", dname)
+                    format!("Same developer studio ({})", dname)
                 });
             }
         }
@@ -283,9 +283,9 @@ pub fn extract_games(
         if !display_tags.is_empty() {
             let tag_str = display_tags.join(", ");
             game_explanation.push(if ctx.is_pt {
-                format!("Tags em comum: {}", tag_str)
+                format!("Tags temáticas em comum: {}", tag_str)
             } else {
-                format!("Shared tags: {}", tag_str)
+                format!("Shared thematic tags: {}", tag_str)
             });
         } else if !fallback_tags.is_empty() {
             game_explanation.push(format!("Tags: {}", fallback_tags.join(", ")));

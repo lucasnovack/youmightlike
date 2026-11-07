@@ -663,8 +663,19 @@ createApp({
       getSeedDotColor,
       getTypeBadgeClass,
       getAffinityLabel: (score) => getAffinityLabel(score, t),
-      getAffinityBadgeClass,
-      isBridgeReason: (reason) => reason && (reason.includes('Ponte') || reason.includes('Bridge') || reason.includes('Confluência')),
+      isBridgeReason: (reason) => reason && (
+        reason.includes('Ponte') ||
+        reason.includes('Bridge') ||
+        reason.includes('Confluência') ||
+        reason.includes('Co-escuta') ||
+        reason.includes('Co-listening') ||
+        reason.includes('Co-jogabilidade') ||
+        reason.includes('co-play') ||
+        reason.includes('Adaptação') ||
+        reason.includes('Adapted') ||
+        reason.includes('Trilha sonora composta') ||
+        reason.includes('Soundtrack composed')
+      ),
       selectedNodeIds,
       setHoveredNode,
       inspectedNodes,

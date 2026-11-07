@@ -135,9 +135,9 @@ pub fn extract_series(
                 {
                     if let Some(b) = ctx.state.catalog.books.get(&tid) {
                         series_explanation.push(if ctx.is_pt {
-                            format!("Baseado no livro ({})", b.title)
+                            format!("Adaptação da obra literária ({})", b.title)
                         } else {
-                            format!("Based on the book ({})", b.title)
+                            format!("Adapted from the book ({})", b.title)
                         });
                         best_series_bridge = Some((
                             e.target_key.to_string(),
@@ -186,17 +186,17 @@ pub fn extract_series(
 
         if let Some(pname) = found_person {
             series_explanation.push(if ctx.is_pt {
-                format!("Mesmo diretor/roteirista ({})", pname)
+                format!("Mesma equipe/roteiro ({})", pname)
             } else {
-                format!("Same director/writer ({})", pname)
+                format!("Same showrunner/writer ({})", pname)
             });
         }
         if !shared_series_tags.is_empty() {
             let tag_str = shared_series_tags.join(", ");
             series_explanation.push(if ctx.is_pt {
-                format!("Tags em comum: {}", tag_str)
+                format!("Conexão temática por tags: {}", tag_str)
             } else {
-                format!("Shared tags: {}", tag_str)
+                format!("Thematic tags in common: {}", tag_str)
             });
         }
 

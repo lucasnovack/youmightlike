@@ -124,6 +124,12 @@ pub fn compute_track_recommendations_sync(
         .collect::<Vec<_>>()
         .join(", ");
 
+    let is_pt = req.language.as_deref().unwrap_or("pt").to_lowercase().starts_with("pt");
+    let co_listen_prefix = if is_pt { "Co-escuta no Last.fm com " } else { "Last.fm co-listening with " };
+    let pct_suffix = if is_pt { "% de sobreposição)" } else { "% overlap)" };
+    let shared_genres_prefix = if is_pt { "Microgêneros compartilhados com " } else { "Shared microgenres with " };
+    let default_explanation = if is_pt { "Afinidade de difusão de cena musical" } else { "Musical scene diffusion affinity" };
+
     let sql_candidates = format!(
         "WITH target_artists AS (
             SELECT id, name FROM music_artists WHERE id IN ({art_ids_str})
@@ -131,7 +137,7 @@ pub fn compute_track_recommendations_sync(
         artist_reasons AS (
             SELECT 
                 s.target_artist_id AS artist_id,
-                'Last.fm co-listening with ' || ma_src.name || ' (' || CAST(ROUND(s.match_score * 100) AS INT) || '%)' AS reason
+                '{co_listen_prefix}' || ma_src.name || ' (' || CAST(ROUND(s.match_score * 100) AS INT) || '{pct_suffix}' AS reason
             FROM artist_similarities s
             JOIN music_artists ma_src ON ma_src.id = s.source_artist_id
             WHERE s.source_artist_id IN ({seed_ids_str})
@@ -139,7 +145,7 @@ pub fn compute_track_recommendations_sync(
             UNION ALL
             SELECT 
                 t2.artist_id,
-                'Shared microgenres with ' || ma_src.name || ': ' || STRING_AGG(k.name, ', ') AS reason
+                '{shared_genres_prefix}' || ma_src.name || ': ' || STRING_AGG(k.name, ', ') AS reason
             FROM artist_tags t1
             JOIN music_artists ma_src ON ma_src.id = t1.artist_id
             JOIN keywords k ON k.id = t1.keyword_id
@@ -159,7 +165,7 @@ pub fn compute_track_recommendations_sync(
                 t.valence,
                 t.energy,
                 t.danceability,
-                COALESCE(ar.reason, 'Musical scene diffusion affinity') AS explanation,
+                COALESCE(ar.reason, '{default_explanation}') AS explanation,
                 ROW_NUMBER() OVER (PARTITION BY t.artist_id ORDER BY t.popularity DESC) AS rk
             FROM music_tracks t
             JOIN target_artists ta ON ta.id = t.artist_id
