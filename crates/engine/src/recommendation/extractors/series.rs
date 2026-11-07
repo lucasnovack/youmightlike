@@ -20,19 +20,27 @@ pub fn extract_series(
         return;
     }
 
+    let candidate_pool_size = (series_quota * 100).max(1500);
     let raw_series = top_k_from_scores(
         &ctx.state.graph,
         ctx.p,
         ctx.exclude_ids,
         "series:",
-        Some(series_quota * 8 + 30),
+        Some(candidate_pool_size),
     );
 
     let mut ranked_series: Vec<(ScoredNode, Vec<(String, String)>)> = Vec::new();
     for s_item in raw_series {
-        if s_item.score < ctx.min_rec_score {
+        if s_item.score < 1e-8 {
             continue;
         }
+        let Some(("series", nid)) = parse_node_key(&s_item.node_key) else {
+            continue;
+        };
+        let Some(s) = ctx.state.catalog.series.get(&nid) else {
+            continue;
+        };
+
         let mut ost_artists: Vec<(String, String)> = Vec::new();
         let mut seen_ost_names: HashSet<String> = HashSet::new();
 
@@ -56,7 +64,11 @@ pub fn extract_series(
             }
         }
 
-        let ost_boost = 1.0 + (ost_artists.len() as f32) * 0.65;
+        let mut ost_boost = 1.0 + (ost_artists.len() as f32) * 1.5;
+        let vote = s.vote_average.unwrap_or(5.0) as f32;
+        let pop_factor = if vote >= 7.5 { 1.5 } else if vote >= 6.5 { 1.2 } else { 1.0 };
+        ost_boost *= pop_factor;
+
         let boosted = ScoredNode {
             node_key: s_item.node_key,
             score: s_item.score * ost_boost,
@@ -125,7 +137,9 @@ pub fn extract_series(
         }
 
         let mut found_person: Option<String> = None;
+        let mut touches_seed_person = false;
         let mut shared_series_tags: Vec<String> = Vec::new();
+        let mut fallback_series_tags: Vec<String> = Vec::new();
 
         for e in ctx.state.graph.out_edges_by_key(nkey) {
             if let Some((tpfx, tid)) = parse_node_key(e.target_key) {
@@ -146,50 +160,54 @@ pub fn extract_series(
                             3.5,
                         ));
                     }
-                } else if tpfx == "person"
-                    && found_person.is_none()
-                    && ctx.seed_people.contains(&tid)
-                {
+                } else if tpfx == "person" && found_person.is_none() {
                     found_person = ctx.state.catalog.people.get(&tid).cloned();
-                    if best_series_bridge.is_none() {
-                        if let Some(ref pname) = found_person {
-                            best_series_bridge = Some((
-                                e.target_key.to_string(),
-                                pname.clone(),
-                                "person".to_string(),
-                                e.base_weight,
-                            ));
+                    if ctx.seed_people.contains(&tid) {
+                        touches_seed_person = true;
+                        if best_series_bridge.is_none() {
+                            if let Some(ref pname) = found_person {
+                                best_series_bridge = Some((
+                                    e.target_key.to_string(),
+                                    pname.clone(),
+                                    "person".to_string(),
+                                    e.base_weight,
+                                ));
+                            }
                         }
                     }
-                } else if tpfx == "keyword"
-                    && is_tag_relation(e.relation_type)
-                    && ctx.seed_tag_counts.contains_key(&tid)
-                    && shared_series_tags.len() < 3
-                {
+                } else if tpfx == "keyword" && is_tag_relation(e.relation_type) {
                     if let Some(kname) = ctx.state.catalog.keywords.get(&tid) {
                         let tfmt = format!("#{}", kname);
-                        if !shared_series_tags.contains(&tfmt) {
-                            shared_series_tags.push(tfmt);
-                        }
-                        if best_series_bridge.is_none() && !is_steam_noise_tag(kname.as_str()) {
-                            best_series_bridge = Some((
-                                e.target_key.to_string(),
-                                format!("#{}", kname),
-                                "keyword".to_string(),
-                                e.base_weight,
-                            ));
+                        if !is_steam_noise_tag(kname.as_str()) {
+                            if ctx.seed_tag_counts.contains_key(&tid) {
+                                if shared_series_tags.len() < 4 && !shared_series_tags.contains(&tfmt) {
+                                    shared_series_tags.push(tfmt);
+                                }
+                                if best_series_bridge.is_none() {
+                                    best_series_bridge = Some((
+                                        e.target_key.to_string(),
+                                        format!("#{}", kname),
+                                        "keyword".to_string(),
+                                        e.base_weight,
+                                    ));
+                                }
+                            } else if fallback_series_tags.len() < 3 && !fallback_series_tags.contains(&tfmt) {
+                                fallback_series_tags.push(tfmt);
+                            }
                         }
                     }
                 }
             }
         }
 
-        if let Some(pname) = found_person {
-            series_explanation.push(if ctx.is_pt {
-                format!("Mesma equipe/roteiro ({})", pname)
-            } else {
-                format!("Same showrunner/writer ({})", pname)
-            });
+        if let Some(ref pname) = found_person {
+            if touches_seed_person {
+                series_explanation.push(if ctx.is_pt {
+                    format!("Mesma equipe/roteiro ({})", pname)
+                } else {
+                    format!("Same showrunner/writer ({})", pname)
+                });
+            }
         }
         if !shared_series_tags.is_empty() {
             let tag_str = shared_series_tags.join(", ");
@@ -200,13 +218,40 @@ pub fn extract_series(
             });
         }
 
-        let default_series_reason = if ctx.is_pt {
-            "Afinidade temática e difusão de estilo"
-        } else {
-            "Thematic and style diffusion affinity"
-        };
         let full_series_reason = if series_explanation.is_empty() {
-            default_series_reason.to_string()
+            let mut parts = Vec::new();
+            if ctx.is_pt {
+                parts.push("Descoberta transmidiática no grafo".to_string());
+                if let Some(ref pname) = found_person {
+                    parts.push(format!("Equipe/Roteiro: {}", pname));
+                }
+                if let Some(v) = s.vote_average {
+                    parts.push(format!("Nota: {:.1} ★", v));
+                }
+                if !fallback_series_tags.is_empty() {
+                    parts.push(format!("Tags: {}", fallback_series_tags.join(", ")));
+                }
+            } else {
+                parts.push("Transmedia graph discovery".to_string());
+                if let Some(ref pname) = found_person {
+                    parts.push(format!("Showrunner/Crew: {}", pname));
+                }
+                if let Some(v) = s.vote_average {
+                    parts.push(format!("Rating: {:.1} ★", v));
+                }
+                if !fallback_series_tags.is_empty() {
+                    parts.push(format!("Tags: {}", fallback_series_tags.join(", ")));
+                }
+            }
+            if parts.is_empty() {
+                if ctx.is_pt {
+                    "Afinidade temática e difusão de estilo".to_string()
+                } else {
+                    "Thematic and style diffusion affinity".to_string()
+                }
+            } else {
+                parts.join(" • ")
+            }
         } else {
             series_explanation.join(" • ")
         };

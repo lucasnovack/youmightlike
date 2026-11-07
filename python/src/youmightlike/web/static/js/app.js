@@ -188,25 +188,44 @@ createApp({
     });
 
     const groupedRecommendations = computed(() => {
-      if (targetFilter.value !== null) {
-        return [{
-          key: 'filtered',
-          label: targetFilter.value.toUpperCase(),
-          color: '#0f172a',
-          filterType: null,
-          items: recommendations.value,
-        }];
+      const all = recommendations.value;
+      if (targetFilter.value === 'game') {
+        const games = all.filter(r => r.type === 'game');
+        return [{ key: 'games', label: t('sectionGames'), color: '#2563eb', filterType: 'game', items: games }];
       }
-      const games = recommendations.value.filter(r => r.type === 'game');
-      const artists = recommendations.value.filter(r => r.type === 'artist');
-      const tracks = recommendations.value.filter(r => r.type === 'track');
-      const screen = recommendations.value.filter(r => r.type === 'movie' || r.type === 'series' || r.type === 'book');
-      return [
-        { key: 'games', label: t('sectionGames'), color: '#2563eb', filterType: 'game', items: games },
-        { key: 'artists', label: t('sectionArtists'), color: '#ea580c', filterType: 'music', items: artists },
-        { key: 'tracks', label: t('sectionTracks'), color: '#0d9488', filterType: 'music', items: tracks },
-        { key: 'screen', label: t('sectionScreen'), color: '#ca8a04', filterType: 'movie', items: screen },
-      ];
+      if (targetFilter.value === 'music') {
+        const artists = all.filter(r => r.type === 'artist');
+        const tracks = all.filter(r => r.type === 'track');
+        const list = [];
+        if (artists.length > 0) list.push({ key: 'artists', label: t('sectionArtists'), color: '#ea580c', filterType: 'music', items: artists });
+        if (tracks.length > 0) list.push({ key: 'tracks', label: t('sectionTracks'), color: '#0d9488', filterType: 'music', items: tracks });
+        return list;
+      }
+      if (targetFilter.value === 'movie') {
+        const movies = all.filter(r => r.type === 'movie');
+        return [{ key: 'movies', label: t('typeMovies'), color: '#ca8a04', filterType: 'movie', items: movies }];
+      }
+      if (targetFilter.value === 'series') {
+        const series = all.filter(r => r.type === 'series');
+        return [{ key: 'series', label: t('typeSeries'), color: '#9333ea', filterType: 'series', items: series }];
+      }
+
+      // Default: 'Todos'
+      const games = all.filter(r => r.type === 'game');
+      const artists = all.filter(r => r.type === 'artist');
+      const tracks = all.filter(r => r.type === 'track');
+      const movies = all.filter(r => r.type === 'movie');
+      const series = all.filter(r => r.type === 'series');
+      const books = all.filter(r => r.type === 'book');
+
+      const groups = [];
+      if (games.length > 0) groups.push({ key: 'games', label: t('sectionGames'), color: '#2563eb', filterType: 'game', items: games });
+      if (artists.length > 0) groups.push({ key: 'artists', label: t('sectionArtists'), color: '#ea580c', filterType: 'music', items: artists });
+      if (tracks.length > 0) groups.push({ key: 'tracks', label: t('sectionTracks'), color: '#0d9488', filterType: 'music', items: tracks });
+      if (movies.length > 0) groups.push({ key: 'movies', label: t('typeMovies'), color: '#ca8a04', filterType: 'movie', items: movies });
+      if (series.length > 0) groups.push({ key: 'series', label: t('typeSeries'), color: '#9333ea', filterType: 'series', items: series });
+      if (books.length > 0) groups.push({ key: 'books', label: 'LIVROS', color: '#059669', filterType: 'book', items: books });
+      return groups;
     });
 
     const filteredInspectorRecs = computed(() => {
@@ -237,10 +256,9 @@ createApp({
       return inspectedNodes.value.some(n => isNodeInNegativeSeeds(n.id, n.label));
     });
 
-    // Filters
+    // Filters (Pure view filter: does not recalculate or alter the constellation graph)
     const setDomainFilter = (flt) => {
       targetFilter.value = flt;
-      computeRecommendations();
     };
 
     const setInspectorFilter = (flt) => {
@@ -573,8 +591,8 @@ createApp({
             negativeSeeds: negativeSeeds.value.map(s => s.id),
             knownItems: knownItems.value.map(k => k.id),
             beta: Number(negativeBeta.value) || 1.2,
-            targetType: targetFilter.value,
-            limit: 20,
+            targetType: null,
+            limit: 80,
             lang: currentLang.value,
             signal: recsAbortController.signal,
           });
