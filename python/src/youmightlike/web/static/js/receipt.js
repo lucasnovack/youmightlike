@@ -1,5 +1,5 @@
-// Cultural Taste Receipt Generator for youmightlike
-// Generates an ultra-sharp, high-DPI thermal receipt / aesthetic poster on HTML5 Canvas.
+// Cultural Taste Ticket Generator for youmightlike
+// Generates an ultra-sharp, high-DPI thermal ticket / aesthetic poster on HTML5 Canvas.
 
 import { DOMAIN_COLORS } from './config.js';
 
@@ -16,6 +16,141 @@ function computeTasteHash(seeds = []) {
 function truncate(str, maxLen = 30) {
   if (!str) return '';
   return str.length > maxLen ? str.slice(0, maxLen - 1) + '…' : str;
+}
+
+function getDomainBadge(type, isPt) {
+  const t = (type || 'ITEM').toLowerCase();
+  if (!isPt) return `[${t.toUpperCase()}]`;
+  const ptMap = {
+    game: 'JOGO',
+    artist: 'ARTISTA',
+    track: 'MÚSICA',
+    movie: 'FILME',
+    series: 'SÉRIE',
+    book: 'LIVRO',
+  };
+  return `[${ptMap[t] || t.toUpperCase()}]`;
+}
+
+function translateSubtitle(sub, isPt) {
+  if (!sub) return '';
+  if (!isPt) return sub;
+  return sub
+    .replace(/\bArtist\b/gi, 'Artista')
+    .replace(/\bMovie\b/gi, 'Filme')
+    .replace(/\bGame\b/gi, 'Jogo')
+    .replace(/\bSeries\b/gi, 'Série')
+    .replace(/\bBook\b/gi, 'Livro');
+}
+
+// Select a balanced, transmedia basket of discoveries across domains
+function selectBalancedTicketRecs(recs = [], seeds = [], maxRecs = 7) {
+  if (!recs || recs.length === 0) return [];
+
+  const byType = {
+    game: recs.filter(r => r.type === 'game'),
+    artist: recs.filter(r => r.type === 'artist'),
+    track: recs.filter(r => r.type === 'track'),
+    movie: recs.filter(r => r.type === 'movie'),
+    series: recs.filter(r => r.type === 'series'),
+    book: recs.filter(r => r.type === 'book'),
+  };
+
+  const seedTypes = new Set(seeds.map(s => s.type));
+  const chosen = [];
+  const chosenIds = new Set();
+
+  const takeBest = (list) => {
+    for (const item of list) {
+      if (!chosenIds.has(item.id)) {
+        chosen.push(item);
+        chosenIds.add(item.id);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Give at least 1 slot to each domain present, prioritizing user's active seed domains first
+  const domainOrder = ['artist', 'game', 'movie', 'series', 'track', 'book'];
+  domainOrder.sort((a, b) => (seedTypes.has(b) ? 1 : 0) - (seedTypes.has(a) ? 1 : 0));
+
+  for (const dom of domainOrder) {
+    if (chosen.length < maxRecs && byType[dom] && byType[dom].length > 0) {
+      takeBest(byType[dom]);
+    }
+  }
+
+  // Fill remaining slots with the highest-scoring items overall
+  const sortedOverall = [...recs].sort((a, b) => (b.score || 0) - (a.score || 0));
+  for (const item of sortedOverall) {
+    if (chosen.length >= maxRecs) break;
+    if (!chosenIds.has(item.id)) {
+      chosen.push(item);
+      chosenIds.add(item.id);
+    }
+  }
+
+  return chosen.sort((a, b) => (b.score || 0) - (a.score || 0));
+}
+
+// Identify true causal seed connection for a recommendation
+function findAssociatedSeed(rec, seeds = [], graph = null) {
+  if (!seeds || seeds.length === 0) return null;
+  if (seeds.length === 1) return seeds[0];
+
+  const reasonLower = (rec.reason || '').toLowerCase();
+
+  // 1. Explicit mention in reason (e.g. "Colaboração com Kanye West", "co-escuta com Kid Cudi")
+  for (const s of seeds) {
+    const sName = (s.name || s.id || '').toLowerCase();
+    if (sName.length >= 3 && reasonLower.includes(sName)) {
+      return s;
+    }
+  }
+
+  // 2. Direct or 2-hop connection in graph links
+  if (graph && Array.isArray(graph.links)) {
+    const seedIds = new Set(seeds.map(s => s.id));
+    // 2a. Direct link: rec -> seed
+    for (const l of graph.links) {
+      if (l.source === rec.id && seedIds.has(l.target)) {
+        return seeds.find(s => s.id === l.target);
+      }
+      if (l.target === rec.id && seedIds.has(l.source)) {
+        return seeds.find(s => s.id === l.source);
+      }
+    }
+    // 2b. 2-hop bridge: rec -> bridge_node -> seed
+    const recNeighbors = new Set();
+    for (const l of graph.links) {
+      if (l.source === rec.id) recNeighbors.add(l.target);
+      if (l.target === rec.id) recNeighbors.add(l.source);
+    }
+    for (const l of graph.links) {
+      if (recNeighbors.has(l.source) && seedIds.has(l.target)) {
+        return seeds.find(s => s.id === l.target);
+      }
+      if (recNeighbors.has(l.target) && seedIds.has(l.source)) {
+        return seeds.find(s => s.id === l.source);
+      }
+    }
+  }
+
+  // 3. Domain matching: artist/track connects to artist/track seed; game to game; movie/series to movie/series
+  const domainMatches = seeds.filter(s => {
+    if (rec.type === 'artist' || rec.type === 'track') {
+      return s.type === 'artist' || s.type === 'track';
+    }
+    if (rec.type === 'game') return s.type === 'game';
+    if (rec.type === 'movie' || rec.type === 'series') return s.type === 'movie' || s.type === 'series';
+    return s.type === rec.type;
+  });
+  if (domainMatches.length > 0) {
+    return domainMatches[0];
+  }
+
+  return seeds[0];
 }
 
 export function generateCulturalReceipt(canvas, {
@@ -57,8 +192,8 @@ export function generateCulturalReceipt(canvas, {
   }
   const resonanceTags = Array.from(tagsSet);
 
-  // Take top fresh recommendations (up to 7)
-  const topRecs = recommendations.slice(0, 7);
+  // Take balanced transmedia recommendations (up to 7)
+  const topRecs = selectBalancedTicketRecs(recommendations, seeds, 7);
 
   // Compute dynamic height
   const toothDepth = 8;
@@ -185,7 +320,7 @@ export function generateCulturalReceipt(canvas, {
   ctx.font = '600 11px "JetBrains Mono", monospace';
   ctx.fillStyle = '#44403c';
   ctx.fillText(
-    isPt ? 'RECEITA DE GOSTO CULTURAL // GRAFO TRANSMIDIÁTICO' : 'CULTURAL TASTE RECEIPT // TRANSMEDIA GRAPH',
+    isPt ? 'TICKET CULTURAL // GRAFO TRANSMIDIÁTICO' : 'CULTURAL TICKET // TRANSMEDIA GRAPH',
     width / 2,
     curY
   );
@@ -233,9 +368,9 @@ export function generateCulturalReceipt(canvas, {
 
   for (let i = 0; i < seeds.length; i++) {
     const s = seeds[i];
-    const typeLabel = `[${(s.type || 'SEED').toUpperCase()}]`;
+    const typeLabel = getDomainBadge(s.type, isPt);
     const name = s.name || s.id;
-    const sub = s.subtitle ? `(${s.subtitle})` : '';
+    const sub = translateSubtitle(s.subtitle, isPt) ? `(${translateSubtitle(s.subtitle, isPt)})` : '';
 
     ctx.font = '700 10px "JetBrains Mono", monospace';
     ctx.fillStyle = '#e11d48'; // Ruby accent
@@ -366,58 +501,85 @@ export function generateCulturalReceipt(canvas, {
   const seedNodes = [];
   const numSeeds = seeds.length;
   if (numSeeds === 1) {
-    seedNodes.push({ x: mcx, y: mcy, name: seeds[0].name || seeds[0].id, type: seeds[0].type });
+    seedNodes.push({
+      seed: seeds[0],
+      x: mcx,
+      y: mcy,
+      angle: -Math.PI / 2,
+      name: seeds[0].name || seeds[0].id,
+      type: seeds[0].type,
+    });
   } else {
-    const sRadX = Math.min(65, 25 + numSeeds * 10);
-    const sRadY = Math.min(45, 18 + numSeeds * 7);
+    const sRadX = Math.min(80, 28 + numSeeds * 10);
+    const sRadY = Math.min(50, 18 + numSeeds * 6);
     for (let i = 0; i < numSeeds; i++) {
       const angle = (i / numSeeds) * Math.PI * 2 - Math.PI / 2;
       seedNodes.push({
+        seed: seeds[i],
         x: mcx + Math.cos(angle) * sRadX,
         y: mcy + Math.sin(angle) * sRadY,
+        angle: angle,
         name: seeds[i].name || seeds[i].id,
         type: seeds[i].type,
       });
     }
   }
 
-  // Position recommendations on outer ellipse
+  // Map each rec to its true associated seed node
   const recNodes = [];
+  const recsBySeed = new Map();
+  for (const sn of seedNodes) {
+    recsBySeed.set(sn.seed.id, []);
+  }
+
   const numRecs = Math.min(topRecs.length, 6);
+  for (let i = 0; i < numRecs; i++) {
+    const rec = topRecs[i];
+    const assocSeed = findAssociatedSeed(rec, seeds, graph);
+    const sn = seedNodes.find(s => s.seed.id === (assocSeed ? assocSeed.id : null)) || seedNodes[0];
+    if (sn && recsBySeed.has(sn.seed.id)) {
+      recsBySeed.get(sn.seed.id).push({ rec, seedNode: sn });
+    }
+  }
+
+  // Position each recNode radiating outward from its associated seed
   const rRadX = 210;
   const rRadY = 68;
 
-  for (let i = 0; i < numRecs; i++) {
-    const angle = (i / numRecs) * Math.PI * 2 - Math.PI / 2 + 0.35;
-    const rx = mcx + Math.cos(angle) * rRadX;
-    const ry = mcy + Math.sin(angle) * rRadY;
-    recNodes.push({
-      x: rx,
-      y: ry,
-      name: topRecs[i].title || topRecs[i].name || topRecs[i].id,
-      type: topRecs[i].type,
-      score: topRecs[i].score,
-    });
-  }
+  seedNodes.forEach((sn) => {
+    const attached = recsBySeed.get(sn.seed.id) || [];
+    const count = attached.length;
+    attached.forEach((item, idx) => {
+      // Fan out angle around the seed angle
+      const spread = count > 1 ? (idx - (count - 1) / 2) * 0.38 : 0;
+      const recAngle = sn.angle + spread;
+      let rx = mcx + Math.cos(recAngle) * rRadX;
+      let ry = mcy + Math.sin(recAngle) * rRadY;
 
-  // Draw connecting bridges between closest seed and recs
+      // Keep within map boundaries
+      rx = Math.max(mapBoxX + 35, Math.min(mapBoxX + mapBoxW - 35, rx));
+      ry = Math.max(mapBoxY + 22, Math.min(mapBoxY + mapBoxH - 22, ry));
+
+      recNodes.push({
+        x: rx,
+        y: ry,
+        name: item.rec.title || item.rec.name || item.rec.id,
+        type: item.rec.type,
+        score: item.rec.score,
+        seedNode: sn,
+      });
+    });
+  });
+
+  // Draw connecting bridges between the ACTUAL associated seed and recs
   ctx.save();
   ctx.setLineDash([2, 3]);
   ctx.strokeStyle = '#b8b2a0';
   ctx.lineWidth = 1;
   for (const rn of recNodes) {
-    let closest = seedNodes[0];
-    let minDist = Infinity;
-    for (const sn of seedNodes) {
-      const d = Math.hypot(rn.x - sn.x, rn.y - sn.y);
-      if (d < minDist) {
-        minDist = d;
-        closest = sn;
-      }
-    }
-    if (closest) {
+    if (rn.seedNode) {
       ctx.beginPath();
-      ctx.moveTo(closest.x, closest.y);
+      ctx.moveTo(rn.seedNode.x, rn.seedNode.y);
       ctx.lineTo(rn.x, rn.y);
       ctx.stroke();
     }
@@ -503,7 +665,7 @@ export function generateCulturalReceipt(canvas, {
   for (let i = 0; i < topRecs.length; i++) {
     const item = topRecs[i];
     const rankStr = String(i + 1).padStart(2, '0');
-    const typeLabel = `[${(item.type || 'ITEM').toUpperCase()}]`;
+    const typeLabel = getDomainBadge(item.type, isPt);
     const title = item.title || item.name || item.id;
     const affinityScore = item.score !== undefined ? `${Math.round(item.score * 100)}%` : '95%';
     const reason = item.reason || (isPt ? 'Confluência multidimensional no grafo' : 'Multidimensional graph confluence');

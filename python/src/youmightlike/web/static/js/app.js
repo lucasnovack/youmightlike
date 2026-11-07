@@ -1,8 +1,8 @@
-import { createTranslator } from './i18n.js?v=3.1';
-import { getTypeBadgeClass, getTypeIcon, getSeedDotColor, getAffinityLabel, getAffinityBadgeClass, getRawType } from './config.js?v=3.1';
-import { searchEntities, fetchRecommendations } from './api.js?v=3.1';
-import { ConstellationEngine } from './constellation.js?v=3.1';
-import { generateCulturalReceipt } from './receipt.js?v=3.1';
+import { createTranslator } from './i18n.js?v=3.3';
+import { getTypeBadgeClass, getTypeIcon, getSeedDotColor, getAffinityLabel, getAffinityBadgeClass, getRawType } from './config.js?v=3.3';
+import { searchEntities, fetchRecommendations } from './api.js?v=3.3';
+import { ConstellationEngine } from './constellation.js?v=3.3';
+import { generateCulturalReceipt } from './receipt.js?v=3.3';
 
 const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
@@ -189,28 +189,31 @@ createApp({
 
     const groupedRecommendations = computed(() => {
       const all = recommendations.value;
+      const isAllMode = targetFilter.value === null;
+      const maxHighlights = 4;
+
       if (targetFilter.value === 'game') {
         const games = all.filter(r => r.type === 'game');
-        return [{ key: 'games', label: t('sectionGames'), color: '#2563eb', filterType: 'game', items: games }];
+        return [{ key: 'games', label: t('sectionGames'), color: '#2563eb', filterType: 'game', items: games, totalCount: games.length, hasMore: false }];
       }
       if (targetFilter.value === 'music') {
         const artists = all.filter(r => r.type === 'artist');
         const tracks = all.filter(r => r.type === 'track');
         const list = [];
-        if (artists.length > 0) list.push({ key: 'artists', label: t('sectionArtists'), color: '#ea580c', filterType: 'music', items: artists });
-        if (tracks.length > 0) list.push({ key: 'tracks', label: t('sectionTracks'), color: '#0d9488', filterType: 'music', items: tracks });
+        if (artists.length > 0) list.push({ key: 'artists', label: t('sectionArtists'), color: '#ea580c', filterType: 'music', items: artists, totalCount: artists.length, hasMore: false });
+        if (tracks.length > 0) list.push({ key: 'tracks', label: t('sectionTracks'), color: '#0d9488', filterType: 'music', items: tracks, totalCount: tracks.length, hasMore: false });
         return list;
       }
       if (targetFilter.value === 'movie') {
         const movies = all.filter(r => r.type === 'movie');
-        return [{ key: 'movies', label: t('typeMovies'), color: '#ca8a04', filterType: 'movie', items: movies }];
+        return [{ key: 'movies', label: t('typeMovies'), color: '#ca8a04', filterType: 'movie', items: movies, totalCount: movies.length, hasMore: false }];
       }
       if (targetFilter.value === 'series') {
         const series = all.filter(r => r.type === 'series');
-        return [{ key: 'series', label: t('typeSeries'), color: '#9333ea', filterType: 'series', items: series }];
+        return [{ key: 'series', label: t('typeSeries'), color: '#9333ea', filterType: 'series', items: series, totalCount: series.length, hasMore: false }];
       }
 
-      // Default: 'Todos'
+      // Default: 'Todos' (Destaques: top 4 por categoria para visão leve + link para ver todos)
       const games = all.filter(r => r.type === 'game');
       const artists = all.filter(r => r.type === 'artist');
       const tracks = all.filter(r => r.type === 'track');
@@ -218,13 +221,23 @@ createApp({
       const series = all.filter(r => r.type === 'series');
       const books = all.filter(r => r.type === 'book');
 
+      const makeGroup = (key, label, color, filterType, list) => ({
+        key,
+        label,
+        color,
+        filterType,
+        items: isAllMode ? list.slice(0, maxHighlights) : list,
+        totalCount: list.length,
+        hasMore: isAllMode && list.length > maxHighlights,
+      });
+
       const groups = [];
-      if (games.length > 0) groups.push({ key: 'games', label: t('sectionGames'), color: '#2563eb', filterType: 'game', items: games });
-      if (artists.length > 0) groups.push({ key: 'artists', label: t('sectionArtists'), color: '#ea580c', filterType: 'music', items: artists });
-      if (tracks.length > 0) groups.push({ key: 'tracks', label: t('sectionTracks'), color: '#0d9488', filterType: 'music', items: tracks });
-      if (movies.length > 0) groups.push({ key: 'movies', label: t('typeMovies'), color: '#ca8a04', filterType: 'movie', items: movies });
-      if (series.length > 0) groups.push({ key: 'series', label: t('typeSeries'), color: '#9333ea', filterType: 'series', items: series });
-      if (books.length > 0) groups.push({ key: 'books', label: 'LIVROS', color: '#059669', filterType: 'book', items: books });
+      if (games.length > 0) groups.push(makeGroup('games', t('sectionGames'), '#2563eb', 'game', games));
+      if (artists.length > 0) groups.push(makeGroup('artists', t('sectionArtists'), '#ea580c', 'music', artists));
+      if (tracks.length > 0) groups.push(makeGroup('tracks', t('sectionTracks'), '#0d9488', 'music', tracks));
+      if (movies.length > 0) groups.push(makeGroup('movies', t('typeMovies'), '#ca8a04', 'movie', movies));
+      if (series.length > 0) groups.push(makeGroup('series', t('typeSeries'), '#9333ea', 'series', series));
+      if (books.length > 0) groups.push(makeGroup('books', 'LIVROS', '#059669', 'book', books));
       return groups;
     });
 
@@ -721,10 +734,10 @@ createApp({
       if (!canvas) return;
       const link = document.createElement('a');
       const dateStr = new Date().toISOString().slice(0, 10);
-      link.download = `youmightlike-receipt-${dateStr}.png`;
+      link.download = `youmightlike-ticket-${dateStr}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
-      showToast(currentLang.value === 'pt' ? 'Download do recibo iniciado!' : 'Receipt download started!');
+      showToast(currentLang.value === 'pt' ? 'Download do ticket iniciado!' : 'Ticket download started!');
     };
 
     const copyReceiptImage = async () => {
