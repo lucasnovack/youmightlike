@@ -14,12 +14,22 @@ export async function searchEntities(query, entityType = '', signal = null) {
   return data;
 }
 
-export async function fetchRecommendations({ seeds, targetType = null, limit = 24, lang = 'pt', signal = null }) {
+export async function fetchRecommendations({
+  seeds,
+  negativeSeeds = [],
+  targetType = null,
+  limit = 24,
+  lang = 'pt',
+  beta = 1.2,
+  signal = null,
+}) {
   const payload = {
     seeds: [...seeds],
+    negative_seeds: [...(negativeSeeds || [])],
     target_type: targetType || null,
     limit,
     lang,
+    beta,
   };
 
   const res = await fetch('/api/recommend', {

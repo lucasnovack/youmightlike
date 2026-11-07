@@ -2,6 +2,8 @@
 
 export const DOMAIN_COLORS = {
   seed: '#6366f1',     // Distinct Indigo/Violet for Seeds (user inputs)
+  anti_seed: '#ef4444',// Distinct Crimson/Red for Anti-Seeds (repulsive poles)
+  antiSeed: '#ef4444',
   artist: '#ea580c',   // Warm Amber/Orange for Recommended Artists
   track: '#0d9488',    // Emerald Teal for Music Tracks
   game: '#2563eb',     // Royal Blue for Games
@@ -30,6 +32,9 @@ export function getTypeBadgeClass(type) {
   switch (type) {
     case 'seed':
       return 'text-indigo-700 bg-indigo-50 border-indigo-200';
+    case 'anti_seed':
+    case 'antiSeed':
+      return 'text-rose-700 bg-rose-50 border-rose-200';
     case 'game':
       return 'text-blue-700 bg-blue-50 border-blue-200';
     case 'artist':

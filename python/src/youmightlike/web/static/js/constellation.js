@@ -242,6 +242,8 @@ export class ConstellationEngine {
 
     const scale = this.options.spacingScale || 1.15;
     const profileIdSet = new Set(this.profileSeeds.map(s => s.id));
+    const negativeSeedsList = this.options.negativeSeeds || [];
+    const negativeIdSet = new Set(negativeSeedsList.map(s => s.id));
     const rawAdj = new Map();
     const seedNeighbors = new Map();
 
@@ -264,7 +266,8 @@ export class ConstellationEngine {
     // Filter nodes by active options
     const filteredNodes = rawNodes.filter(n => {
       const isSeed = n.type === 'seed' || profileIdSet.has(n.id);
-      if (isSeed) return true;
+      const isAntiSeed = n.type === 'anti_seed' || n.type === 'antiSeed' || negativeIdSet.has(n.id);
+      if (isSeed || isAntiSeed) return true;
       if (this.options.hideTrackNodes && n.type === 'track') return false;
       const isBridge = ['keyword', 'developer', 'person', 'author'].includes(n.type);
       if (this.options.onlySharedBridges && isBridge) {
@@ -282,8 +285,9 @@ export class ConstellationEngine {
 
     const createNodeRecord = (n, x, y, isSeed, isBridge, isTrack) => {
       const sNbrs = Array.from(seedNeighbors.get(n.id) || []);
+      const isAntiSeed = n.type === 'anti_seed' || n.type === 'antiSeed' || negativeIdSet.has(n.id);
       let r = 11.5;
-      if (isSeed) r = 15;
+      if (isSeed || isAntiSeed) r = 15;
       else if (isBridge) r = sNbrs.length >= 2 ? 6.5 : 5.0;
       else if (isTrack) r = 8.5;
 
@@ -295,6 +299,7 @@ export class ConstellationEngine {
         ...n,
         rawType: getRawType(n),
         isSeed,
+        isAntiSeed,
         isBridge,
         isTrack,
         sharedSeedsCount: sNbrs.length,
@@ -681,7 +686,11 @@ export class ConstellationEngine {
       }
 
       if (!hasFocus) {
-        if (l.isLeafTrackRel) {
+        if (l.label === 'repelled_by' || s.isAntiSeed || t.isAntiSeed) {
+          ctx.strokeStyle = 'rgba(239, 68, 68, 0.50)';
+          ctx.lineWidth = 1.1 / this.viewTransform.k;
+          ctx.setLineDash([3, 4]);
+        } else if (l.isLeafTrackRel) {
           ctx.strokeStyle = 'rgba(203, 213, 225, 0.35)';
           ctx.lineWidth = 0.65 / this.viewTransform.k;
           ctx.setLineDash([3, 4]);
@@ -728,7 +737,8 @@ export class ConstellationEngine {
       const isHighlighted = !hasFocus || isSelected || isNeighbor;
 
       let fill = '#64748b';
-      if (n.isSeed) fill = DOMAIN_COLORS.seed;
+      if (n.isAntiSeed) fill = DOMAIN_COLORS.anti_seed || '#ef4444';
+      else if (n.isSeed) fill = DOMAIN_COLORS.seed;
       else if (n.rawType === 'game') fill = DOMAIN_COLORS.game;
       else if (n.rawType === 'artist') fill = DOMAIN_COLORS.artist;
       else if (n.rawType === 'track') fill = DOMAIN_COLORS.track;
@@ -742,8 +752,18 @@ export class ConstellationEngine {
         ctx.globalAlpha = 0.14;
       }
 
-      // Soft cosmic glowing aura for seeds
-      if (n.isSeed) {
+      // Soft cosmic glowing aura for seeds & repulsive aura for anti-seeds
+      if (n.isAntiSeed) {
+        const glowR = n.r * 2.8;
+        const grad = ctx.createRadialGradient(n.x, n.y, n.r * 0.4, n.x, n.y, glowR);
+        grad.addColorStop(0, 'rgba(239, 68, 68, 0.35)');
+        grad.addColorStop(0.5, 'rgba(239, 68, 68, 0.12)');
+        grad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, glowR, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (n.isSeed) {
         const glowR = n.r * 2.8;
         const grad = ctx.createRadialGradient(n.x, n.y, n.r * 0.4, n.x, n.y, glowR);
         grad.addColorStop(0, 'rgba(99, 102, 241, 0.30)');
@@ -755,8 +775,17 @@ export class ConstellationEngine {
         ctx.fill();
       }
 
-      // Halo for Seeds & Focused Nodes
-      if (n.isSeed || isSelected) {
+      // Halo for Seeds, Anti-Seeds & Focused Nodes
+      if (n.isAntiSeed) {
+        ctx.beginPath();
+        const haloR = n.r + (isSelected ? 6.5 : 5.0) / this.viewTransform.k;
+        ctx.arc(n.x, n.y, haloR, 0, Math.PI * 2);
+        ctx.fillStyle = isSelected ? 'rgba(239, 68, 68, 0.28)' : 'rgba(239, 68, 68, 0.18)';
+        ctx.fill();
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = (isSelected ? 2.4 : 1.8) / this.viewTransform.k;
+        ctx.stroke();
+      } else if (n.isSeed || isSelected) {
         ctx.beginPath();
         const haloR = n.r + (isSelected ? 6.5 : 5.0) / this.viewTransform.k;
         ctx.arc(n.x, n.y, haloR, 0, Math.PI * 2);
@@ -768,7 +797,7 @@ export class ConstellationEngine {
       }
 
       // Diamond for Bridges vs Circle for Discoveries & Seeds
-      if (n.isBridge && !n.isSeed) {
+      if (n.isBridge && !n.isSeed && !n.isAntiSeed) {
         const d = n.r * 1.15;
         ctx.beginPath();
         ctx.moveTo(n.x, n.y - d);
@@ -784,16 +813,16 @@ export class ConstellationEngine {
       } else {
         ctx.beginPath();
         ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
-        ctx.fillStyle = fill;
+        ctx.fillStyle = n.isAntiSeed ? '#ef4444' : fill;
         ctx.fill();
-        ctx.strokeStyle = n.isSeed ? '#4f46e5' : '#ffffff';
-        ctx.lineWidth = (n.isSeed ? 2.4 : 1.6) / this.viewTransform.k;
+        ctx.strokeStyle = n.isAntiSeed ? '#b91c1c' : (n.isSeed ? '#4f46e5' : '#ffffff');
+        ctx.lineWidth = (n.isSeed || n.isAntiSeed ? 2.4 : 1.6) / this.viewTransform.k;
         ctx.stroke();
       }
 
       // 3. Clear, High-Legibility Labels (ALWAYS visible, clean rounded pill backdrop)
-      const fontSize = Math.min(13, Math.max(9.5, (n.isSeed || isSelected ? 11.5 : 10.0) / Math.pow(this.viewTransform.k, 0.25)));
-      ctx.font = `${n.isSeed || isSelected ? '700' : '600'} ${fontSize}px "JetBrains Mono", monospace`;
+      const fontSize = Math.min(13, Math.max(9.5, (n.isSeed || n.isAntiSeed || isSelected ? 11.5 : 10.0) / Math.pow(this.viewTransform.k, 0.25)));
+      ctx.font = `${n.isSeed || n.isAntiSeed || isSelected ? '700' : '600'} ${fontSize}px "JetBrains Mono", monospace`;
 
       let rawLabel = (n.isBridge && n.sharedSeedsCount >= 2)
         ? `${n.label} (${n.sharedSeedsCount})`
@@ -813,7 +842,7 @@ export class ConstellationEngine {
 
       ctx.save();
       ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
-      ctx.strokeStyle = isSelected ? '#818cf8' : 'rgba(226, 232, 240, 0.9)';
+      ctx.strokeStyle = isSelected ? '#818cf8' : (n.isAntiSeed ? '#fca5a5' : 'rgba(226, 232, 240, 0.9)');
       ctx.lineWidth = 1 / this.viewTransform.k;
 
       if (typeof ctx.roundRect === 'function') {
@@ -831,7 +860,7 @@ export class ConstellationEngine {
       ctx.textBaseline = 'top';
       ctx.fillStyle = isSelected
         ? '#4f46e5'
-        : (n.isSeed ? '#1e1b4b' : (n.isBridge ? '#475569' : '#0f172a'));
+        : (n.isAntiSeed ? '#b91c1c' : (n.isSeed ? '#1e1b4b' : (n.isBridge ? '#475569' : '#0f172a')));
       ctx.fillText(rawLabel, n.x, textY + 1);
 
       ctx.restore();

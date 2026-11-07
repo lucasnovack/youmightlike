@@ -23,6 +23,8 @@ createApp({
     const showLegend = ref(false);
 
     const profileSeeds = ref([]);
+    const negativeSeeds = ref([]);
+    const negativeBeta = ref(1.2);
     const recommendations = ref([]);
     const isLoadingRecs = ref(false);
     const targetFilter = ref(null);
@@ -89,16 +91,41 @@ createApp({
               deduped.push(s);
             }
             profileSeeds.value = deduped;
-            saveProfile();
           }
         } catch (e) {
           console.error('Failed to parse saved taste profile:', e);
         }
       }
+
+      const savedNeg = localStorage.getItem('ym_negative_seeds');
+      if (savedNeg) {
+        try {
+          const parsedNeg = JSON.parse(savedNeg);
+          if (Array.isArray(parsedNeg)) {
+            const seenIds = new Set();
+            const dedupedNeg = [];
+            for (const s of parsedNeg) {
+              if (!s || !s.id || seenIds.has(s.id)) continue;
+              seenIds.add(s.id);
+              dedupedNeg.push(s);
+            }
+            negativeSeeds.value = dedupedNeg;
+          }
+        } catch (e) {
+          console.error('Failed to parse saved negative seeds:', e);
+        }
+      }
+
+      const savedBeta = localStorage.getItem('ym_negative_beta');
+      if (savedBeta) {
+        negativeBeta.value = parseFloat(savedBeta) || 1.2;
+      }
     };
 
     const saveProfile = () => {
       localStorage.setItem('ym_taste_profile', JSON.stringify(profileSeeds.value));
+      localStorage.setItem('ym_negative_seeds', JSON.stringify(negativeSeeds.value));
+      localStorage.setItem('ym_negative_beta', String(negativeBeta.value));
     };
 
     const getSearchPlaceholder = () => {
@@ -230,8 +257,20 @@ createApp({
       return false;
     };
 
+    const isNodeInNegativeSeeds = (nodeId, nodeName) => {
+      if (negativeSeeds.value.some(s => s.id === nodeId)) return true;
+      if (nodeName) {
+        const clean = nodeName.trim().toLowerCase();
+        return negativeSeeds.value.some(s => s.name && s.name.trim().toLowerCase() === clean);
+      }
+      return false;
+    };
+
     const addSeed = (item) => {
       if (!item || !item.id) return;
+      // Remove from negative seeds if present so it flips to positive
+      negativeSeeds.value = negativeSeeds.value.filter(s => s.id !== item.id);
+
       const cleanName = item.name ? item.name.trim().toLowerCase() : '';
       const cleanType = item.type || '';
       const alreadyInProfile = profileSeeds.value.some(s => {
@@ -249,10 +288,47 @@ createApp({
       clearSearch();
     };
 
+    const addNegativeSeed = (item) => {
+      if (!item || !item.id) return;
+      // Remove from positive seeds if present so it flips to negative
+      profileSeeds.value = profileSeeds.value.filter(s => s.id !== item.id);
+
+      const cleanName = item.name ? item.name.trim().toLowerCase() : '';
+      const cleanType = item.type || '';
+      const alreadyIn = negativeSeeds.value.some(s => {
+        if (s.id === item.id) return true;
+        if (cleanName && s.name && s.name.trim().toLowerCase() === cleanName && s.type === cleanType) {
+          return true;
+        }
+        return false;
+      });
+
+      if (!alreadyIn) {
+        negativeSeeds.value.push({
+          ...item,
+          type: item.type || getRawType(item),
+        });
+        saveProfile();
+        computeRecommendations();
+      }
+      clearSearch();
+    };
+
     const addNodeToProfile = (node) => {
       if (!node || !node.id || isNodeInProfile(node.id, node.label)) return;
       const rawType = getRawType(node);
       addSeed({
+        id: node.id,
+        name: node.label,
+        type: rawType,
+        subtitle: node.desc || rawType,
+      });
+    };
+
+    const addNodeToNegative = (node) => {
+      if (!node || !node.id || isNodeInNegativeSeeds(node.id, node.label)) return;
+      const rawType = getRawType(node);
+      addNegativeSeed({
         id: node.id,
         name: node.label,
         type: rawType,
@@ -299,13 +375,32 @@ createApp({
         recommendations.value = [];
         fullServerGraph = { nodes: [], links: [] };
         if (constellation) {
-          constellation.setGraphData(fullServerGraph, profileSeeds.value);
+          constellation.setGraphData(fullServerGraph, profileSeeds.value, {
+            negativeSeeds: negativeSeeds.value,
+          });
         }
+      }
+    };
+
+    const removeNegativeSeed = (id) => {
+      negativeSeeds.value = negativeSeeds.value.filter(s => s.id !== id);
+      saveProfile();
+      if (profileSeeds.value.length > 0) {
+        computeRecommendations();
+      }
+    };
+
+    const clearNegativeSeeds = () => {
+      negativeSeeds.value = [];
+      saveProfile();
+      if (profileSeeds.value.length > 0) {
+        computeRecommendations();
       }
     };
 
     const clearProfile = () => {
       profileSeeds.value = [];
+      negativeSeeds.value = [];
       recommendations.value = [];
       selectedNodeIds.value = [];
       inspectorRecs.value = [];
@@ -313,7 +408,9 @@ createApp({
       saveProfile();
       fullServerGraph = { nodes: [], links: [] };
       if (constellation) {
-        constellation.setGraphData(fullServerGraph, profileSeeds.value);
+        constellation.setGraphData(fullServerGraph, profileSeeds.value, {
+          negativeSeeds: negativeSeeds.value,
+        });
         constellation.setSelectedNodes([]);
       }
     };
@@ -357,7 +454,9 @@ createApp({
         recommendations.value = [];
         fullServerGraph = { nodes: [], links: [] };
         if (constellation) {
-          constellation.setGraphData(fullServerGraph, profileSeeds.value);
+          constellation.setGraphData(fullServerGraph, profileSeeds.value, {
+            negativeSeeds: negativeSeeds.value,
+          });
         }
         return;
       }
@@ -373,6 +472,8 @@ createApp({
         try {
           const data = await fetchRecommendations({
             seeds: profileSeeds.value.map(s => s.id),
+            negativeSeeds: negativeSeeds.value.map(s => s.id),
+            beta: Number(negativeBeta.value) || 1.2,
             targetType: targetFilter.value,
             limit: 20,
             lang: currentLang.value,
@@ -391,6 +492,7 @@ createApp({
                 onlySharedBridges: onlySharedBridges.value,
                 hideTrackNodes: hideTrackNodes.value,
                 spacingScale: getSpacingScale(graphSpacing.value),
+                negativeSeeds: negativeSeeds.value,
               });
             }
           }
@@ -435,6 +537,7 @@ createApp({
           onlySharedBridges: onlySharedBridges.value,
           hideTrackNodes: hideTrackNodes.value,
           spacingScale: getSpacingScale(graphSpacing.value),
+          negativeSeeds: negativeSeeds.value,
         });
       }
     };
@@ -530,6 +633,8 @@ createApp({
       hasSearched,
       showLegend,
       profileSeeds,
+      negativeSeeds,
+      negativeBeta,
       recommendations,
       isLoadingRecs,
       targetFilter,
@@ -540,11 +645,16 @@ createApp({
       clearSearch,
       onSearchTypeChange,
       isNodeInProfile,
+      isNodeInNegativeSeeds,
       addSeed,
+      addNegativeSeed,
       addNodeToProfile,
+      addNodeToNegative,
       searchAndAddTag,
       quickAdd,
       removeSeed,
+      removeNegativeSeed,
+      clearNegativeSeeds,
       clearProfile,
       computeRecommendations,
       getSearchPlaceholder,

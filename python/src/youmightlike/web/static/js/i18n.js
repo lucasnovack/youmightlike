@@ -89,6 +89,14 @@ export const I18N = {
     onlineRestored: "Conexão restabelecida. Motor online.",
     offlineSearchNotice: "Modo offline: exibindo apenas buscas previamente cacheadas.",
     offlineRecommendNotice: "Modo offline: exibindo recomendação do cache local.",
+    antiSeed: "Anti-semente (Pólo Repulsivo)",
+    antiSeedsSection: "Pólos Repulsivos (Anti-Sementes)",
+    positiveSeedsSection: "Sementes de Atração",
+    emptyAntiSeedsDesc: "Nenhum pólo repulsivo ativo. Adicione obras ou tags que detesta para afastar recomendações parecidas.",
+    addAsSeed: "+ Gosto",
+    addAsAntiSeed: "− Evitar",
+    antiSeedsCount: "anti-sementes ativas",
+    betaLabel: "Força de Repulsão",
   },
   en: {
     nodes: "nodes",
@@ -179,6 +187,14 @@ export const I18N = {
     onlineRestored: "Connection restored. Engine online.",
     offlineSearchNotice: "Offline mode: showing only previously cached searches.",
     offlineRecommendNotice: "Offline mode: showing recommendations from local cache.",
+    antiSeed: "Anti-seed (Repulsive Pole)",
+    antiSeedsSection: "Repulsive Poles (Anti-Seeds)",
+    positiveSeedsSection: "Attractive Seeds",
+    emptyAntiSeedsDesc: "No repulsive poles active. Add works or tags you dislike to steer recommendations away.",
+    addAsSeed: "+ Seed",
+    addAsAntiSeed: "− Dislike",
+    antiSeedsCount: "active anti-seeds",
+    betaLabel: "Repulsion Strength",
   }
 };
 
