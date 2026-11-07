@@ -18,6 +18,24 @@ function truncate(str, maxLen = 30) {
   return str.length > maxLen ? str.slice(0, maxLen - 1) + '…' : str;
 }
 
+function cleanItemTitle(title, rec = null) {
+  if (!title) return '';
+  // Clean raw Wikidata Q-codes (e.g. Q18246458)
+  if (/^Q\d+$/i.test(title.trim())) {
+    if (rec && rec.reason && rec.reason.includes("'")) {
+      const match = rec.reason.match(/'([^']+)'/);
+      if (match && match[1]) {
+        return `Livro: ${truncate(match[1], 16)}`;
+      }
+    }
+    if (rec && rec.metadata && rec.metadata.author) {
+      return `Livro (${rec.metadata.author})`;
+    }
+    return 'Obra Literária';
+  }
+  return title;
+}
+
 function getDomainBadge(type, isPt) {
   const t = (type || 'ITEM').toLowerCase();
   if (!isPt) return `[${t.toUpperCase()}]`;
@@ -71,7 +89,7 @@ function selectBalancedTicketRecs(recs = [], seeds = [], maxRecs = 7) {
     return false;
   };
 
-  // Give at least 1 slot to each domain present, prioritizing user's active seed domains first
+  // Prioritize domains present in user's active seeds first
   const domainOrder = ['artist', 'game', 'movie', 'series', 'track', 'book'];
   domainOrder.sort((a, b) => (seedTypes.has(b) ? 1 : 0) - (seedTypes.has(a) ? 1 : 0));
 
@@ -153,6 +171,273 @@ function findAssociatedSeed(rec, seeds = [], graph = null) {
   return seeds[0];
 }
 
+// Organic Constellation Physics Layout (Micro Force-Directed Relaxation)
+function layoutConstellationGraph({
+  seeds = [],
+  recs = [],
+  graph = { links: [] },
+  boxX,
+  boxY,
+  boxW,
+  boxH,
+}) {
+  const nodes = [];
+  const nodeMap = new Map();
+  const numSeeds = seeds.length;
+
+  const pad = 38;
+  const minX = boxX + pad;
+  const maxX = boxX + boxW - pad;
+  const minY = boxY + pad + 6;
+  const maxY = boxY + boxH - pad - 6;
+  const cx = boxX + boxW / 2;
+  const cy = boxY + boxH / 2 + 3;
+
+  // 1. Initialize Seed Nodes spread out across the canvas
+  seeds.forEach((s, idx) => {
+    const angle = (idx / Math.max(1, numSeeds)) * Math.PI * 2 - Math.PI / 2;
+    const radX = boxW * 0.28;
+    const radY = boxH * 0.25;
+    const sn = {
+      id: s.id,
+      name: s.name || s.id,
+      type: s.type,
+      isSeed: true,
+      x: cx + Math.cos(angle) * radX,
+      y: cy + Math.sin(angle) * radY,
+      vx: 0,
+      vy: 0,
+      mass: 2.2,
+      radius: 6.5,
+    };
+    nodes.push(sn);
+    nodeMap.set(s.id, sn);
+  });
+
+  // 2. Initialize Discovery Nodes around their causal seed
+  recs.forEach((r, idx) => {
+    const assocSeed = findAssociatedSeed(r, seeds, graph);
+    const seedNode = assocSeed ? nodeMap.get(assocSeed.id) : null;
+    const baseSeed = seedNode || nodes[0];
+
+    const baseAngle = baseSeed ? Math.atan2(baseSeed.y - cy, baseSeed.x - cx) : (idx * 0.9);
+    const spread = (idx % 2 === 0 ? 1 : -1) * (0.32 + (idx % 3) * 0.18);
+    const angle = baseAngle + spread;
+    const dist = 55 + (idx % 4) * 12;
+
+    const rn = {
+      id: r.id,
+      name: cleanItemTitle(r.title || r.name || r.id, r),
+      type: r.type,
+      score: r.score,
+      isSeed: false,
+      seedNode: baseSeed,
+      x: baseSeed ? baseSeed.x + Math.cos(angle) * dist : cx,
+      y: baseSeed ? baseSeed.y + Math.sin(angle) * dist : cy,
+      vx: 0,
+      vy: 0,
+      mass: 1.0,
+      radius: 4.5,
+    };
+    nodes.push(rn);
+    nodeMap.set(r.id, rn);
+  });
+
+  // 3. Edges Extraction
+  const edges = [];
+  const edgeKeys = new Set();
+  const seedIds = new Set(seeds.map(s => s.id));
+
+  // 3a. Intra-seed bridges from graph links (connections between user seeds!)
+  if (graph && Array.isArray(graph.links)) {
+    for (const l of graph.links) {
+      if (seedIds.has(l.source) && seedIds.has(l.target) && l.source !== l.target) {
+        const key = [l.source, l.target].sort().join('--');
+        if (!edgeKeys.has(key)) {
+          edgeKeys.add(key);
+          edges.push({
+            source: nodeMap.get(l.source),
+            target: nodeMap.get(l.target),
+            type: 'seed-seed',
+            weight: 1.3,
+          });
+        }
+      }
+    }
+
+    // 2-hop shared neighbors between seeds
+    if (edges.length < Math.min(3, numSeeds - 1) && numSeeds > 1) {
+      const neighborMap = new Map();
+      for (const l of graph.links) {
+        if (!neighborMap.has(l.source)) neighborMap.set(l.source, new Set());
+        if (!neighborMap.has(l.target)) neighborMap.set(l.target, new Set());
+        neighborMap.get(l.source).add(l.target);
+        neighborMap.get(l.target).add(l.source);
+      }
+      for (let i = 0; i < seeds.length; i++) {
+        for (let j = i + 1; j < seeds.length; j++) {
+          const s1 = seeds[i].id;
+          const s2 = seeds[j].id;
+          const key = [s1, s2].sort().join('--');
+          if (edgeKeys.has(key)) continue;
+          const n1 = neighborMap.get(s1) || new Set();
+          const n2 = neighborMap.get(s2) || new Set();
+          let shared = 0;
+          for (const nb of n1) {
+            if (n2.has(nb)) shared++;
+          }
+          if (shared > 0) {
+            edgeKeys.add(key);
+            edges.push({
+              source: nodeMap.get(s1),
+              target: nodeMap.get(s2),
+              type: 'seed-seed',
+              weight: 0.9,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // 3b. Discovery to Seed bridges
+  nodes.filter(n => !n.isSeed && n.seedNode).forEach(rn => {
+    edges.push({
+      source: rn.seedNode,
+      target: rn,
+      type: 'seed-rec',
+      weight: 1.1,
+    });
+  });
+
+  // 4. Force-directed Micro-relaxation (85 iterations)
+  const targetDistSeed = 115;
+  const targetDistRec = 66;
+
+  for (let iter = 0; iter < 85; iter++) {
+    const alpha = Math.max(0.08, 1 - iter / 85);
+
+    // 4a. Coulomb Repulsion between all node pairs
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const n1 = nodes[i];
+        const n2 = nodes[j];
+        let dx = n2.x - n1.x;
+        let dy = n2.y - n1.y;
+        let d = Math.hypot(dx, dy) || 1;
+
+        const minDist = (n1.isSeed && n2.isSeed) ? 92 : (n1.isSeed || n2.isSeed) ? 68 : 54;
+        if (d < minDist * 2.2) {
+          const force = ((minDist * minDist) / (d * d)) * alpha * 1.6;
+          const fx = (dx / d) * force;
+          const fy = (dy / d) * force;
+          n1.vx -= fx / n1.mass;
+          n1.vy -= fy / n1.mass;
+          n2.vx += fx / n2.mass;
+          n2.vy += fy / n2.mass;
+        }
+      }
+    }
+
+    // 4b. Spring Attraction along Edges
+    for (const e of edges) {
+      if (!e.source || !e.target) continue;
+      const dx = e.target.x - e.source.x;
+      const dy = e.target.y - e.source.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const targetDist = e.type === 'seed-seed' ? targetDistSeed : targetDistRec;
+      const diff = d - targetDist;
+      const force = diff * 0.075 * alpha * (e.weight || 1);
+      const fx = (dx / d) * force;
+      const fy = (dy / d) * force;
+      e.source.vx += fx / e.source.mass;
+      e.source.vy += fy / e.source.mass;
+      e.target.vx -= fx / e.target.mass;
+      e.target.vy -= fy / e.target.mass;
+    }
+
+    // 4c. Soft Centering Gravity & Boundary Dampening
+    for (const n of nodes) {
+      const dx = cx - n.x;
+      const dy = cy - n.y;
+      n.vx += dx * 0.012 * alpha;
+      n.vy += dy * 0.012 * alpha;
+
+      n.x += n.vx;
+      n.y += n.vy;
+
+      n.vx *= 0.62;
+      n.vy *= 0.62;
+
+      // Soft Box Boundary Clamping
+      if (n.x < minX) { n.x = minX; n.vx = 0; }
+      if (n.x > maxX) { n.x = maxX; n.vx = 0; }
+      if (n.y < minY) { n.y = minY; n.vy = 0; }
+      if (n.y > maxY) { n.y = maxY; n.vy = 0; }
+    }
+  }
+
+  return { nodes, edges };
+}
+
+// Compute label placement with maximum clearance away from neighbors
+function computeLabelPlacement(n, nodes, boxX, boxY, boxW, boxH) {
+  const cx = boxX + boxW / 2;
+  const cy = boxY + boxH / 2;
+
+  let rx = (n.x - cx) * 0.8;
+  let ry = (n.y - cy) * 0.8;
+
+  for (const other of nodes) {
+    if (other === n) continue;
+    const dx = n.x - other.x;
+    const dy = n.y - other.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 75 && d > 0) {
+      rx += (dx / d) * (75 - d) * 1.5;
+      ry += (dy / d) * (75 - d) * 1.5;
+    }
+  }
+
+  const r = n.radius || 5;
+  let align = 'center';
+  let lx = n.x;
+  let ly = n.y;
+
+  // Boundary safety checks
+  if (n.x > boxX + boxW - 85) {
+    align = 'right';
+    lx = n.x - r - 5;
+    ly = n.y + 3;
+  } else if (n.x < boxX + 85) {
+    align = 'left';
+    lx = n.x + r + 5;
+    ly = n.y + 3;
+  } else if (Math.abs(rx) >= Math.abs(ry)) {
+    if (rx >= 0) {
+      align = 'left';
+      lx = n.x + r + 5;
+      ly = n.y + 3;
+    } else {
+      align = 'right';
+      lx = n.x - r - 5;
+      ly = n.y + 3;
+    }
+  } else {
+    if (ry < 0) {
+      align = 'center';
+      lx = n.x;
+      ly = n.y - r - 5;
+    } else {
+      align = 'center';
+      lx = n.x;
+      ly = n.y + r + 11;
+    }
+  }
+
+  return { align, lx, ly };
+}
+
 export function generateCulturalReceipt(canvas, {
   seeds = [],
   negativeSeeds = [],
@@ -208,7 +493,7 @@ export function generateCulturalReceipt(canvas, {
   estimatedHeight += 20; // Divider
   estimatedHeight += 54; // DNA Tags
   estimatedHeight += 20; // Divider
-  estimatedHeight += 250; // Mini-map frame
+  estimatedHeight += 275; // Mini-map frame with generous breathing space
   estimatedHeight += 20; // Divider
   estimatedHeight += 36 + (topRecs.length * 44); // Fresh recommendations
   estimatedHeight += 20; // Divider
@@ -443,7 +728,7 @@ export function generateCulturalReceipt(canvas, {
   drawDottedLine(curY);
   curY += 18;
 
-  // 5. SECTION 3: Constellation Topological Mini-Map (Vector Graph)
+  // 5. SECTION 3: Constellation Topological Map (Micro Force-Directed Graph)
   ctx.textAlign = 'left';
   ctx.fillStyle = '#1c1917';
   ctx.font = '700 11px "JetBrains Mono", monospace';
@@ -457,7 +742,7 @@ export function generateCulturalReceipt(canvas, {
   const mapBoxX = padX;
   const mapBoxY = curY;
   const mapBoxW = contentWidth;
-  const mapBoxH = 195;
+  const mapBoxH = 224;
 
   // Frame background
   ctx.fillStyle = '#f3efe6';
@@ -467,7 +752,7 @@ export function generateCulturalReceipt(canvas, {
   ctx.strokeRect(mapBoxX, mapBoxY, mapBoxW, mapBoxH);
 
   // Background subtle dot matrix grid
-  ctx.fillStyle = 'rgba(120, 113, 108, 0.2)';
+  ctx.fillStyle = 'rgba(120, 113, 108, 0.18)';
   for (let gx = mapBoxX + 16; gx < mapBoxX + mapBoxW; gx += 20) {
     for (let gy = mapBoxY + 16; gy < mapBoxY + mapBoxH; gy += 20) {
       ctx.fillRect(gx, gy, 1.2, 1.2);
@@ -493,139 +778,122 @@ export function generateCulturalReceipt(canvas, {
     ctx.stroke();
   }
 
-  // Layout nodes inside the mini-map box
-  const mcx = mapBoxX + mapBoxW / 2;
-  const mcy = mapBoxY + mapBoxH / 2 - 4;
+  // Technical Watermark inside Map Header
+  ctx.font = '500 7px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#8f887f';
+  ctx.textAlign = 'left';
+  ctx.fillText('TOPOLOGY: MULTIDOMAIN CONSTELLATION', mapBoxX + 10, mapBoxY + 12);
+  ctx.textAlign = 'right';
+  ctx.fillText('PPR RELAXATION: CONVERGED', mapBoxX + mapBoxW - 10, mapBoxY + 12);
 
-  // Position seeds
-  const seedNodes = [];
-  const numSeeds = seeds.length;
-  if (numSeeds === 1) {
-    seedNodes.push({
-      seed: seeds[0],
-      x: mcx,
-      y: mcy,
-      angle: -Math.PI / 2,
-      name: seeds[0].name || seeds[0].id,
-      type: seeds[0].type,
-    });
-  } else {
-    const sRadX = Math.min(80, 28 + numSeeds * 10);
-    const sRadY = Math.min(50, 18 + numSeeds * 6);
-    for (let i = 0; i < numSeeds; i++) {
-      const angle = (i / numSeeds) * Math.PI * 2 - Math.PI / 2;
-      seedNodes.push({
-        seed: seeds[i],
-        x: mcx + Math.cos(angle) * sRadX,
-        y: mcy + Math.sin(angle) * sRadY,
-        angle: angle,
-        name: seeds[i].name || seeds[i].id,
-        type: seeds[i].type,
-      });
-    }
-  }
-
-  // Map each rec to its true associated seed node
-  const recNodes = [];
-  const recsBySeed = new Map();
-  for (const sn of seedNodes) {
-    recsBySeed.set(sn.seed.id, []);
-  }
-
-  const numRecs = Math.min(topRecs.length, 6);
-  for (let i = 0; i < numRecs; i++) {
-    const rec = topRecs[i];
-    const assocSeed = findAssociatedSeed(rec, seeds, graph);
-    const sn = seedNodes.find(s => s.seed.id === (assocSeed ? assocSeed.id : null)) || seedNodes[0];
-    if (sn && recsBySeed.has(sn.seed.id)) {
-      recsBySeed.get(sn.seed.id).push({ rec, seedNode: sn });
-    }
-  }
-
-  // Position each recNode radiating outward from its associated seed
-  const rRadX = 210;
-  const rRadY = 68;
-
-  seedNodes.forEach((sn) => {
-    const attached = recsBySeed.get(sn.seed.id) || [];
-    const count = attached.length;
-    attached.forEach((item, idx) => {
-      // Fan out angle around the seed angle
-      const spread = count > 1 ? (idx - (count - 1) / 2) * 0.38 : 0;
-      const recAngle = sn.angle + spread;
-      let rx = mcx + Math.cos(recAngle) * rRadX;
-      let ry = mcy + Math.sin(recAngle) * rRadY;
-
-      // Keep within map boundaries
-      rx = Math.max(mapBoxX + 35, Math.min(mapBoxX + mapBoxW - 35, rx));
-      ry = Math.max(mapBoxY + 22, Math.min(mapBoxY + mapBoxH - 22, ry));
-
-      recNodes.push({
-        x: rx,
-        y: ry,
-        name: item.rec.title || item.rec.name || item.rec.id,
-        type: item.rec.type,
-        score: item.rec.score,
-        seedNode: sn,
-      });
-    });
+  // Run Force-Directed Simulation Layout for organic constellation topology
+  const { nodes: layoutNodes, edges: layoutEdges } = layoutConstellationGraph({
+    seeds,
+    recs: topRecs.slice(0, 6),
+    graph,
+    boxX: mapBoxX,
+    boxY: mapBoxY,
+    boxW: mapBoxW,
+    boxH: mapBoxH,
   });
 
-  // Draw connecting bridges between the ACTUAL associated seed and recs
+  // Draw intra-seed backbone bridges (cool slate dashed line)
   ctx.save();
-  ctx.setLineDash([2, 3]);
-  ctx.strokeStyle = '#b8b2a0';
-  ctx.lineWidth = 1;
-  for (const rn of recNodes) {
-    if (rn.seedNode) {
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1.2;
+  ctx.setLineDash([4, 3]);
+  for (const e of layoutEdges) {
+    if (e.type === 'seed-seed' && e.source && e.target) {
       ctx.beginPath();
-      ctx.moveTo(rn.seedNode.x, rn.seedNode.y);
-      ctx.lineTo(rn.x, rn.y);
+      ctx.moveTo(e.source.x, e.source.y);
+      ctx.lineTo(e.target.x, e.target.y);
       ctx.stroke();
     }
   }
   ctx.restore();
 
-  // Draw Recommended nodes (colored dots + labels)
-  for (const rn of recNodes) {
-    const col = DOMAIN_COLORS[rn.type] || '#2563eb';
+  // Draw discovery-to-seed topological bridges (fine dotted line)
+  ctx.save();
+  ctx.strokeStyle = '#b8b2a0';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([2.5, 3]);
+  for (const e of layoutEdges) {
+    if (e.type === 'seed-rec' && e.source && e.target) {
+      ctx.beginPath();
+      ctx.moveTo(e.source.x, e.source.y);
+      ctx.lineTo(e.target.x, e.target.y);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
 
-    // Dot glow & core
+  // Draw Discovery Nodes (Colored cores with white border)
+  for (const n of layoutNodes.filter(n => !n.isSeed)) {
+    const col = DOMAIN_COLORS[n.type] || '#2563eb';
+
+    // Faint aura
     ctx.beginPath();
-    ctx.arc(rn.x, rn.y, 4.5, 0, Math.PI * 2);
+    ctx.arc(n.x, n.y, 6.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(120, 113, 108, 0.12)';
+    ctx.fill();
+
+    // Solid core
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, 4.5, 0, Math.PI * 2);
     ctx.fillStyle = col;
     ctx.fill();
     ctx.strokeStyle = '#faf8f2';
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 1.3;
     ctx.stroke();
-
-    // Small title label
-    ctx.font = '600 8.5px "JetBrains Mono", monospace';
-    ctx.fillStyle = '#1c1917';
-    ctx.textAlign = rn.x >= mcx ? 'left' : 'right';
-    const textOffset = rn.x >= mcx ? 7 : -7;
-    ctx.fillText(truncate(rn.name, 14), rn.x + textOffset, rn.y + 3);
   }
 
-  // Draw Seed nodes (Ruby double rings + labels)
-  for (const sn of seedNodes) {
+  // Draw Seed Nodes (Ruby double-ring stars)
+  for (const n of layoutNodes.filter(n => n.isSeed)) {
+    // Outer ruby halo
     ctx.beginPath();
-    ctx.arc(sn.x, sn.y, 8, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(225, 29, 72, 0.2)';
+    ctx.arc(n.x, n.y, 8.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(225, 29, 72, 0.15)';
     ctx.fill();
 
+    // Outer ruby ring
     ctx.beginPath();
-    ctx.arc(sn.x, sn.y, 5, 0, Math.PI * 2);
+    ctx.arc(n.x, n.y, 5.5, 0, Math.PI * 2);
     ctx.fillStyle = '#e11d48';
     ctx.fill();
     ctx.strokeStyle = '#faf8f2';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    ctx.font = '700 8.5px "JetBrains Mono", monospace';
-    ctx.fillStyle = '#9f1239';
-    ctx.textAlign = 'center';
-    ctx.fillText(truncate(sn.name, 12), sn.x, sn.y - 9);
+    // Inner bright white pin
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, 1.8, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+  }
+
+  // Draw Collision-Free Text Labels with protective background pills
+  for (const n of layoutNodes) {
+    const labelText = truncate(n.name, n.isSeed ? 16 : 14);
+    const { align, lx, ly } = computeLabelPlacement(n, layoutNodes, mapBoxX, mapBoxY, mapBoxW, mapBoxH);
+
+    ctx.save();
+    ctx.font = n.isSeed ? '700 8.5px "JetBrains Mono", monospace' : '600 8px "JetBrains Mono", monospace';
+    const tw = ctx.measureText(labelText).width;
+    const th = 11;
+    let px = lx;
+    if (align === 'center') px = lx - tw / 2;
+    else if (align === 'right') px = lx - tw;
+    const py = ly - 8.5;
+
+    // Semi-transparent vintage thermal paper background pill for guaranteed legibility
+    ctx.fillStyle = 'rgba(250, 248, 242, 0.92)';
+    ctx.fillRect(px - 2.5, py, tw + 5, th);
+
+    // Text stroke & fill
+    ctx.textAlign = align;
+    ctx.fillStyle = n.isSeed ? '#9f1239' : '#1c1917';
+    ctx.fillText(labelText, lx, ly);
+    ctx.restore();
   }
 
   // Mini-map legend footer
@@ -633,8 +901,8 @@ export function generateCulturalReceipt(canvas, {
   ctx.fillStyle = '#78716c';
   ctx.textAlign = 'center';
   ctx.fillText(
-    isPt ? '● SEMENTES (RUBI)   ○ DESCOBERTAS TRANSMIDIÁTICAS   ··· PONTES TOPOLÓGICAS' : '● SEEDS (RUBY)   ○ TRANSMEDIA DISCOVERIES   ··· TOPOLOGICAL BRIDGES',
-    mcx,
+    isPt ? '● SEMENTES (RUBI)   ○ DESCOBERTAS TRANSMIDIÁTICAS   ── PONTES DE AFINIDADE' : '● SEEDS (RUBY)   ○ TRANSMEDIA DISCOVERIES   ── AFFINITY BRIDGES',
+    mapBoxX + mapBoxW / 2,
     mapBoxY + mapBoxH - 8
   );
 
@@ -666,7 +934,7 @@ export function generateCulturalReceipt(canvas, {
     const item = topRecs[i];
     const rankStr = String(i + 1).padStart(2, '0');
     const typeLabel = getDomainBadge(item.type, isPt);
-    const title = item.title || item.name || item.id;
+    const title = cleanItemTitle(item.title || item.name || item.id, item);
     const affinityScore = item.score !== undefined ? `${Math.round(item.score * 100)}%` : '95%';
     const reason = item.reason || (isPt ? 'Confluência multidimensional no grafo' : 'Multidimensional graph confluence');
 
@@ -745,7 +1013,6 @@ export function generateCulturalReceipt(canvas, {
   curY += 20;
 
   // 8. SECTION 6: Procedural Barcode, Link & Closing Motto
-  // Generate barcode bars from taste hash
   const barcodeY = curY;
   const barcodeH = 34;
   const barcodeW = 280;

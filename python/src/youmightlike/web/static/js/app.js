@@ -2,7 +2,7 @@ import { createTranslator } from './i18n.js?v=3.3';
 import { getTypeBadgeClass, getTypeIcon, getSeedDotColor, getAffinityLabel, getAffinityBadgeClass, getRawType } from './config.js?v=3.3';
 import { searchEntities, fetchRecommendations } from './api.js?v=3.3';
 import { ConstellationEngine } from './constellation.js?v=3.3';
-import { generateCulturalReceipt } from './receipt.js?v=3.3';
+import { generateCulturalReceipt } from './receipt.js?v=3.4';
 
 const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
