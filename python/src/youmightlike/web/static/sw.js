@@ -3,15 +3,18 @@
  * Architecture: App Shell (Cache-First / Stale-While-Revalidate) + Dynamic API Caching
  */
 
-const CACHE_VERSION = 'v1.0.0';
+const CACHE_VERSION = 'v1.1.0';
 const STATIC_CACHE = `ym-static-${CACHE_VERSION}`;
 const API_CACHE = `ym-api-${CACHE_VERSION}`;
 
-// Core static assets required for the App Shell
+// Core static assets required for the App Shell (100% Local-First)
 const PRECACHE_LOCAL = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/vendor/tailwindcss.js',
+  '/vendor/vue.global.prod.js',
+  '/vendor/d3.min.js',
   '/static/css/base.css',
   '/static/css/components.css',
   '/static/css/constellation.css',
@@ -20,17 +23,15 @@ const PRECACHE_LOCAL = [
   '/static/js/config.js',
   '/static/js/api.js',
   '/static/js/constellation.js',
+  '/static/js/receipt.js',
   '/static/js/app.js',
   '/static/icons/icon.svg',
   '/static/icons/icon-192.png',
   '/static/icons/icon-512.png',
 ];
 
-// External vendor CDNs and web fonts
+// External web fonts (optional progressive enhancement)
 const PRECACHE_CDN = [
-  'https://cdn.tailwindcss.com',
-  'https://unpkg.com/vue@3/dist/vue.global.prod.js',
-  'https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js',
   'https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap',
 ];
 

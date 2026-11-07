@@ -1,10 +1,10 @@
-// Main Vue 3 Application Controller for youmightlike
-import { createTranslator } from './i18n.js?v=2.8';
-import { getTypeBadgeClass, getTypeIcon, getSeedDotColor, getAffinityLabel, getAffinityBadgeClass, getRawType } from './config.js?v=2.8';
-import { searchEntities, fetchRecommendations } from './api.js?v=2.8';
-import { ConstellationEngine } from './constellation.js?v=2.8';
+import { createTranslator } from './i18n.js?v=2.9';
+import { getTypeBadgeClass, getTypeIcon, getSeedDotColor, getAffinityLabel, getAffinityBadgeClass, getRawType } from './config.js?v=2.9';
+import { searchEntities, fetchRecommendations } from './api.js?v=2.9';
+import { ConstellationEngine } from './constellation.js?v=2.9';
+import { generateCulturalReceipt } from './receipt.js?v=2.9';
 
-const { createApp, ref, computed, onMounted } = Vue;
+const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
 createApp({
   setup() {
@@ -57,6 +57,20 @@ createApp({
       rebuildConstellation();
     };
 
+    // Modal and Notification State
+    const showReceiptModal = ref(false);
+    const receiptCanvasRef = ref(null);
+    const toastMessage = ref('');
+    let toastTimer = null;
+
+    const showToast = (msg, duration = 3000) => {
+      toastMessage.value = msg;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toastMessage.value = '';
+      }, duration);
+    };
+
     let searchAbortController = null;
     let fullServerGraph = { nodes: [], links: [] };
     let constellation = null;
@@ -71,9 +85,12 @@ createApp({
       if (selectedNodeIds.value.length > 0) {
         fetchLiveInspectorRecommendations();
       }
+      if (showReceiptModal.value) {
+        nextTick(() => renderReceipt());
+      }
     };
 
-    // Profile Persistence
+    // Profile Persistence (100% LocalStorage - Zero URL mutation)
     const loadSavedProfile = () => {
       const saved = localStorage.getItem('ym_taste_profile');
       if (saved) {
@@ -553,6 +570,23 @@ createApp({
             // Em offline sem cache, preserva visualização atual
             console.warn('[Offline] Sem dados em cache para esta combinação de sementes.');
           } else {
+            // Update seed metadata if seeds came with raw IDs from URL
+            if (data.seeds && Array.isArray(data.seeds) && data.seeds.length > 0) {
+              const metaMap = new Map(data.seeds.map(s => [s.id, s]));
+              profileSeeds.value = profileSeeds.value.map(s => {
+                const resolved = metaMap.get(s.id);
+                return resolved ? { ...s, name: resolved.name, type: resolved.type || s.type, subtitle: resolved.subtitle || s.subtitle } : s;
+              });
+            }
+            if (data.negative_seeds && Array.isArray(data.negative_seeds) && data.negative_seeds.length > 0) {
+              const negMap = new Map(data.negative_seeds.map(s => [s.id, s]));
+              negativeSeeds.value = negativeSeeds.value.map(s => {
+                const resolved = negMap.get(s.id);
+                return resolved ? { ...s, name: resolved.name, type: resolved.type || s.type, subtitle: resolved.subtitle || s.subtitle } : s;
+              });
+            }
+            saveProfile();
+
             recommendations.value = data.results || [];
             fullServerGraph = data.graph || { nodes: [], links: [] };
             if (constellation) {
@@ -563,6 +597,9 @@ createApp({
                 spacingScale: getSpacingScale(graphSpacing.value),
                 negativeSeeds: negativeSeeds.value,
               });
+            }
+            if (showReceiptModal.value) {
+              nextTick(() => renderReceipt());
             }
           }
         } catch (err) {
@@ -614,6 +651,72 @@ createApp({
     const fitGraphView = () => {
       if (constellation) {
         constellation.fitView();
+      }
+    };
+
+    // Cultural Taste Receipt & Sharing
+    const openReceiptModal = () => {
+      if (profileSeeds.value.length === 0) return;
+      showReceiptModal.value = true;
+      nextTick(() => {
+        renderReceipt();
+      });
+    };
+
+    const closeReceiptModal = () => {
+      showReceiptModal.value = false;
+    };
+
+    const renderReceipt = () => {
+      const canvas = receiptCanvasRef.value;
+      if (!canvas) return;
+      generateCulturalReceipt(canvas, {
+        seeds: profileSeeds.value,
+        negativeSeeds: negativeSeeds.value,
+        negativeBeta: negativeBeta.value,
+        recommendations: recommendations.value,
+        knownCount: knownItems.value.length,
+        graph: fullServerGraph,
+        lang: currentLang.value,
+      });
+    };
+
+    const downloadReceiptPng = () => {
+      const canvas = receiptCanvasRef.value;
+      if (!canvas) return;
+      const link = document.createElement('a');
+      const dateStr = new Date().toISOString().slice(0, 10);
+      link.download = `youmightlike-receipt-${dateStr}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast(currentLang.value === 'pt' ? 'Download do recibo iniciado!' : 'Receipt download started!');
+    };
+
+    const copyReceiptImage = async () => {
+      const canvas = receiptCanvasRef.value;
+      if (!canvas) return;
+      try {
+        if (navigator.clipboard && window.ClipboardItem && canvas.toBlob) {
+          canvas.toBlob(async (blob) => {
+            if (!blob) {
+              showToast(t('receiptCopyFailed'));
+              return;
+            }
+            try {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': blob })
+              ]);
+              showToast(t('receiptImageCopied'));
+            } catch (e) {
+              showToast(t('receiptCopyFailed'));
+            }
+          }, 'image/png');
+        } else {
+          showToast(t('receiptCopyFailed'));
+        }
+      } catch (err) {
+        console.warn('Failed to copy image to clipboard:', err);
+        showToast(t('receiptCopyFailed'));
       }
     };
 
@@ -768,6 +871,14 @@ createApp({
       setGraphSpacing,
       rebuildConstellation,
       fitGraphView,
+      showReceiptModal,
+      receiptCanvasRef,
+      toastMessage,
+      openReceiptModal,
+      closeReceiptModal,
+      renderReceipt,
+      downloadReceiptPng,
+      copyReceiptImage,
     };
   }
 }).mount('#app');

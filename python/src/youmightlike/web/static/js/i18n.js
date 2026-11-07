@@ -105,6 +105,14 @@ export const I18N = {
     clearKnown: "limpar conhecidas",
     promoteToSeed: "Promover a semente",
     unmarkKnown: "Remover dos conhecidos",
+    generateReceipt: "Receita",
+    generateReceiptTooltip: "Gerar cupom térmico e poster de assinatura cultural",
+    receiptModalTitle: "Receita Cultural Compartilhável",
+    receiptModalDesc: "Cupom térmico com sementes ativas, DNA estético, mapa topológico vetorial e descobertas inéditas.",
+    receiptDownloadPng: "Baixar PNG",
+    receiptCopyImage: "Copiar Imagem",
+    receiptImageCopied: "Imagem do cupom copiada para a área de transferência!",
+    receiptCopyFailed: "Não foi possível copiar diretamente. Use o botão Baixar PNG.",
   },
   en: {
     nodes: "nodes",
@@ -211,6 +219,14 @@ export const I18N = {
     clearKnown: "clear known",
     promoteToSeed: "Promote to seed",
     unmarkKnown: "Remove from known",
+    generateReceipt: "Receipt",
+    generateReceiptTooltip: "Generate aesthetic thermal receipt and cultural taste poster",
+    receiptModalTitle: "Shareable Cultural Receipt",
+    receiptModalDesc: "Thermal receipt with active seeds, aesthetic DNA, topological constellation map, and fresh discoveries.",
+    receiptDownloadPng: "Download PNG",
+    receiptCopyImage: "Copy Image",
+    receiptImageCopied: "Receipt image copied to clipboard!",
+    receiptCopyFailed: "Direct copy not supported in this browser. Please use Download PNG.",
   }
 };
 
