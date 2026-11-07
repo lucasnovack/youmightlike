@@ -201,6 +201,12 @@ impl ResponseCache {
     }
 }
 
+impl Default for ResponseCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct AppState {
     pub db_path: String,
     pub graph: GraphCSR,
@@ -465,18 +471,25 @@ pub fn lookup_seed_top_tracks(conn: &Connection, aid: i64, limit: usize) -> Vec<
         Err(_) => return Vec::new(),
     };
 
-    let rows: Vec<(i64, String, Option<i32>, Option<f64>, Option<f64>, Option<f64>, Option<i64>)> = match stmt
-        .query_map(params![aid, limit as i64], |r| {
-            Ok((
-                r.get(0)?,
-                r.get(1)?,
-                r.get(2)?,
-                r.get(3)?,
-                r.get(4)?,
-                r.get(5)?,
-                r.get(6)?,
-            ))
-        }) {
+    let rows: Vec<(
+        i64,
+        String,
+        Option<i32>,
+        Option<f64>,
+        Option<f64>,
+        Option<f64>,
+        Option<i64>,
+    )> = match stmt.query_map(params![aid, limit as i64], |r| {
+        Ok((
+            r.get(0)?,
+            r.get(1)?,
+            r.get(2)?,
+            r.get(3)?,
+            r.get(4)?,
+            r.get(5)?,
+            r.get(6)?,
+        ))
+    }) {
         Ok(iter) => iter.filter_map(|r| r.ok()).collect(),
         Err(_) => return Vec::new(),
     };
@@ -485,9 +498,15 @@ pub fn lookup_seed_top_tracks(conn: &Connection, aid: i64, limit: usize) -> Vec<
     let album_ids: Vec<i64> = rows.iter().filter_map(|r| r.6).collect();
     if !album_ids.is_empty() {
         let placeholders = album_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-        let q = format!("SELECT id, title FROM music_albums WHERE id IN ({})", placeholders);
+        let q = format!(
+            "SELECT id, title FROM music_albums WHERE id IN ({})",
+            placeholders
+        );
         if let Ok(mut a_stmt) = conn.prepare(&q) {
-            let params_vec: Vec<&dyn duckdb::ToSql> = album_ids.iter().map(|id| id as &dyn duckdb::ToSql).collect();
+            let params_vec: Vec<&dyn duckdb::ToSql> = album_ids
+                .iter()
+                .map(|id| id as &dyn duckdb::ToSql)
+                .collect();
             if let Ok(a_rows) = a_stmt.query_map(&params_vec[..], |r| {
                 Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?))
             }) {
@@ -531,7 +550,15 @@ pub fn resolve_artist_track_and_collab(
         )
         .ok()?;
 
-    let rows: Vec<(i64, String, Option<i32>, Option<f64>, Option<f64>, Option<f64>, Option<i64>)> = stmt
+    let rows: Vec<(
+        i64,
+        String,
+        Option<i32>,
+        Option<f64>,
+        Option<f64>,
+        Option<f64>,
+        Option<i64>,
+    )> = stmt
         .query_map(params![aid], |r| {
             Ok((
                 r.get(0)?,
@@ -555,9 +582,15 @@ pub fn resolve_artist_track_and_collab(
     let album_ids: Vec<i64> = rows.iter().filter_map(|r| r.6).collect();
     if !album_ids.is_empty() {
         let placeholders = album_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-        let q = format!("SELECT id, title FROM music_albums WHERE id IN ({})", placeholders);
+        let q = format!(
+            "SELECT id, title FROM music_albums WHERE id IN ({})",
+            placeholders
+        );
         if let Ok(mut a_stmt) = conn.prepare(&q) {
-            let params_vec: Vec<&dyn duckdb::ToSql> = album_ids.iter().map(|id| id as &dyn duckdb::ToSql).collect();
+            let params_vec: Vec<&dyn duckdb::ToSql> = album_ids
+                .iter()
+                .map(|id| id as &dyn duckdb::ToSql)
+                .collect();
             if let Ok(a_rows) = a_stmt.query_map(&params_vec[..], |r| {
                 Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?))
             }) {
@@ -624,10 +657,9 @@ pub fn extract_featured_artist_names(title: &str) -> Option<Vec<String>> {
         (idx + 5, true)
     } else if let Some(idx) = lower.find(" feat. ") {
         (idx + 7, false)
-    } else if let Some(idx) = lower.find(" ft. ") {
-        (idx + 5, false)
     } else {
-        return None;
+        let idx = lower.find(" ft. ")?;
+        (idx + 5, false)
     };
 
     let rem = &title[start_idx..];
@@ -641,7 +673,7 @@ pub fn extract_featured_artist_names(title: &str) -> Option<Vec<String>> {
     };
 
     let parts: Vec<String> = content
-        .split(|c| c == ',' || c == '&')
+        .split([',', '&'])
         .flat_map(|s| s.split(" and "))
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
@@ -688,8 +720,12 @@ pub fn lookup_track_participating_artists(
     // Method 1: Parse "(feat. ...)" or "(ft. ...)" from track title (instant in-memory)
     if let Some(feat_list) = extract_featured_artist_names(&title) {
         for cand in feat_list {
-            if let Ok(mut f_stmt) = conn.prepare("SELECT id, name FROM music_artists WHERE name = ? OR name ILIKE ? LIMIT 1") {
-                if let Ok(r) = f_stmt.query_row(params![cand, cand], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))) {
+            if let Ok(mut f_stmt) = conn.prepare(
+                "SELECT id, name FROM music_artists WHERE name = ? OR name ILIKE ? LIMIT 1",
+            ) {
+                if let Ok(r) = f_stmt.query_row(params![cand, cand], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+                }) {
                     if seen_aids.insert(r.0) {
                         artists.push((r.0, r.1));
                     }
@@ -729,8 +765,10 @@ pub fn lookup_track_participating_artists(
 /// Normalizes track titles for canonical deduplication (strips remasters, live tags, etc.)
 pub fn norm_track_title(t: &str) -> String {
     let mut s = t.trim().to_lowercase();
-    s = s.replace(['’', '‘', '`'], "'")
-         .replace(['\u{2010}', '\u{2011}', '\u{2012}', '\u{2013}', '\u{2014}'], "-");
+    s = s.replace(['’', '‘', '`'], "'").replace(
+        ['\u{2010}', '\u{2011}', '\u{2012}', '\u{2013}', '\u{2014}'],
+        "-",
+    );
     if let Some(pos) = s.find(" - ") {
         s.truncate(pos);
     }

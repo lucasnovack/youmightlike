@@ -37,7 +37,6 @@ pub fn init_subgraph_anchors(
     }
 
     for seed_item in seeds_resolved {
-
         if seed_item.entity_type == "track" {
             if let Some(artists) = track_seed_artists.get(&seed_item.id) {
                 for (a_id, a_name) in artists {
@@ -50,7 +49,7 @@ pub fn init_subgraph_anchors(
                             val: 14.0,
                             tags: Vec::new(),
                             desc: String::new(),
-            metadata: None,
+                            metadata: None,
                         });
                     }
                     if !graph_links.iter().any(|l| {
@@ -172,7 +171,7 @@ pub fn init_subgraph_anchors(
                             val: 9.0,
                             tags: Vec::new(),
                             desc: String::new(),
-            metadata: None,
+                            metadata: None,
                         });
                     }
                     graph_links.push(GraphLinkPayload {
@@ -222,9 +221,7 @@ pub fn init_subgraph_anchors(
 
                 pair_shared.sort_by(|a, b| {
                     b.1.cmp(&a.1)
-                        .then_with(|| {
-                            b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal)
-                        })
+                        .then_with(|| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal))
                         .then_with(|| a.0.cmp(&b.0))
                 });
 
@@ -270,7 +267,7 @@ pub fn init_subgraph_anchors(
                         val: 9.0,
                         tags: Vec::new(),
                         desc: String::new(),
-            metadata: None,
+                        metadata: None,
                     });
                 }
             }
@@ -285,64 +282,63 @@ pub fn build_subgraph_and_prune(
     graph_nodes: &mut Vec<GraphNodePayload>,
     graph_links: &mut Vec<GraphLinkPayload>,
 ) {
-    let extract_direct_links =
-        |nodes: &[GraphNodePayload], links: &mut Vec<GraphLinkPayload>| {
-            let mut seen_links: HashSet<(String, String)> = HashSet::new();
-            for l in links.iter() {
-                seen_links.insert((l.source.clone(), l.target.clone()));
-                seen_links.insert((l.target.clone(), l.source.clone()));
-            }
-            let node_ids: HashSet<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
-            let mut extracted: Vec<GraphLinkPayload> = Vec::new();
+    let extract_direct_links = |nodes: &[GraphNodePayload], links: &mut Vec<GraphLinkPayload>| {
+        let mut seen_links: HashSet<(String, String)> = HashSet::new();
+        for l in links.iter() {
+            seen_links.insert((l.source.clone(), l.target.clone()));
+            seen_links.insert((l.target.clone(), l.source.clone()));
+        }
+        let node_ids: HashSet<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
+        let mut extracted: Vec<GraphLinkPayload> = Vec::new();
 
-            for n in nodes {
-                let u_key = &n.id;
-                for edge in state.graph.out_edges_by_key(u_key) {
-                    let v_key = edge.target_key;
-                    if node_ids.contains(v_key) && u_key != v_key {
-                        let edge_pair = (u_key.clone(), v_key.to_string());
-                        if seen_links.insert(edge_pair) {
-                            seen_links.insert((v_key.to_string(), u_key.clone()));
-                            extracted.push(GraphLinkPayload {
-                                source: u_key.clone(),
-                                target: v_key.to_string(),
-                                label: edge.relation_type.to_string(),
-                                weight: edge.base_weight,
-                            });
-                        }
+        for n in nodes {
+            let u_key = &n.id;
+            for edge in state.graph.out_edges_by_key(u_key) {
+                let v_key = edge.target_key;
+                if node_ids.contains(v_key) && u_key != v_key {
+                    let edge_pair = (u_key.clone(), v_key.to_string());
+                    if seen_links.insert(edge_pair) {
+                        seen_links.insert((v_key.to_string(), u_key.clone()));
+                        extracted.push(GraphLinkPayload {
+                            source: u_key.clone(),
+                            target: v_key.to_string(),
+                            label: edge.relation_type.to_string(),
+                            weight: edge.base_weight,
+                        });
                     }
                 }
             }
+        }
 
-            extracted.sort_by(|a, b| {
-                let rel_prio = |rel: &str| {
-                    if rel == "based_on" || rel == "adapted_as" {
-                        1
-                    } else if rel.starts_with("soundtrack_") {
-                        2
-                    } else if rel == "is_artist" {
-                        3
-                    } else if rel == "similar_to" {
-                        4
-                    } else if rel == "performed_by" {
-                        5
-                    } else if rel == "has_director" {
-                        6
-                    } else if rel == "developed_by" {
-                        7
-                    } else {
-                        8
-                    }
-                };
-                rel_prio(&a.label).cmp(&rel_prio(&b.label)).then_with(|| {
-                    b.weight
-                        .partial_cmp(&a.weight)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                })
-            });
+        extracted.sort_by(|a, b| {
+            let rel_prio = |rel: &str| {
+                if rel == "based_on" || rel == "adapted_as" {
+                    1
+                } else if rel.starts_with("soundtrack_") {
+                    2
+                } else if rel == "is_artist" {
+                    3
+                } else if rel == "similar_to" {
+                    4
+                } else if rel == "performed_by" {
+                    5
+                } else if rel == "has_director" {
+                    6
+                } else if rel == "developed_by" {
+                    7
+                } else {
+                    8
+                }
+            };
+            rel_prio(&a.label).cmp(&rel_prio(&b.label)).then_with(|| {
+                b.weight
+                    .partial_cmp(&a.weight)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+        });
 
-            links.extend(extracted);
-        };
+        links.extend(extracted);
+    };
 
     extract_direct_links(graph_nodes, graph_links);
 
@@ -456,7 +452,7 @@ pub fn build_subgraph_and_prune(
                                     val: 9.0,
                                     tags: Vec::new(),
                                     desc: String::new(),
-            metadata: None,
+                                    metadata: None,
                                 });
                                 added_bridges = true;
                             }
@@ -922,5 +918,319 @@ pub fn enrich_graph_nodes(
             }
         }
         n.tags = node_tags;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::graph::{GraphCSR, RawEdges};
+    use crate::models::{BookMeta, CatalogCache, GameMeta, MovieMeta, ResponseCache, SeriesMeta};
+    use std::sync::Mutex;
+
+    fn build_test_state(raw: RawEdges) -> (AppState, Connection) {
+        let conn = Connection::open_in_memory().expect("In-memory DuckDB connection");
+        let graph = GraphCSR::from_raw(raw, 0.5);
+        let catalog = CatalogCache {
+            keywords: HashMap::new(),
+            people: HashMap::new(),
+            developers: HashMap::new(),
+            authors: HashMap::new(),
+            movies: HashMap::new(),
+            series: HashMap::new(),
+            games: HashMap::new(),
+            books: HashMap::new(),
+        };
+
+        let state = AppState {
+            db_path: ":memory:".to_string(),
+            graph,
+            catalog,
+            db_conn: Mutex::new(Connection::open_in_memory().unwrap()),
+            cache: Mutex::new(ResponseCache::new()),
+        };
+        (state, conn)
+    }
+
+    #[test]
+    fn test_subgraph_prunes_isolated_orphan_islands_and_guarantees_degree_gt_zero() {
+        let mut raw = RawEdges::default();
+        // Component A (reachable from seed movie:1)
+        raw.push("movie:1", "keyword:cyberpunk", "has_keyword", 1.0);
+        raw.push("movie:1", "movie:2", "similar_to", 0.9);
+        raw.push("movie:2", "keyword:cyberpunk", "has_keyword", 0.8);
+
+        // Component B (completely isolated from movie:1)
+        raw.push("book:99", "keyword:cooking", "has_tag", 1.0);
+        raw.push("book:99", "author:99", "written_by", 1.0);
+
+        let (state, _) = build_test_state(raw);
+
+        let mut graph_nodes = vec![
+            GraphNodePayload {
+                id: "movie:1".to_string(),
+                label: "The Matrix".to_string(),
+                node_type: "seed".to_string(),
+                val: 18.0,
+                tags: vec![],
+                desc: String::new(),
+                metadata: None,
+            },
+            GraphNodePayload {
+                id: "movie:2".to_string(),
+                label: "Dark City".to_string(),
+                node_type: "movie".to_string(),
+                val: 12.0,
+                tags: vec![],
+                desc: String::new(),
+                metadata: None,
+            },
+            GraphNodePayload {
+                id: "keyword:cyberpunk".to_string(),
+                label: "#cyberpunk".to_string(),
+                node_type: "keyword".to_string(),
+                val: 10.0,
+                tags: vec![],
+                desc: String::new(),
+                metadata: None,
+            },
+            // Nodes from disconnected island B
+            GraphNodePayload {
+                id: "book:99".to_string(),
+                label: "Cooking 101".to_string(),
+                node_type: "book".to_string(),
+                val: 12.0,
+                tags: vec![],
+                desc: String::new(),
+                metadata: None,
+            },
+            GraphNodePayload {
+                id: "keyword:cooking".to_string(),
+                label: "#cooking".to_string(),
+                node_type: "keyword".to_string(),
+                val: 10.0,
+                tags: vec![],
+                desc: String::new(),
+                metadata: None,
+            },
+            GraphNodePayload {
+                id: "author:99".to_string(),
+                label: "Chef John".to_string(),
+                node_type: "author".to_string(),
+                val: 10.0,
+                tags: vec![],
+                desc: String::new(),
+                metadata: None,
+            },
+        ];
+
+        let mut graph_links = Vec::new();
+        let diffusion_seeds = vec!["movie:1".to_string()];
+
+        build_subgraph_and_prune(&state, &diffusion_seeds, &mut graph_nodes, &mut graph_links);
+
+        // Island B must be completely pruned
+        assert!(
+            !graph_nodes.iter().any(|n| n.id.starts_with("book:99")
+                || n.id == "keyword:cooking"
+                || n.id == "author:99"),
+            "Isolated island nodes must be pruned from subgraph"
+        );
+
+        // Component A must be preserved
+        let remaining_ids: HashSet<String> = graph_nodes.iter().map(|n| n.id.clone()).collect();
+        assert!(remaining_ids.contains("movie:1"));
+        assert!(remaining_ids.contains("movie:2"));
+        assert!(remaining_ids.contains("keyword:cyberpunk"));
+
+        // Strictly verify NO ORPHAN NODES (degree > 0 for all nodes)
+        let mut degree_map: HashMap<String, usize> = HashMap::new();
+        for l in &graph_links {
+            *degree_map.entry(l.source.clone()).or_default() += 1;
+            *degree_map.entry(l.target.clone()).or_default() += 1;
+        }
+
+        for n in &graph_nodes {
+            let deg = degree_map.get(&n.id).copied().unwrap_or(0);
+            assert!(
+                deg > 0,
+                "Node '{}' is an orphan in the rendered subgraph (degree = 0)",
+                n.id
+            );
+        }
+
+        // Verify all links connect nodes that actually exist in graph_nodes
+        for l in &graph_links {
+            assert!(
+                remaining_ids.contains(&l.source),
+                "Link source {} missing in graph_nodes",
+                l.source
+            );
+            assert!(
+                remaining_ids.contains(&l.target),
+                "Link target {} missing in graph_nodes",
+                l.target
+            );
+        }
+    }
+
+    #[test]
+    fn test_subgraph_stitches_2hop_bridges_between_disconnected_components() {
+        let mut raw = RawEdges::default();
+        // game:1 and game:2 have no direct edge, but both share developer:10
+        raw.push("game:1", "developer:10", "developed_by", 1.0);
+        raw.push("game:2", "developer:10", "developed_by", 1.0);
+
+        let (mut state, _) = build_test_state(raw);
+        state
+            .catalog
+            .developers
+            .insert(10, "CD Projekt Red".to_string());
+
+        let mut graph_nodes = vec![
+            GraphNodePayload {
+                id: "game:1".to_string(),
+                label: "The Witcher 3".to_string(),
+                node_type: "seed".to_string(),
+                val: 18.0,
+                tags: vec![],
+                desc: String::new(),
+                metadata: None,
+            },
+            GraphNodePayload {
+                id: "game:2".to_string(),
+                label: "Cyberpunk 2077".to_string(),
+                node_type: "game".to_string(),
+                val: 12.0,
+                tags: vec![],
+                desc: String::new(),
+                metadata: None,
+            },
+        ];
+
+        let mut graph_links = Vec::new();
+        let diffusion_seeds = vec!["game:1".to_string()];
+
+        build_subgraph_and_prune(&state, &diffusion_seeds, &mut graph_nodes, &mut graph_links);
+
+        // developer:10 should have been injected as a bridge stitching game:1 and game:2
+        let has_bridge = graph_nodes.iter().any(|n| n.id == "developer:10");
+        assert!(
+            has_bridge,
+            "2-hop shared developer bridge must be injected into graph_nodes"
+        );
+
+        // Every node must have degree > 0
+        let mut degree_map: HashMap<String, usize> = HashMap::new();
+        for l in &graph_links {
+            *degree_map.entry(l.source.clone()).or_default() += 1;
+            *degree_map.entry(l.target.clone()).or_default() += 1;
+        }
+
+        for n in &graph_nodes {
+            let deg = degree_map.get(&n.id).copied().unwrap_or(0);
+            assert!(
+                deg > 0,
+                "Node '{}' must be connected after 2-hop stitching",
+                n.id
+            );
+        }
+    }
+
+    #[test]
+    fn test_bilingual_metadata_resolution_and_integrity() {
+        let raw = RawEdges::default();
+        let (mut state, conn) = build_test_state(raw);
+
+        // Populate catalog entries
+        state.catalog.movies.insert(
+            1,
+            MovieMeta {
+                title: "Blade Runner".to_string(),
+                release_year: Some(1982),
+                vote_average: Some(8.1),
+            },
+        );
+        state.catalog.series.insert(
+            1,
+            SeriesMeta {
+                title: "Chernobyl".to_string(),
+                series_type: "tvMiniSeries".to_string(),
+                start_year: Some(2019),
+                end_year: Some(2019),
+                vote_average: Some(9.4),
+            },
+        );
+        state.catalog.games.insert(
+            1,
+            GameMeta {
+                title: "Portal 2".to_string(),
+                release_year: Some(2011),
+                positive_reviews: Some(300_000),
+            },
+        );
+        state.catalog.books.insert(
+            1,
+            BookMeta {
+                title: "Neuromancer".to_string(),
+                first_publish_year: Some(1984),
+            },
+        );
+
+        // 1. Movie
+        let (desc_pt, meta_pt) = resolve_node_metadata(&state, &conn, true, "movie:1");
+        let (desc_en, meta_en) = resolve_node_metadata(&state, &conn, false, "movie:1");
+        assert!(desc_pt.contains("Filme (1982)"), "PT: {desc_pt}");
+        assert!(desc_pt.contains("Nota 8.1"), "PT: {desc_pt}");
+        assert!(desc_en.contains("Movie (1982)"), "EN: {desc_en}");
+        assert!(desc_en.contains("Rating 8.1"), "EN: {desc_en}");
+        assert_eq!(meta_pt.unwrap()["entity_type"], "movie");
+        assert_eq!(meta_en.unwrap()["entity_type"], "movie");
+
+        // 2. Series (Mini-Series)
+        let (desc_pt, _) = resolve_node_metadata(&state, &conn, true, "series:1");
+        let (desc_en, _) = resolve_node_metadata(&state, &conn, false, "series:1");
+        assert!(desc_pt.contains("Minissérie (2019)"), "PT: {desc_pt}");
+        assert!(desc_en.contains("Mini-Series (2019)"), "EN: {desc_en}");
+
+        // 3. Game
+        let (desc_pt, _) = resolve_node_metadata(&state, &conn, true, "game:1");
+        let (desc_en, _) = resolve_node_metadata(&state, &conn, false, "game:1");
+        assert!(desc_pt.starts_with("Jogo (2011)"), "PT: {desc_pt}");
+        assert!(desc_en.starts_with("Game (2011)"), "EN: {desc_en}");
+
+        // 4. Book
+        let (desc_pt, _) = resolve_node_metadata(&state, &conn, true, "book:1");
+        let (desc_en, _) = resolve_node_metadata(&state, &conn, false, "book:1");
+        assert!(desc_pt.starts_with("Livro (1984)"), "PT: {desc_pt}");
+        assert!(desc_en.starts_with("Book (1984)"), "EN: {desc_en}");
+
+        // 5. Fallback pure structural nodes
+        let checks = [
+            (
+                "developer:99",
+                "Estúdio de Desenvolvimento",
+                "Game Developer Studio",
+            ),
+            ("keyword:99", "Tag Conceitual", "Conceptual Tag"),
+            (
+                "person:99",
+                "Diretor / Compositor / Roteirista",
+                "Director / Composer / Writer",
+            ),
+            ("author:99", "Autor Literário", "Literary Author"),
+            ("movie:99", "Filme", "Movie"),
+            ("series:99", "Série", "Series"),
+            ("game:99", "Jogo", "Game"),
+            ("book:99", "Livro", "Book"),
+            ("track:99", "Faixa musical", "Music Track"),
+        ];
+
+        for (node_id, exp_pt, exp_en) in checks {
+            let (desc_pt, _) = resolve_node_metadata(&state, &conn, true, node_id);
+            let (desc_en, _) = resolve_node_metadata(&state, &conn, false, node_id);
+            assert_eq!(desc_pt, exp_pt, "Mismatch for PT on {node_id}");
+            assert_eq!(desc_en, exp_en, "Mismatch for EN on {node_id}");
+        }
     }
 }

@@ -4,7 +4,9 @@ use crate::models::{
     AppState, RecommendationRequest, RecommendationResponse, TrackRecommendRequest,
     TrackRecommendationItem,
 };
-use crate::recommendation::{run_recommendation_pipeline, tracks::compute_track_recommendations_sync};
+use crate::recommendation::{
+    run_recommendation_pipeline, tracks::compute_track_recommendations_sync,
+};
 use anyhow::Result;
 use axum::{extract::State, http::StatusCode, Json};
 use std::sync::Arc;
@@ -28,7 +30,12 @@ pub async fn api_recommend(
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
     })
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Task join error: {}", e)))?
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Task join error: {}", e),
+        )
+    })?
 }
 
 /// Axum API handler for audio-feature and graph-hybrid track recommendations
@@ -42,5 +49,10 @@ pub async fn api_recommend_tracks(
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
     })
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Task join error: {}", e)))?
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Task join error: {}", e),
+        )
+    })?
 }

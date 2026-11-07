@@ -66,7 +66,13 @@ pub fn extract_movies(
 
         let mut ost_boost = 1.0 + (ost_artists.len() as f32) * 1.5;
         let vote = m.vote_average.unwrap_or(5.0) as f32;
-        let pop_factor = if vote >= 7.5 { 1.5 } else if vote >= 6.5 { 1.2 } else { 1.0 };
+        let pop_factor = if vote >= 7.5 {
+            1.5
+        } else if vote >= 6.5 {
+            1.2
+        } else {
+            1.0
+        };
         ost_boost *= pop_factor;
 
         let boosted = ScoredNode {
@@ -126,12 +132,8 @@ pub fn extract_movies(
                     });
                 }
                 if best_movie_bridge.is_none() {
-                    best_movie_bridge = Some((
-                        art_key.clone(),
-                        art_name.clone(),
-                        "artist".to_string(),
-                        3.0,
-                    ));
+                    best_movie_bridge =
+                        Some((art_key.clone(), art_name.clone(), "artist".to_string(), 3.0));
                 }
             }
         }
@@ -180,7 +182,8 @@ pub fn extract_movies(
                         let tfmt = format!("#{}", kname);
                         if !is_steam_noise_tag(kname.as_str()) {
                             if ctx.seed_tag_counts.contains_key(&tid) {
-                                if shared_movie_tags.len() < 4 && !shared_movie_tags.contains(&tfmt) {
+                                if shared_movie_tags.len() < 4 && !shared_movie_tags.contains(&tfmt)
+                                {
                                     shared_movie_tags.push(tfmt);
                                 }
                                 if best_movie_bridge.is_none() {
@@ -191,7 +194,9 @@ pub fn extract_movies(
                                         e.base_weight,
                                     ));
                                 }
-                            } else if fallback_movie_tags.len() < 3 && !fallback_movie_tags.contains(&tfmt) {
+                            } else if fallback_movie_tags.len() < 3
+                                && !fallback_movie_tags.contains(&tfmt)
+                            {
                                 fallback_movie_tags.push(tfmt);
                             }
                         }
@@ -303,23 +308,48 @@ pub fn extract_movies(
             graph_links.push(GraphLinkPayload {
                 source: nkey.clone(),
                 target: b_key,
-                label: if ctx.is_pt { "conectado_a".to_string() } else { "connected_to".to_string() },
+                label: if ctx.is_pt {
+                    "conectado_a".to_string()
+                } else {
+                    "connected_to".to_string()
+                },
                 weight: b_weight,
             });
         }
 
         // Direct link to seed movie if sharing director or composer
-        let seed_movie_keys: Vec<String> = ctx.seed_set.iter().filter(|s| s.starts_with("movie:")).cloned().collect();
+        let seed_movie_keys: Vec<String> = ctx
+            .seed_set
+            .iter()
+            .filter(|s| s.starts_with("movie:"))
+            .cloned()
+            .collect();
         for s_mkey in &seed_movie_keys {
             let shares_person = ctx.state.graph.out_edges_by_key(s_mkey).iter().any(|e| {
-                matches!(e.relation_type, "has_director" | "has_writer" | "soundtrack_composer")
-                    && ctx.state.graph.out_edges_by_key(nkey).iter().any(|ne| ne.target_key == e.target_key)
+                matches!(
+                    e.relation_type,
+                    "has_director" | "has_writer" | "soundtrack_composer"
+                ) && ctx
+                    .state
+                    .graph
+                    .out_edges_by_key(nkey)
+                    .iter()
+                    .any(|ne| ne.target_key == e.target_key)
             });
-            if shares_person && !graph_links.iter().any(|l| (l.source == *s_mkey && l.target == *nkey) || (l.source == *nkey && l.target == *s_mkey)) {
+            if shares_person
+                && !graph_links.iter().any(|l| {
+                    (l.source == *s_mkey && l.target == *nkey)
+                        || (l.source == *nkey && l.target == *s_mkey)
+                })
+            {
                 graph_links.push(GraphLinkPayload {
                     source: s_mkey.clone(),
                     target: nkey.clone(),
-                    label: if ctx.is_pt { "mesmo_realizador".to_string() } else { "same_director".to_string() },
+                    label: if ctx.is_pt {
+                        "mesmo_realizador".to_string()
+                    } else {
+                        "same_director".to_string()
+                    },
                     weight: 3.5,
                 });
             }

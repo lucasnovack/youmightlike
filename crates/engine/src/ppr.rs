@@ -194,6 +194,105 @@ pub fn run_personalized_pagerank_filtered(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::graph::RawEdges;
+
+    fn sample_graph() -> GraphCSR {
+        let mut raw = RawEdges::default();
+        raw.push("movie:1", "keyword:cyberpunk", "has_keyword", 1.0);
+        raw.push("movie:1", "person:1", "has_director", 1.0);
+        raw.push("game:1", "keyword:cyberpunk", "has_tag", 1.0);
+        raw.push("game:1", "developer:1", "developed_by", 1.0);
+        raw.push("artist:1", "keyword:cyberpunk", "has_tag", 1.0);
+        raw.push("book:1", "keyword:cyberpunk", "has_tag", 1.0);
+        raw.push("series:1", "person:1", "has_director", 1.0);
+        GraphCSR::from_raw(raw, 0.5)
+    }
+
+    #[test]
+    fn test_ppr_probability_conservation_single_seed() {
+        let graph = sample_graph();
+        for alpha in [0.0, 0.15, 0.50, 0.85, 0.95] {
+            let p = run_personalized_pagerank_scores(&graph, &["movie:1"], alpha, 150, 1e-6)
+                .expect("PPR execution should succeed");
+
+            let sum: f32 = p.iter().sum();
+            assert!(
+                (sum - 1.0).abs() < 1e-4,
+                "Probability sum must be 1.0 for alpha={alpha}, got {sum}"
+            );
+            assert!(
+                p.iter().all(|&x| x >= 0.0),
+                "All probabilities must be non-negative for alpha={alpha}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_ppr_probability_conservation_weighted_seeds() {
+        let graph = sample_graph();
+        let seed_weights = [("movie:1", 0.65), ("game:1", 0.35)];
+
+        for alpha in [0.1, 0.5, 0.85] {
+            let p =
+                run_personalized_pagerank_scores_weighted(&graph, &seed_weights, alpha, 150, 1e-6)
+                    .expect("Weighted PPR execution should succeed");
+
+            let sum: f32 = p.iter().sum();
+            assert!(
+                (sum - 1.0).abs() < 1e-4,
+                "Probability sum must be 1.0 for weighted seeds with alpha={alpha}, got {sum}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_ppr_teleport_dominance_when_alpha_zero() {
+        let graph = sample_graph();
+        let p = run_personalized_pagerank_scores(&graph, &["movie:1"], 0.0, 10, 1e-6)
+            .expect("PPR with alpha=0 should succeed");
+
+        let movie_id = graph.get_node_id("movie:1").expect("movie:1 must exist") as usize;
+        assert!(
+            (p[movie_id] - 1.0).abs() < 1e-5,
+            "When alpha=0, 100% of probability must stay on the seed"
+        );
+
+        for (i, &score) in p.iter().enumerate() {
+            if i != movie_id {
+                assert_eq!(score, 0.0, "Non-seed node {i} must have 0.0 probability");
+            }
+        }
+    }
+
+    #[test]
+    fn test_top_k_from_scores_sorting_and_filtering() {
+        let graph = sample_graph();
+        let p = run_personalized_pagerank_scores(&graph, &["movie:1"], 0.85, 100, 1e-6)
+            .expect("PPR should succeed");
+
+        let mut exclude = HashSet::new();
+        exclude.insert(graph.get_node_id("movie:1").unwrap());
+
+        // Extract top-2 without prefix filter
+        let top2 = top_k_from_scores(&graph, &p, &exclude, "", Some(2));
+        assert_eq!(top2.len(), 2);
+        assert!(top2[0].score >= top2[1].score, "Must be descending order");
+        assert!(
+            !top2.iter().any(|n| n.node_key == "movie:1"),
+            "Excluded seed must not be in top-k"
+        );
+
+        // Extract with prefix filter "game:"
+        let games = top_k_from_scores(&graph, &p, &exclude, "game:", Some(5));
+        assert!(!games.is_empty(), "Must find at least one game");
+        for g in &games {
+            assert!(
+                g.node_key.starts_with("game:"),
+                "Result {} must match prefix 'game:'",
+                g.node_key
+            );
+        }
+    }
 
     #[test]
     fn test_penalize_negative_scores() {
@@ -213,4 +312,3 @@ mod tests {
         assert_eq!(p_pos[3], 0.0);
     }
 }
-

@@ -40,7 +40,9 @@ struct Args {
     json: Option<String>,
 }
 
-const BUCKETS: [&str; 7] = ["movie", "series", "game", "book", "music", "concept", "creator"];
+const BUCKETS: [&str; 7] = [
+    "movie", "series", "game", "book", "music", "concept", "creator",
+];
 
 fn bucket_of(key: &str) -> usize {
     if let Some(d) = item_domain_of(key) {
@@ -54,7 +56,10 @@ fn bucket_of(key: &str) -> usize {
 
 fn default_profiles() -> Vec<(String, Vec<String>)> {
     let p = |name: &str, keys: &[&str]| {
-        (name.to_string(), keys.iter().map(|s| s.to_string()).collect())
+        (
+            name.to_string(),
+            keys.iter().map(|s| s.to_string()).collect(),
+        )
     };
     vec![
         p("solo_game_skyrim", &["game:7811"]),
@@ -63,7 +68,10 @@ fn default_profiles() -> Vec<(String, Vec<String>)> {
         p("solo_series_dark", &["series:5818"]),
         p("solo_music_echo", &["artist:927"]),
         p("mix_skyrim_booka", &["game:7811", "artist:1968"]),
-        p("mix_bladerunner_neuromancer_massive", &["movie:1", "book:2", "artist:12"]),
+        p(
+            "mix_bladerunner_neuromancer_massive",
+            &["movie:1", "book:2", "artist:12"],
+        ),
         p("mix_twinpeaks_radiohead", &["series:5208", "artist:77"]),
     ]
 }
@@ -107,14 +115,21 @@ fn main() -> Result<()> {
             .iter()
             .filter_map(|p| {
                 let (name, keys) = p.split_once('=')?;
-                Some((name.to_string(), keys.split(',').map(|s| s.trim().to_string()).collect()))
+                Some((
+                    name.to_string(),
+                    keys.split(',').map(|s| s.trim().to_string()).collect(),
+                ))
             })
             .collect()
     };
 
     let t0 = Instant::now();
     let raw = RawEdges::load_from_duckdb(&args.db_path, None)?;
-    eprintln!("[report] raw edges loaded in {:.2}s ({} nodes)", t0.elapsed().as_secs_f32(), raw.num_nodes());
+    eprintln!(
+        "[report] raw edges loaded in {:.2}s ({} nodes)",
+        t0.elapsed().as_secs_f32(),
+        raw.num_nodes()
+    );
 
     let mut results: Vec<ProfileResult> = Vec::new();
     // Per (profile, domain) top-N id sets at gamma=1.0, for overlap comparison
@@ -124,7 +139,10 @@ fn main() -> Result<()> {
     for &gamma in &gammas {
         let t = Instant::now();
         let graph = GraphCSR::from_raw(raw.clone(), gamma);
-        eprintln!("[report] gamma={gamma:.2} matrix built in {:.2}s", t.elapsed().as_secs_f32());
+        eprintln!(
+            "[report] gamma={gamma:.2} matrix built in {:.2}s",
+            t.elapsed().as_secs_f32()
+        );
 
         for (name, seeds) in &profiles {
             let seed_refs: Vec<&str> = seeds.iter().map(|s| s.as_str()).collect();
@@ -260,7 +278,10 @@ fn main() -> Result<()> {
 }
 
 fn resolve_labels(db_path: &str, keys: &HashSet<String>) -> Result<HashMap<String, String>> {
-    let conn = Connection::open_with_flags(db_path, Config::default().access_mode(AccessMode::ReadOnly)?)?;
+    let conn = Connection::open_with_flags(
+        db_path,
+        Config::default().access_mode(AccessMode::ReadOnly)?,
+    )?;
     let list = keys
         .iter()
         .map(|k| format!("'{}'", k.replace('\'', "''")))
@@ -300,7 +321,10 @@ fn print_report(
             "γ", "movie", "series", "game", "book", "music", "concept", "creator", "mov", "ser", "gam", "boo", "mus"
         );
         for &g in gammas {
-            let Some(r) = results.iter().find(|r| r.profile == *name && (r.gamma - g).abs() < 1e-6) else {
+            let Some(r) = results
+                .iter()
+                .find(|r| r.profile == *name && (r.gamma - g).abs() < 1e-6)
+            else {
                 continue;
             };
             let ms = |b: &str| r.mass_share.get(b).copied().unwrap_or(0.0) * 100.0;
@@ -321,14 +345,23 @@ fn print_report(
             );
         }
         for &g in gammas {
-            let Some(r) = results.iter().find(|r| r.profile == *name && (r.gamma - g).abs() < 1e-6) else {
+            let Some(r) = results
+                .iter()
+                .find(|r| r.profile == *name && (r.gamma - g).abs() < 1e-6)
+            else {
                 continue;
             };
             println!("  -- γ={g:.2} examples");
             for d in ITEM_DOMAINS {
                 let ex = r.examples.get(d).map(|v| {
                     v.iter()
-                        .map(|e| if e.label.is_empty() { e.key.clone() } else { e.label.clone() })
+                        .map(|e| {
+                            if e.label.is_empty() {
+                                e.key.clone()
+                            } else {
+                                e.label.clone()
+                            }
+                        })
                         .collect::<Vec<_>>()
                         .join(" | ")
                 });

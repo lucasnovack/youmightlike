@@ -4,6 +4,7 @@ Matches game titles with music albums tagged as soundtracks/OSTs and extracts ve
 """
 
 import time
+
 import duckdb
 
 DB_PATH = "data/processed/taste_graph.duckdb"
@@ -11,7 +12,7 @@ DB_PATH = "data/processed/taste_graph.duckdb"
 def main():
     print("Connecting to DuckDB database...")
     con = duckdb.connect(DB_PATH)
-    
+
     start_time = time.time()
     print("Mining high-precision game soundtrack connections...")
 
@@ -74,7 +75,7 @@ def main():
     print("Inserting bidirectional semantic edges into graph_semantic_edges...")
 
     insert_start = time.time()
-    
+
     con.execute("""
         INSERT INTO graph_semantic_edges (source_id, target_id, relation_type, base_weight)
         SELECT 

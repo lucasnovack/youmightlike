@@ -6,7 +6,7 @@ import subprocess
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+
 import duckdb
 
 from youmightlike.resolution.resolver import ResolvedEntity
@@ -20,13 +20,13 @@ class RecommendationResult:
     track_id: int
     title: str
     artist_name: str
-    album_name: Optional[str]
+    album_name: str | None
     popularity: int
     affinity_score: float  # 0.0 a 100.0%
-    tempo: Optional[float]
-    valence: Optional[float]
-    energy: Optional[float]
-    danceability: Optional[float]
+    tempo: float | None
+    valence: float | None
+    energy: float | None
+    danceability: float | None
     explanation: str
 
     def vibe_summary(self) -> str:
@@ -58,11 +58,11 @@ class MusicRecommenderEngine:
 
     def _recommend_via_rust_service(
         self,
-        seed_node_ids: List[str],
+        seed_node_ids: list[str],
         limit: int,
         min_popularity: int,
         audio_weight: float,
-    ) -> Optional[List[RecommendationResult]]:
+    ) -> list[RecommendationResult] | None:
         """Tenta usar o serviço Rust (youmightlike-server) com grafo CSR já residente em RAM."""
         payload = json.dumps({
             "seeds": seed_node_ids,
@@ -102,9 +102,9 @@ class MusicRecommenderEngine:
 
     def _diffuse_with_rust_cli(
         self,
-        seed_keys: List[str],
+        seed_keys: list[str],
         limit: int = 25,
-    ) -> List[dict]:
+    ) -> list[dict]:
         """Invoca o binário nativo em Rust (youmightlike-engine) para difusão via Rayon."""
         if not RUST_ENGINE_BIN.exists():
             raise RuntimeError(
@@ -125,11 +125,11 @@ class MusicRecommenderEngine:
 
     def recommend(
         self,
-        seeds: List[ResolvedEntity],
+        seeds: list[ResolvedEntity],
         limit: int = 10,
         min_popularity: int = 30,
         audio_weight: float = 0.4,
-    ) -> List[RecommendationResult]:
+    ) -> list[RecommendationResult]:
         """Gera recomendações musicais a partir de sementes usando exclusivamente o motor Rust."""
         if not seeds:
             return []
@@ -194,7 +194,7 @@ class MusicRecommenderEngine:
                 for r in rust_results
                 if ":" in r["node_key"]
             }
-            art_ids_str = ", ".join(str(aid) for aid in scored_map.keys())
+            art_ids_str = ", ".join(str(aid) for aid in scored_map)
             if not art_ids_str:
                 return []
 
@@ -258,7 +258,7 @@ class MusicRecommenderEngine:
 
             max_graph_score = max(c[9] for c in candidates) if candidates else 1.0
 
-            recommendations: List[RecommendationResult] = []
+            recommendations: list[RecommendationResult] = []
             seen_tracks = set()
             seen_artist_titles = set()
             artist_counts: dict[str, int] = {}

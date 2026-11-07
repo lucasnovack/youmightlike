@@ -132,10 +132,27 @@ impl RawEdges {
         let mut rows = stmt.query([])?;
 
         const COUNTRY_KEYWORD_IDS: &[&str] = &[
-            "keyword:300", "keyword:301", "keyword:529", "keyword:647", "keyword:652",
-            "keyword:700", "keyword:974", "keyword:978", "keyword:1098", "keyword:1259",
-            "keyword:1370", "keyword:1473", "keyword:1489", "keyword:2043", "keyword:15288",
-            "keyword:19064", "keyword:19557", "keyword:19654", "keyword:36572", "keyword:42169", "keyword:42224",
+            "keyword:300",
+            "keyword:301",
+            "keyword:529",
+            "keyword:647",
+            "keyword:652",
+            "keyword:700",
+            "keyword:974",
+            "keyword:978",
+            "keyword:1098",
+            "keyword:1259",
+            "keyword:1370",
+            "keyword:1473",
+            "keyword:1489",
+            "keyword:2043",
+            "keyword:15288",
+            "keyword:19064",
+            "keyword:19557",
+            "keyword:19654",
+            "keyword:36572",
+            "keyword:42169",
+            "keyword:42224",
         ];
 
         let mut raw = RawEdges::default();
@@ -150,7 +167,8 @@ impl RawEdges {
             // Heavily attenuate them when attached to artists so diffusion does not leak
             // from underground trap to gospel/samba merely because both are from Brazil.
             if (src_key.starts_with("artist:") && COUNTRY_KEYWORD_IDS.contains(&dst_key.as_str()))
-                || (dst_key.starts_with("artist:") && COUNTRY_KEYWORD_IDS.contains(&src_key.as_str()))
+                || (dst_key.starts_with("artist:")
+                    && COUNTRY_KEYWORD_IDS.contains(&src_key.as_str()))
             {
                 base_w *= 0.05;
             }
@@ -258,7 +276,8 @@ impl GraphCSR {
                 .map(|k| item_domain_of(k).map(|d| d as u8).unwrap_or(NO_DOMAIN))
                 .collect();
 
-            let mut dom_sums: Vec<[f32; NUM_ITEM_DOMAINS]> = vec![[0.0; NUM_ITEM_DOMAINS]; num_nodes];
+            let mut dom_sums: Vec<[f32; NUM_ITEM_DOMAINS]> =
+                vec![[0.0; NUM_ITEM_DOMAINS]; num_nodes];
             for &(u, v, w) in &adjusted_edges {
                 let d = node_domain[v as usize];
                 if d != NO_DOMAIN {
@@ -274,8 +293,13 @@ impl GraphCSR {
                     continue;
                 }
                 let total: f32 = sums.iter().sum();
-                let tempered: [f32; NUM_ITEM_DOMAINS] =
-                    std::array::from_fn(|d| if sums[d] > 0.0 { sums[d].powf(gamma) } else { 0.0 });
+                let tempered: [f32; NUM_ITEM_DOMAINS] = std::array::from_fn(|d| {
+                    if sums[d] > 0.0 {
+                        sums[d].powf(gamma)
+                    } else {
+                        0.0
+                    }
+                });
                 let tempered_total: f32 = tempered.iter().sum();
                 for d in 0..NUM_ITEM_DOMAINS {
                     if sums[d] > 0.0 {
@@ -455,7 +479,11 @@ mod tests {
         for gamma in [0.0, 0.25, 0.5, 0.75, 1.0] {
             let g = GraphCSR::from_raw(skewed_raw(), gamma);
             for (u, s) in row_sums(&g).iter().enumerate() {
-                assert!((s - 1.0).abs() < 1e-5, "gamma={gamma} node={} sum={s}", g.id_to_node[u]);
+                assert!(
+                    (s - 1.0).abs() < 1e-5,
+                    "gamma={gamma} node={} sum={s}",
+                    g.id_to_node[u]
+                );
             }
         }
     }
@@ -470,7 +498,10 @@ mod tests {
         let p_movie = mass_to_domain(&g, "keyword:dark", 0);
         let p_music = mass_to_domain(&g, "keyword:dark", 4);
         assert!((p_movie - expected_movie).abs() < 1e-5, "movie={p_movie}");
-        assert!((p_music - (1.0 - expected_movie)).abs() < 1e-5, "music={p_music}");
+        assert!(
+            (p_music - (1.0 - expected_movie)).abs() < 1e-5,
+            "music={p_music}"
+        );
     }
 
     #[test]
@@ -492,7 +523,10 @@ mod tests {
             .map(|&g| mass_to_domain(&GraphCSR::from_raw(skewed_raw(), g), "keyword:dark", 0))
             .collect();
         for w in shares.windows(2) {
-            assert!(w[1] > w[0], "minority share must grow as gamma decreases: {shares:?}");
+            assert!(
+                w[1] > w[0],
+                "minority share must grow as gamma decreases: {shares:?}"
+            );
         }
     }
 

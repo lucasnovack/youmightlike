@@ -409,7 +409,8 @@ pub fn run_recommendation_pipeline(
                         }
                     }
 
-                    if state.graph.get_node_id(s).is_some() && !negative_diffusion_seeds.contains(s) {
+                    if state.graph.get_node_id(s).is_some() && !negative_diffusion_seeds.contains(s)
+                    {
                         negative_diffusion_seeds.push(s.clone());
                     }
                 }
@@ -506,15 +507,16 @@ pub fn run_recommendation_pipeline(
 
     for (c_key, seeds_in_cluster) in &cluster_seeds {
         let has_parent_artist = seeds_in_cluster.iter().any(|&s| s == c_key);
-        let track_count = seeds_in_cluster.iter().filter(|&s| s.starts_with("track:")).count();
+        let track_count = seeds_in_cluster
+            .iter()
+            .filter(|&s| s.starts_with("track:"))
+            .count();
         if has_parent_artist && track_count > 0 {
             let artist_share = cluster_budget * 0.5;
             let track_share = (cluster_budget * 0.5) / (track_count as f32);
             for &s in seeds_in_cluster {
                 if s == c_key {
                     seed_weights.push((s, artist_share));
-                } else if s.starts_with("track:") {
-                    seed_weights.push((s, track_share));
                 } else {
                     seed_weights.push((s, track_share));
                 }
@@ -527,19 +529,25 @@ pub fn run_recommendation_pipeline(
         }
     }
 
-    let mut p = run_personalized_pagerank_scores_weighted(&state.graph, &seed_weights, 0.85, 25, 1e-6)
-        .unwrap_or_else(|_| vec![0.0; state.graph.num_nodes]);
+    let mut p =
+        run_personalized_pagerank_scores_weighted(&state.graph, &seed_weights, 0.85, 25, 1e-6)
+            .unwrap_or_else(|_| vec![0.0; state.graph.num_nodes]);
 
     // Apply repulsive negative feedback diffusion if negative seeds are active
     let active_neg_seeds: Vec<&str> = if negative_diffusion_seeds.is_empty() {
         sorted_neg_seeds.iter().map(|s| s.as_str()).collect()
     } else {
-        negative_diffusion_seeds.iter().map(|s| s.as_str()).collect()
+        negative_diffusion_seeds
+            .iter()
+            .map(|s| s.as_str())
+            .collect()
     };
 
     if !active_neg_seeds.is_empty() {
         let neg_weights: Vec<(&str, f32)> = active_neg_seeds.iter().map(|&s| (s, 1.0f32)).collect();
-        if let Ok(p_neg) = run_personalized_pagerank_scores_weighted(&state.graph, &neg_weights, 0.85, 25, 1e-6) {
+        if let Ok(p_neg) =
+            run_personalized_pagerank_scores_weighted(&state.graph, &neg_weights, 0.85, 25, 1e-6)
+        {
             let beta = (req.beta as f32).max(0.1);
             penalize_negative_scores(&mut p, &p_neg, beta);
         }
@@ -621,7 +629,10 @@ pub fn run_recommendation_pipeline(
                         *seed_tag_counts.entry(tid).or_insert(0) += 1;
                     }
                 } else if tpfx == "person"
-                    && matches!(edge.relation_type, "has_director" | "has_composer" | "has_writer")
+                    && matches!(
+                        edge.relation_type,
+                        "has_director" | "has_composer" | "has_writer"
+                    )
                 {
                     seed_people.insert(tid);
                 } else if tpfx == "developer" && edge.relation_type == "developed_by" {
@@ -676,7 +687,7 @@ pub fn run_recommendation_pipeline(
     let (artist_quota, track_quota, movie_quota, series_quota, game_quota, book_quota) =
         match req.target_type.as_deref() {
             Some("music") => {
-                let a_q = (req.limit + 1) / 2;
+                let a_q = req.limit.div_ceil(2);
                 let t_q = req.limit.saturating_sub(a_q).max(1);
                 (a_q, t_q, 0, 0, 0, 0)
             }

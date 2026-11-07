@@ -66,8 +66,8 @@ pub fn extract_music(
         .filter(|s| s.starts_with("artist:"))
         .cloned()
         .collect();
-    let has_music_seeds = !seed_artist_keys.is_empty()
-        || ctx.active_seed_set.iter().any(|s| s.starts_with("track:"));
+    let has_music_seeds =
+        !seed_artist_keys.is_empty() || ctx.active_seed_set.iter().any(|s| s.starts_with("track:"));
 
     // Pre-cache seed album titles for fast collaborative track discovery
     let mut seed_album_titles: HashMap<String, (i64, String)> = HashMap::new();
@@ -78,11 +78,19 @@ pub fn extract_music(
                 .get(s_key)
                 .cloned()
                 .unwrap_or_else(|| s_key.clone());
-            if let Ok(mut stmt) = ctx.conn.prepare("SELECT title FROM music_albums WHERE artist_id = ?") {
-                if let Ok(rows) = stmt.query_map(params![s_aid], |r| r.get::<_, Option<String>>(0)) {
+            if let Ok(mut stmt) = ctx
+                .conn
+                .prepare("SELECT title FROM music_albums WHERE artist_id = ?")
+            {
+                if let Ok(rows) = stmt.query_map(params![s_aid], |r| r.get::<_, Option<String>>(0))
+                {
                     for r in rows.flatten().flatten() {
                         let norm = r.trim().to_lowercase();
-                        if norm.len() >= 3 && norm != "single" && norm != "ep" && norm != "greatest hits" {
+                        if norm.len() >= 3
+                            && norm != "single"
+                            && norm != "ep"
+                            && norm != "greatest hits"
+                        {
                             seed_album_titles.insert(norm, (s_aid, s_name.clone()));
                         }
                     }
@@ -114,8 +122,13 @@ pub fn extract_music(
     let mut ost_composers_added = 0usize;
     let mut ost_games_covered: HashSet<i64> = HashSet::new();
 
-    let top_diffused_artists =
-        top_k_from_scores(&ctx.state.graph, ctx.p, ctx.exclude_ids, "artist:", Some(300));
+    let top_diffused_artists = top_k_from_scores(
+        &ctx.state.graph,
+        ctx.p,
+        ctx.exclude_ids,
+        "artist:",
+        Some(300),
+    );
 
     let mut candidate_pool: Vec<CandidateArtist> = Vec::new();
 
@@ -134,11 +147,10 @@ pub fn extract_music(
         let Some((aname, country)) = lookup_artist_meta(ctx.conn, nid) else {
             continue;
         };
-        let aname_norm = aname
-            .trim()
-            .to_lowercase()
-            .replace('’', "'")
-            .replace(['\u{2010}', '\u{2011}', '\u{2012}', '\u{2013}', '\u{2014}'], "-");
+        let aname_norm = aname.trim().to_lowercase().replace('’', "'").replace(
+            ['\u{2010}', '\u{2011}', '\u{2012}', '\u{2013}', '\u{2014}'],
+            "-",
+        );
         if seen_artist_names.contains(&aname_norm) {
             continue;
         }
@@ -152,7 +164,9 @@ pub fn extract_music(
 
         for e in &out_edges {
             if (e.relation_type == "soundtrack_composer" || e.relation_type == "soundtrack_for")
-                && ctx.seed_games.contains(&parse_node_key(e.target_key).map(|(_, id)| id).unwrap_or(0))
+                && ctx
+                    .seed_games
+                    .contains(&parse_node_key(e.target_key).map(|(_, id)| id).unwrap_or(0))
             {
                 if let Some(("game", gid)) = parse_node_key(e.target_key) {
                     if let Some(g) = ctx.state.catalog.games.get(&gid) {
@@ -169,11 +183,14 @@ pub fn extract_music(
                         }
                     }
                 }
-            } else if e.relation_type == "similar_to" && ctx.active_seed_set.contains(e.target_key) {
+            } else if e.relation_type == "similar_to" && ctx.active_seed_set.contains(e.target_key)
+            {
                 if !connected_seeds.contains(&e.target_key.to_string()) {
                     connected_seeds.push(e.target_key.to_string());
                 }
-                seed_similarities.entry(e.target_key.to_string()).or_insert(e.base_weight);
+                seed_similarities
+                    .entry(e.target_key.to_string())
+                    .or_insert(e.base_weight);
                 if best_artist_bridge.is_none() {
                     let s_name = ctx
                         .seed_artist_names
@@ -224,12 +241,8 @@ pub fn extract_music(
                         .get(s_key)
                         .cloned()
                         .unwrap_or_else(|| s_key.clone());
-                    best_artist_bridge = Some((
-                        s_key.clone(),
-                        s_name,
-                        "artist".to_string(),
-                        weight,
-                    ));
+                    best_artist_bridge =
+                        Some((s_key.clone(), s_name, "artist".to_string(), weight));
                 }
             }
         }
@@ -282,7 +295,10 @@ pub fn extract_music(
             explanation_parts.push(if ctx.is_pt {
                 format!("Ponte de co-escuta no Last.fm entre {}", names.join(" e "))
             } else {
-                format!("Last.fm co-listening bridge between {}", names.join(" and "))
+                format!(
+                    "Last.fm co-listening bridge between {}",
+                    names.join(" and ")
+                )
             });
         } else if connected_seeds.len() == 1 {
             let s_key = &connected_seeds[0];
@@ -291,14 +307,20 @@ pub fn extract_music(
                 .get(s_key)
                 .cloned()
                 .unwrap_or_else(|| s_key.clone());
-            let pct_str = seed_similarities.get(s_key).map(|&w| {
-                let p = ((w / 2.0).clamp(0.05, 1.0) * 100.0).round() as i32;
-                format!(" ({}% de sobreposição)", p)
-            }).unwrap_or_default();
-            let pct_str_en = seed_similarities.get(s_key).map(|&w| {
-                let p = ((w / 2.0).clamp(0.05, 1.0) * 100.0).round() as i32;
-                format!(" ({}% overlap)", p)
-            }).unwrap_or_default();
+            let pct_str = seed_similarities
+                .get(s_key)
+                .map(|&w| {
+                    let p = ((w / 2.0).clamp(0.05, 1.0) * 100.0).round() as i32;
+                    format!(" ({}% de sobreposição)", p)
+                })
+                .unwrap_or_default();
+            let pct_str_en = seed_similarities
+                .get(s_key)
+                .map(|&w| {
+                    let p = ((w / 2.0).clamp(0.05, 1.0) * 100.0).round() as i32;
+                    format!(" ({}% overlap)", p)
+                })
+                .unwrap_or_default();
 
             explanation_parts.push(if ctx.is_pt {
                 format!("Co-escuta no Last.fm com {}{}", s_name, pct_str)
@@ -344,13 +366,14 @@ pub fn extract_music(
 
         let mut max_sim_weight = 0.0f32;
         for e in &out_edges {
-            if e.relation_type == "similar_to" && ctx.active_seed_set.contains(e.target_key) {
-                if e.base_weight > max_sim_weight {
-                    max_sim_weight = e.base_weight;
-                }
+            if e.relation_type == "similar_to"
+                && ctx.active_seed_set.contains(e.target_key)
+                && e.base_weight > max_sim_weight
+            {
+                max_sim_weight = e.base_weight;
             }
         }
-        for (_s_key, peers) in &seed_peer_maps {
+        for peers in seed_peer_maps.values() {
             if let Some(&w) = peers.get(nkey) {
                 if w > max_sim_weight {
                     max_sim_weight = w;
@@ -625,7 +648,10 @@ pub fn extract_music(
         }
 
         if let Some(ref trk) = resolved_track {
-            let primary = c.primary_seed.clone().or_else(|| c.connected_seeds.first().cloned());
+            let primary = c
+                .primary_seed
+                .clone()
+                .or_else(|| c.connected_seeds.first().cloned());
             recommended_artist_tracks.push(TrackRecItem {
                 artist_id: c.nid,
                 artist_name: c.aname.clone(),
@@ -683,11 +709,14 @@ pub fn extract_music(
                 if let Some(("artist", aid)) = parse_node_key(ak) {
                     !seed_track_keys.iter().any(|tk| {
                         if let Some(("track", tid)) = parse_node_key(tk) {
-                            ctx.conn.query_row(
-                                "SELECT artist_id FROM music_tracks WHERE id = ?",
-                                params![tid],
-                                |r| r.get::<_, i64>(0),
-                            ).map(|a| a == aid).unwrap_or(false)
+                            ctx.conn
+                                .query_row(
+                                    "SELECT artist_id FROM music_tracks WHERE id = ?",
+                                    params![tid],
+                                    |r| r.get::<_, i64>(0),
+                                )
+                                .map(|a| a == aid)
+                                .unwrap_or(false)
                         } else {
                             false
                         }
@@ -739,7 +768,9 @@ pub fn extract_music(
                     if let Ok(mut stmt) = ctx.conn.prepare(album_sql) {
                         if let Ok(mut rows) = stmt.query(params![alb_id, s_tid]) {
                             while let Ok(Some(r)) = rows.next() {
-                                if track_recs_added >= max_from_step_0a || *seen_rec_album_counts.entry(alb_id).or_insert(0) >= 2 {
+                                if track_recs_added >= max_from_step_0a
+                                    || *seen_rec_album_counts.entry(alb_id).or_insert(0) >= 2
+                                {
                                     break;
                                 }
                                 let (Ok(r_id), Ok(r_title), Ok(r_aname), Ok(r_aid), Ok(r_albtitle)) = (
@@ -804,7 +835,11 @@ pub fn extract_music(
                                 graph_links.push(GraphLinkPayload {
                                     source: s_key.clone(),
                                     target: t_key.clone(),
-                                    label: if ctx.is_pt { "mesmo_álbum".to_string() } else { "same_album".to_string() },
+                                    label: if ctx.is_pt {
+                                        "mesmo_álbum".to_string()
+                                    } else {
+                                        "same_album".to_string()
+                                    },
                                     weight: 3.5,
                                 });
 
@@ -819,7 +854,10 @@ pub fn extract_music(
                                         metadata: None,
                                     });
                                 }
-                                if !graph_links.iter().any(|l| (l.source == t_key && l.target == art_key) || (l.source == art_key && l.target == t_key)) {
+                                if !graph_links.iter().any(|l| {
+                                    (l.source == t_key && l.target == art_key)
+                                        || (l.source == art_key && l.target == t_key)
+                                }) {
                                     graph_links.push(GraphLinkPayload {
                                         source: t_key,
                                         target: art_key,
@@ -865,7 +903,8 @@ pub fn extract_music(
                             }
                         }
 
-                        let placeholders = pool_aids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+                        let placeholders =
+                            pool_aids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
                         let vibe_sql = format!(
                             "SELECT t.id, t.title, t.popularity, t.tempo, ma.name, ma.id, alb.title
                              FROM music_tracks t
@@ -880,11 +919,15 @@ pub fn extract_music(
                         );
 
                         if let Ok(mut v_stmt) = ctx.conn.prepare(&vibe_sql) {
-                            let mut params_vec: Vec<Box<dyn duckdb::ToSql>> = pool_aids.into_iter().map(|id| Box::new(id) as Box<dyn duckdb::ToSql>).collect();
+                            let mut params_vec: Vec<Box<dyn duckdb::ToSql>> = pool_aids
+                                .into_iter()
+                                .map(|id| Box::new(id) as Box<dyn duckdb::ToSql>)
+                                .collect();
                             params_vec.push(Box::new(s_tid));
                             params_vec.push(Box::new(min_bpm));
                             params_vec.push(Box::new(max_bpm));
-                            let params_ref: Vec<&dyn duckdb::ToSql> = params_vec.iter().map(|b| &**b).collect();
+                            let params_ref: Vec<&dyn duckdb::ToSql> =
+                                params_vec.iter().map(|b| &**b).collect();
 
                             if let Ok(mut v_rows) = v_stmt.query(&params_ref[..]) {
                                 while let Ok(Some(r)) = v_rows.next() {
@@ -914,18 +957,34 @@ pub fn extract_music(
 
                                     let t_key = format!("track:{}", r_id);
                                     let art_key = format!("artist:{}", r_aid);
-                                    let bpm_display = r_bpm.map(|b| format!("~{} BPM", b.round() as i32)).unwrap_or_else(|| "BPM similar".to_string());
+                                    let bpm_display = r_bpm
+                                        .map(|b| format!("~{} BPM", b.round() as i32))
+                                        .unwrap_or_else(|| "BPM similar".to_string());
 
                                     let trk_subtitle = if let Some(ref alb) = r_albtitle {
-                                        if ctx.is_pt { format!("Música de {} • {}", r_aname, alb) } else { format!("Track by {} • {}", r_aname, alb) }
+                                        if ctx.is_pt {
+                                            format!("Música de {} • {}", r_aname, alb)
+                                        } else {
+                                            format!("Track by {} • {}", r_aname, alb)
+                                        }
                                     } else {
-                                        if ctx.is_pt { format!("Música de {}", r_aname) } else { format!("Track by {}", r_aname) }
+                                        if ctx.is_pt {
+                                            format!("Música de {}", r_aname)
+                                        } else {
+                                            format!("Track by {}", r_aname)
+                                        }
                                     };
 
                                     let trk_reason = if ctx.is_pt {
-                                        format!("Vibe sonora e andamento similar a {} ({})", seed_title, bpm_display)
+                                        format!(
+                                            "Vibe sonora e andamento similar a {} ({})",
+                                            seed_title, bpm_display
+                                        )
                                     } else {
-                                        format!("Similar vibe and tempo to {} ({})", seed_title, bpm_display)
+                                        format!(
+                                            "Similar vibe and tempo to {} ({})",
+                                            seed_title, bpm_display
+                                        )
                                     };
 
                                     results.push(json!({
@@ -954,7 +1013,11 @@ pub fn extract_music(
                                     graph_links.push(GraphLinkPayload {
                                         source: s_key.clone(),
                                         target: t_key.clone(),
-                                        label: if ctx.is_pt { "vibe_similar".to_string() } else { "similar_vibe".to_string() },
+                                        label: if ctx.is_pt {
+                                            "vibe_similar".to_string()
+                                        } else {
+                                            "similar_vibe".to_string()
+                                        },
                                         weight: 2.8,
                                     });
 
@@ -969,7 +1032,10 @@ pub fn extract_music(
                                             metadata: None,
                                         });
                                     }
-                                    if !graph_links.iter().any(|l| (l.source == t_key && l.target == art_key) || (l.source == art_key && l.target == t_key)) {
+                                    if !graph_links.iter().any(|l| {
+                                        (l.source == t_key && l.target == art_key)
+                                            || (l.source == art_key && l.target == t_key)
+                                    }) {
                                         graph_links.push(GraphLinkPayload {
                                             source: t_key,
                                             target: art_key,
@@ -1073,7 +1139,9 @@ pub fn extract_music(
             .cloned()
             .collect();
         collab_tracks.sort_by(|a, b| {
-            b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal)
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         for c_item in collab_tracks {
@@ -1083,7 +1151,9 @@ pub fn extract_music(
             let norm_t = norm_track_title(&c_item.track.title);
             if norm_t.is_empty()
                 || !seen_rec_track_titles.insert(norm_t)
-                || ctx.seed_set.contains(&format!("track:{}", c_item.track.track_id))
+                || ctx
+                    .seed_set
+                    .contains(&format!("track:{}", c_item.track.track_id))
                 || !seen_rec_track_ids.insert(c_item.track.track_id)
                 || !seen_rec_track_artists.insert(c_item.artist_id)
             {
@@ -1099,9 +1169,15 @@ pub fn extract_music(
             };
             let collab_name = c_item.collab_seed_name.as_deref().unwrap_or("artista");
             let trk_reason = if ctx.is_pt {
-                format!("Colaboração histórica com {} no álbum {}", collab_name, alb_str)
+                format!(
+                    "Colaboração histórica com {} no álbum {}",
+                    collab_name, alb_str
+                )
             } else {
-                format!("Historic collaboration with {} on album {}", collab_name, alb_str)
+                format!(
+                    "Historic collaboration with {} on album {}",
+                    collab_name, alb_str
+                )
             };
 
             results.push(json!({
@@ -1205,62 +1281,62 @@ pub fn extract_music(
             {
                 continue;
             }
-                let bpm_str = bpm
-                    .filter(|&b| b > 0.0)
-                    .map(|b| format!(" • {} BPM", b.round() as i32))
-                    .unwrap_or_default();
-                let trk_subtitle = if ctx.is_pt {
-                    format!("Música de {}{}", aname, bpm_str)
-                } else {
-                    format!("Track by {}{}", aname, bpm_str)
-                };
-                let trk_reason = if ctx.is_pt {
-                    "Alta ressonância na difusão da trilha sonora e estilo"
-                } else {
-                    "High resonance in diffusion path and style"
-                };
+            let bpm_str = bpm
+                .filter(|&b| b > 0.0)
+                .map(|b| format!(" • {} BPM", b.round() as i32))
+                .unwrap_or_default();
+            let trk_subtitle = if ctx.is_pt {
+                format!("Música de {}{}", aname, bpm_str)
+            } else {
+                format!("Track by {}{}", aname, bpm_str)
+            };
+            let trk_reason = if ctx.is_pt {
+                "Alta ressonância na difusão da trilha sonora e estilo"
+            } else {
+                "High resonance in diffusion path and style"
+            };
 
-                results.push(json!({
-                    "id": item.node_key,
+            results.push(json!({
+                "id": item.node_key,
+                "title": ttitle,
+                "type": "track",
+                "subtitle": trk_subtitle,
+                "score": ((item.score as f64) * 1000.0 * 100.0).round() / 100.0,
+                "top_track": {
                     "title": ttitle,
-                    "type": "track",
-                    "subtitle": trk_subtitle,
-                    "score": ((item.score as f64) * 1000.0 * 100.0).round() / 100.0,
-                    "top_track": {
-                        "title": ttitle,
-                        "popularity": pop.unwrap_or(65),
-                    },
-                    "reason": trk_reason,
-                }));
+                    "popularity": pop.unwrap_or(65),
+                },
+                "reason": trk_reason,
+            }));
 
-                let art_key = format!("artist:{}", aid);
-                if !graph_nodes.iter().any(|n| n.id == art_key) {
-                    graph_nodes.push(GraphNodePayload {
-                        id: art_key.clone(),
-                        label: aname.clone(),
-                        node_type: "artist".to_string(),
-                        val: 11.5,
-                        tags: Vec::new(),
-                        desc: String::new(),
-                        metadata: None,
-                    });
-                }
+            let art_key = format!("artist:{}", aid);
+            if !graph_nodes.iter().any(|n| n.id == art_key) {
                 graph_nodes.push(GraphNodePayload {
-                    id: item.node_key.clone(),
-                    label: ttitle.clone(),
-                    node_type: "track".to_string(),
-                    val: 10.5,
+                    id: art_key.clone(),
+                    label: aname.clone(),
+                    node_type: "artist".to_string(),
+                    val: 11.5,
                     tags: Vec::new(),
                     desc: String::new(),
                     metadata: None,
                 });
-                graph_links.push(GraphLinkPayload {
-                    source: item.node_key.clone(),
-                    target: art_key,
-                    label: "performed_by".to_string(),
-                    weight: 2.5,
-                });
-                track_recs_added += 1;
+            }
+            graph_nodes.push(GraphNodePayload {
+                id: item.node_key.clone(),
+                label: ttitle.clone(),
+                node_type: "track".to_string(),
+                val: 10.5,
+                tags: Vec::new(),
+                desc: String::new(),
+                metadata: None,
+            });
+            graph_links.push(GraphLinkPayload {
+                source: item.node_key.clone(),
+                target: art_key,
+                label: "performed_by".to_string(),
+                weight: 2.5,
+            });
+            track_recs_added += 1;
         }
 
         // 3. Essential tracks from the balanced recommended artists
@@ -1268,7 +1344,8 @@ pub fn extract_music(
             let mut tracks_to_add: Vec<TrackRecItem> = Vec::new();
 
             if seed_artist_keys.len() > 1 {
-                let per_seed_track_quota = ((track_quota - track_recs_added) / seed_artist_keys.len()).max(1);
+                let per_seed_track_quota =
+                    ((track_quota - track_recs_added) / seed_artist_keys.len()).max(1);
 
                 // Pass A: Balanced per-seed track extraction
                 for s_key in &seed_artist_keys {
@@ -1277,14 +1354,19 @@ pub fn extract_music(
                         .filter(|t| t.primary_seed.as_ref() == Some(s_key))
                         .collect();
                     seed_tracks.sort_by(|a, b| {
-                        b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal)
+                        b.score
+                            .partial_cmp(&a.score)
+                            .unwrap_or(std::cmp::Ordering::Equal)
                     });
 
                     for t in seed_tracks.into_iter().take(per_seed_track_quota) {
                         if tracks_to_add.len() + track_recs_added >= track_quota {
                             break;
                         }
-                        if !tracks_to_add.iter().any(|existing| existing.track.track_id == t.track.track_id) {
+                        if !tracks_to_add
+                            .iter()
+                            .any(|existing| existing.track.track_id == t.track.track_id)
+                        {
                             tracks_to_add.push(t.clone());
                         }
                     }
@@ -1295,7 +1377,10 @@ pub fn extract_music(
                     if tracks_to_add.len() + track_recs_added >= track_quota {
                         break;
                     }
-                    if !tracks_to_add.iter().any(|existing| existing.track.track_id == t.track.track_id) {
+                    if !tracks_to_add
+                        .iter()
+                        .any(|existing| existing.track.track_id == t.track.track_id)
+                    {
                         tracks_to_add.push(t.clone());
                     }
                 }
@@ -1329,7 +1414,12 @@ pub fn extract_music(
                     .filter(|&b| b > 0.0)
                     .map(|b| format!(" • {} BPM", b.round() as i32))
                     .unwrap_or_default();
-                let alb_str = item.track.album_title.as_deref().map(|a| format!(" • Álbum: {}", a)).unwrap_or_default();
+                let alb_str = item
+                    .track
+                    .album_title
+                    .as_deref()
+                    .map(|a| format!(" • Álbum: {}", a))
+                    .unwrap_or_default();
                 let trk_subtitle = if ctx.is_pt {
                     format!("Música de {}{}{}", item.artist_name, alb_str, bpm_str)
                 } else {

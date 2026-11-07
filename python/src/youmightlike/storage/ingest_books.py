@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+
 from rich.console import Console
 from rich.table import Table
 
@@ -67,7 +68,7 @@ def run_books_bulk_ingestion(min_ratings: int = 300) -> None:
                 description = CASE WHEN books.description IS NULL OR books.description = '' THEN EXCLUDED.description ELSE books.description END;
             """
         )
-        console.print(f"  -> Tabela 'books' atualizada.")
+        console.print("  -> Tabela 'books' atualizada.")
 
         # ---------------------------------------------------------------------
         # 2. AUTORES DE LIVROS (book_authors)

@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import sys
-from typing import List
+
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
 from rich.prompt import Prompt
+from rich.table import Table
 
-from youmightlike.resolution.resolver import MusicResolver, ResolvedEntity
 from youmightlike.recommendation.engine import MusicRecommenderEngine
+from youmightlike.resolution.resolver import MusicResolver, ResolvedEntity
 
 console = Console()
 
@@ -25,8 +25,8 @@ def render_banner() -> None:
     )
 
 
-def interactive_seed_selection(resolver: MusicResolver) -> List[ResolvedEntity]:
-    seeds: List[ResolvedEntity] = []
+def interactive_seed_selection(resolver: MusicResolver) -> list[ResolvedEntity]:
+    seeds: list[ResolvedEntity] = []
     console.print("\n[bold]Select 1 to 4 tracks or artists as diffusion seeds.[/bold]")
     console.print("[dim](Press Enter on an empty line when finished)[/dim]\n")
 
@@ -74,7 +74,7 @@ def run_cli() -> None:
     resolver = MusicResolver()
     engine = MusicRecommenderEngine()
 
-    seeds: List[ResolvedEntity] = []
+    seeds: list[ResolvedEntity] = []
 
     # Se o usuário passou argumentos na linha de comando, resolve direto
     if len(sys.argv) > 1:
@@ -94,7 +94,7 @@ def run_cli() -> None:
         console.print("[bold red]No valid seeds selected. Exiting.[/bold red]")
         return
 
-    console.print(f"\n[bold]Propagating affinity via Graph PPR (DuckDB + Audio Alignment)...[/bold]")
+    console.print("\n[bold]Propagating affinity via Graph PPR (DuckDB + Audio Alignment)...[/bold]")
     with console.status("[dim]Computing Personalized PageRank and path alignments...", spinner="dots"):
         recommendations = engine.recommend(seeds, limit=10, min_popularity=35)
 

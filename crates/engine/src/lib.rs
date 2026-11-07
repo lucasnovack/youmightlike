@@ -1,5 +1,7 @@
 //! youmightlike-engine: Deterministic heterogeneous graph diffusion core and HTTP service.
 
+#![allow(clippy::type_complexity, clippy::too_many_arguments)]
+
 pub mod graph;
 pub mod models;
 pub mod ppr;

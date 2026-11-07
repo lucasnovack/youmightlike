@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
+
 import duckdb
 
 
@@ -10,16 +10,16 @@ class ResolvedEntity:
     node_id: str
     entity_type: str  # 'track' | 'artist'
     title: str
-    artist_name: Optional[str] = None
-    album_name: Optional[str] = None
+    artist_name: str | None = None
+    album_name: str | None = None
     popularity: int = 0
-    tempo: Optional[float] = None
-    valence: Optional[float] = None
-    energy: Optional[float] = None
-    danceability: Optional[float] = None
-    acousticness: Optional[float] = None
-    instrumentalness: Optional[float] = None
-    country: Optional[str] = None
+    tempo: float | None = None
+    valence: float | None = None
+    energy: float | None = None
+    danceability: float | None = None
+    acousticness: float | None = None
+    instrumentalness: float | None = None
+    country: str | None = None
 
     def display_label(self) -> str:
         if self.entity_type == "track":
@@ -48,14 +48,14 @@ class MusicResolver:
         conn.execute("PRAGMA threads=8;")
         return conn
 
-    def resolve(self, query: str, limit: int = 6) -> List[ResolvedEntity]:
+    def resolve(self, query: str, limit: int = 6) -> list[ResolvedEntity]:
         """Resolve uma busca em texto livre para candidatos estruturados no grafo em milissegundos."""
         q = query.strip()
         if not q or len(q) < 2:
             return []
 
         q_lower = q.lower()
-        results: List[ResolvedEntity] = []
+        results: list[ResolvedEntity] = []
         seen_ids = set()
 
         variants = list(dict.fromkeys([
@@ -112,10 +112,10 @@ class MusicResolver:
                     if len(words) > n_words and len(results) < limit:
                         candidate_art = " ".join(words[:n_words])
                         candidate_trk = " ".join(words[n_words:])
-                        
+
                         art_vars = list(dict.fromkeys([candidate_art, candidate_art.title(), candidate_art.capitalize()]))
                         art_placeholders = ", ".join(["?" for _ in art_vars])
-                        
+
                         art_row = conn.execute(
                             f"""
                             SELECT id, name FROM music_artists
@@ -125,7 +125,7 @@ class MusicResolver:
                             """,
                             art_vars
                         ).fetchone()
-                        
+
                         if art_row:
                             matched_artist_id, matched_artist_name = art_row
                             trk_vars = list(dict.fromkeys([candidate_trk, candidate_trk.title(), candidate_trk.capitalize()]))

@@ -66,12 +66,8 @@ pub fn extract_books(
                         } else {
                             format!("Literary source for '{}'", scr_title)
                         });
-                        best_book_bridge = Some((
-                            e.target_key.to_string(),
-                            scr_title,
-                            tpfx.to_string(),
-                            3.5,
-                        ));
+                        best_book_bridge =
+                            Some((e.target_key.to_string(), scr_title, tpfx.to_string(), 3.5));
                     }
                 } else if tpfx == "author"
                     && found_author.is_none()
@@ -191,16 +187,36 @@ pub fn extract_books(
         }
 
         // Direct link to seed book if sharing author
-        let seed_book_keys: Vec<String> = ctx.seed_set.iter().filter(|s| s.starts_with("book:")).cloned().collect();
+        let seed_book_keys: Vec<String> = ctx
+            .seed_set
+            .iter()
+            .filter(|s| s.starts_with("book:"))
+            .cloned()
+            .collect();
         for s_bkey in &seed_book_keys {
             let shares_author = ctx.state.graph.out_edges_by_key(s_bkey).iter().any(|e| {
-                e.relation_type == "written_by" && ctx.state.graph.out_edges_by_key(nkey).iter().any(|ne| ne.target_key == e.target_key)
+                e.relation_type == "written_by"
+                    && ctx
+                        .state
+                        .graph
+                        .out_edges_by_key(nkey)
+                        .iter()
+                        .any(|ne| ne.target_key == e.target_key)
             });
-            if shares_author && !graph_links.iter().any(|l| (l.source == *s_bkey && l.target == *nkey) || (l.source == *nkey && l.target == *s_bkey)) {
+            if shares_author
+                && !graph_links.iter().any(|l| {
+                    (l.source == *s_bkey && l.target == *nkey)
+                        || (l.source == *nkey && l.target == *s_bkey)
+                })
+            {
                 graph_links.push(GraphLinkPayload {
                     source: s_bkey.clone(),
                     target: nkey.clone(),
-                    label: if ctx.is_pt { "mesmo_autor".to_string() } else { "same_author".to_string() },
+                    label: if ctx.is_pt {
+                        "mesmo_autor".to_string()
+                    } else {
+                        "same_author".to_string()
+                    },
                     weight: 3.5,
                 });
             }

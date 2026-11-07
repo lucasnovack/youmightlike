@@ -66,7 +66,13 @@ pub fn extract_series(
 
         let mut ost_boost = 1.0 + (ost_artists.len() as f32) * 1.5;
         let vote = s.vote_average.unwrap_or(5.0) as f32;
-        let pop_factor = if vote >= 7.5 { 1.5 } else if vote >= 6.5 { 1.2 } else { 1.0 };
+        let pop_factor = if vote >= 7.5 {
+            1.5
+        } else if vote >= 6.5 {
+            1.2
+        } else {
+            1.0
+        };
         ost_boost *= pop_factor;
 
         let boosted = ScoredNode {
@@ -126,12 +132,8 @@ pub fn extract_series(
                     });
                 }
                 if best_series_bridge.is_none() {
-                    best_series_bridge = Some((
-                        art_key.clone(),
-                        art_name.clone(),
-                        "artist".to_string(),
-                        3.0,
-                    ));
+                    best_series_bridge =
+                        Some((art_key.clone(), art_name.clone(), "artist".to_string(), 3.0));
                 }
             }
         }
@@ -180,7 +182,9 @@ pub fn extract_series(
                         let tfmt = format!("#{}", kname);
                         if !is_steam_noise_tag(kname.as_str()) {
                             if ctx.seed_tag_counts.contains_key(&tid) {
-                                if shared_series_tags.len() < 4 && !shared_series_tags.contains(&tfmt) {
+                                if shared_series_tags.len() < 4
+                                    && !shared_series_tags.contains(&tfmt)
+                                {
                                     shared_series_tags.push(tfmt);
                                 }
                                 if best_series_bridge.is_none() {
@@ -191,7 +195,9 @@ pub fn extract_series(
                                         e.base_weight,
                                     ));
                                 }
-                            } else if fallback_series_tags.len() < 3 && !fallback_series_tags.contains(&tfmt) {
+                            } else if fallback_series_tags.len() < 3
+                                && !fallback_series_tags.contains(&tfmt)
+                            {
                                 fallback_series_tags.push(tfmt);
                             }
                         }
@@ -325,17 +331,36 @@ pub fn extract_series(
         }
 
         // Direct link to seed series if sharing creator
-        let seed_series_keys: Vec<String> = ctx.seed_set.iter().filter(|s| s.starts_with("series:")).cloned().collect();
+        let seed_series_keys: Vec<String> = ctx
+            .seed_set
+            .iter()
+            .filter(|s| s.starts_with("series:"))
+            .cloned()
+            .collect();
         for s_skey in &seed_series_keys {
             let shares_person = ctx.state.graph.out_edges_by_key(s_skey).iter().any(|e| {
                 matches!(e.relation_type, "has_director" | "has_writer")
-                    && ctx.state.graph.out_edges_by_key(nkey).iter().any(|ne| ne.target_key == e.target_key)
+                    && ctx
+                        .state
+                        .graph
+                        .out_edges_by_key(nkey)
+                        .iter()
+                        .any(|ne| ne.target_key == e.target_key)
             });
-            if shares_person && !graph_links.iter().any(|l| (l.source == *s_skey && l.target == *nkey) || (l.source == *nkey && l.target == *s_skey)) {
+            if shares_person
+                && !graph_links.iter().any(|l| {
+                    (l.source == *s_skey && l.target == *nkey)
+                        || (l.source == *nkey && l.target == *s_skey)
+                })
+            {
                 graph_links.push(GraphLinkPayload {
                     source: s_skey.clone(),
                     target: nkey.clone(),
-                    label: if ctx.is_pt { "mesmo_criador".to_string() } else { "same_creator".to_string() },
+                    label: if ctx.is_pt {
+                        "mesmo_criador".to_string()
+                    } else {
+                        "same_creator".to_string()
+                    },
                     weight: 3.5,
                 });
             }

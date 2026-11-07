@@ -200,22 +200,10 @@ mod tests {
             ),
             "the elder scrolls iv oblivion"
         );
-        assert_eq!(
-            normalize_game_title("Fallout 4"),
-            "fallout 4"
-        );
-        assert_eq!(
-            normalize_game_title("Fallout 4 VR"),
-            "fallout 4"
-        );
-        assert_eq!(
-            normalize_game_title("Far Cry®"),
-            "far cry"
-        );
-        assert_eq!(
-            normalize_game_title("Far Cry 3"),
-            "far cry 3"
-        );
+        assert_eq!(normalize_game_title("Fallout 4"), "fallout 4");
+        assert_eq!(normalize_game_title("Fallout 4 VR"), "fallout 4");
+        assert_eq!(normalize_game_title("Far Cry®"), "far cry");
+        assert_eq!(normalize_game_title("Far Cry 3"), "far cry 3");
         assert_ne!(
             normalize_game_title("Far Cry"),
             normalize_game_title("Far Cry 3")

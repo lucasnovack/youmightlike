@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+
 from rich.console import Console
 from rich.table import Table
 
@@ -77,7 +78,7 @@ def run_imdb_bulk_ingestion(min_votes: int = 2500) -> None:
                 runtime = EXCLUDED.runtime;
             """
         )
-        console.print(f"  -> Tabela 'movies' atualizada com sucesso.")
+        console.print("  -> Tabela 'movies' atualizada com sucesso.")
 
         # ---------------------------------------------------------------------
         # 2. GÊNEROS (genres & movie_genres)

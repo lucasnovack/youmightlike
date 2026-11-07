@@ -109,11 +109,10 @@ pub fn extract_backfill(
                                 || e.relation_type == "soundtrack_for")
                                 && ctx.seed_artists.contains(&aid)
                             {
-                                comp_name = ctx
-                                    .seed_artist_names
-                                    .get(e.target_key)
-                                    .cloned()
-                                    .or_else(|| lookup_artist_meta(ctx.conn, aid).map(|(n, _)| n));
+                                comp_name =
+                                    ctx.seed_artist_names.get(e.target_key).cloned().or_else(
+                                        || lookup_artist_meta(ctx.conn, aid).map(|(n, _)| n),
+                                    );
                                 if comp_name.is_some() {
                                     break;
                                 }

@@ -1,15 +1,19 @@
 from __future__ import annotations
 
-import logging
-import time
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+)
 from rich.table import Table
 
-from youmightlike.storage.database import init_db
-from youmightlike.connectors.wikidata import WikidataClient
-from youmightlike.connectors.music import MusicIngestionService
 from youmightlike.connectors.books import OpenLibraryClient
+from youmightlike.connectors.music import MusicIngestionService
+from youmightlike.connectors.wikidata import WikidataClient
+from youmightlike.storage.database import init_db
 
 console = Console()
 

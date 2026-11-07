@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+
 from rich.console import Console
 from rich.table import Table
 
@@ -67,7 +68,7 @@ def run_music_bulk_ingestion(min_tags: int = 2) -> None:
                 type = COALESCE(music_artists.type, EXCLUDED.type);
             """
         )
-        console.print(f"  -> Artistas do MusicBrainz inseridos com sucesso.")
+        console.print("  -> Artistas do MusicBrainz inseridos com sucesso.")
 
         # ---------------------------------------------------------------------
         # 2. ARTISTAS DO SPOTIFY (COMPLEMENTARES)

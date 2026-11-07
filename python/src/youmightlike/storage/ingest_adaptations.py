@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+
 import duckdb
 from rich.console import Console
 from rich.table import Table

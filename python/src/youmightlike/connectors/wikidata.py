@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+
+import duckdb
 import httpx
 from pydantic import BaseModel, Field
-import duckdb
 
 logger = logging.getLogger(__name__)
 

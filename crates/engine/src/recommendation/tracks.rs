@@ -36,7 +36,7 @@ pub fn compute_track_recommendations_sync(
                     seed_artist_ids.insert(aid);
                 }
             }
-            if let Ok((tempo, valence, energy, dance)) = conn.query_row(
+            if let Ok((Some(t), valence, energy, dance)) = conn.query_row(
                 "SELECT tempo, valence, energy, danceability FROM music_tracks WHERE id = ?",
                 params![id],
                 |r| {
@@ -48,14 +48,12 @@ pub fn compute_track_recommendations_sync(
                     ))
                 },
             ) {
-                if let Some(t) = tempo {
-                    seed_audio_features.push((
-                        t,
-                        valence.unwrap_or(0.5),
-                        energy.unwrap_or(0.5),
-                        dance.unwrap_or(0.5),
-                    ));
-                }
+                seed_audio_features.push((
+                    t,
+                    valence.unwrap_or(0.5),
+                    energy.unwrap_or(0.5),
+                    dance.unwrap_or(0.5),
+                ));
             }
         }
     }
@@ -124,11 +122,32 @@ pub fn compute_track_recommendations_sync(
         .collect::<Vec<_>>()
         .join(", ");
 
-    let is_pt = req.language.as_deref().unwrap_or("pt").to_lowercase().starts_with("pt");
-    let co_listen_prefix = if is_pt { "Co-escuta no Last.fm com " } else { "Last.fm co-listening with " };
-    let pct_suffix = if is_pt { "% de sobreposição)" } else { "% overlap)" };
-    let shared_genres_prefix = if is_pt { "Microgêneros compartilhados com " } else { "Shared microgenres with " };
-    let default_explanation = if is_pt { "Afinidade de difusão de cena musical" } else { "Musical scene diffusion affinity" };
+    let is_pt = req
+        .language
+        .as_deref()
+        .unwrap_or("pt")
+        .to_lowercase()
+        .starts_with("pt");
+    let co_listen_prefix = if is_pt {
+        "Co-escuta no Last.fm com "
+    } else {
+        "Last.fm co-listening with "
+    };
+    let pct_suffix = if is_pt {
+        "% de sobreposição)"
+    } else {
+        "% overlap)"
+    };
+    let shared_genres_prefix = if is_pt {
+        "Microgêneros compartilhados com "
+    } else {
+        "Shared microgenres with "
+    };
+    let default_explanation = if is_pt {
+        "Afinidade de difusão de cena musical"
+    } else {
+        "Musical scene diffusion affinity"
+    };
 
     let sql_candidates = format!(
         "WITH target_artists AS (

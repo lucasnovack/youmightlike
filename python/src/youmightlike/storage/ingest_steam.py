@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+
 from rich.console import Console
 from rich.table import Table
 
@@ -70,7 +71,7 @@ def run_steam_bulk_ingestion(min_reviews: int = 400) -> None:
                 price = EXCLUDED.price;
             """
         )
-        console.print(f"  -> Tabela 'games' populada.")
+        console.print("  -> Tabela 'games' populada.")
 
         # ---------------------------------------------------------------------
         # 2. DESENVOLVEDORES (game_developers & game_dev_links)

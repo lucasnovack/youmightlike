@@ -80,11 +80,10 @@ pub fn search_entities_sync(
         query_params.push(&q_prefix_curly);
 
         let norm_artist_key = |s: &str| -> String {
-            s.trim()
-                .to_lowercase()
-                .replace('’', "'")
-                .replace('‘', "'")
-                .replace(['\u{2010}', '\u{2011}', '\u{2012}', '\u{2013}', '\u{2014}'], "-")
+            s.trim().to_lowercase().replace(['’', '‘'], "'").replace(
+                ['\u{2010}', '\u{2011}', '\u{2012}', '\u{2013}', '\u{2014}'],
+                "-",
+            )
         };
         let q_norm = norm_artist_key(&q_str);
 
@@ -155,7 +154,8 @@ pub fn search_entities_sync(
     if entity_type.is_empty() || entity_type == "game" {
         let q_lower = q_str.to_lowercase();
         let q_no_the = q_lower.strip_prefix("the ").unwrap_or(&q_lower);
-        let mut game_candidates: Vec<(u8, u8, i64, usize, i64, &crate::models::GameMeta)> = Vec::new();
+        let mut game_candidates: Vec<(u8, u8, i64, usize, i64, &crate::models::GameMeta)> =
+            Vec::new();
         for (&gid, meta) in &state.catalog.games {
             let t_lower = meta.title.to_lowercase();
             let t_no_the = t_lower.strip_prefix("the ").unwrap_or(&t_lower);
@@ -249,7 +249,10 @@ pub fn search_entities_sync(
             } else {
                 continue;
             };
-            let deg = state.graph.out_edges_by_key(&format!("movie:{}", mid)).len();
+            let deg = state
+                .graph
+                .out_edges_by_key(&format!("movie:{}", mid))
+                .len();
             movie_candidates.push((match_tier, deg, mid, meta));
         }
         movie_candidates.sort_unstable_by(|a, b| {
@@ -301,7 +304,10 @@ pub fn search_entities_sync(
             } else {
                 continue;
             };
-            let deg = state.graph.out_edges_by_key(&format!("series:{}", sid)).len();
+            let deg = state
+                .graph
+                .out_edges_by_key(&format!("series:{}", sid))
+                .len();
             series_candidates.push((match_tier, deg, sid, meta));
         }
         series_candidates.sort_unstable_by(|a, b| {
@@ -432,9 +438,7 @@ pub fn search_entities_sync(
         ";
         if let Ok(conn) = state.db_conn.lock() {
             if let Ok(mut stmt) = conn.prepare(sql) {
-                if let Ok(mut rows) =
-                    stmt.query(params![&q_str, &q_str, &q_str, needed, &q_str])
-                {
+                if let Ok(mut rows) = stmt.query(params![&q_str, &q_str, &q_str, needed, &q_str]) {
                     let mut seen_track_keys: HashSet<(String, String)> = HashSet::new();
                     while let Ok(Some(r)) = rows.next() {
                         let tid: i64 = r.get(0).unwrap_or_default();
@@ -522,5 +526,10 @@ pub async fn api_search(
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
     })
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Task join error: {}", e)))?
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Task join error: {}", e),
+        )
+    })?
 }

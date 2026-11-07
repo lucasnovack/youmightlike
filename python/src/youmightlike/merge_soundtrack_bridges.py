@@ -4,6 +4,7 @@ Can be executed when youmightlike-server is not running.
 """
 
 import time
+
 import duckdb
 
 MAIN_DB = "data/processed/taste_graph.duckdb"

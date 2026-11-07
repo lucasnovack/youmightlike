@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import duckdb
 from fastapi import FastAPI, Query
@@ -13,8 +13,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-
-from youmightlike.resolution.resolver import MusicResolver
 
 app = FastAPI(
     title="youmightlike",
@@ -48,15 +46,15 @@ class EntityItem(BaseModel):
     id: str  # ex: 'artist:11', 'movie:12406', 'game:442', 'track:60496'
     name: str
     type: str  # 'artist' | 'track' | 'movie' | 'game' | 'book'
-    subtitle: Optional[str] = None
-    extra: Optional[Dict[str, Any]] = None
+    subtitle: str | None = None
+    extra: dict[str, Any] | None = None
 
 
 class RecommendationRequest(BaseModel):
-    seeds: List[str]  # Lista de IDs: ['artist:11', 'movie:12406']
-    negative_seeds: List[str] = []
-    known_items: List[str] = []
-    target_type: Optional[str] = None  # None ou 'music', 'movie', 'game', 'book'
+    seeds: list[str]  # Lista de IDs: ['artist:11', 'movie:12406']
+    negative_seeds: list[str] = []
+    known_items: list[str] = []
+    target_type: str | None = None  # None ou 'music', 'movie', 'game', 'book'
     limit: int = 12
     lang: str = "pt"  # 'pt' | 'en'
     beta: float = 1.2
@@ -72,16 +70,16 @@ class GraphNode(BaseModel):
 class GraphEdge(BaseModel):
     source: str
     target: str
-    label: Optional[str] = None
+    label: str | None = None
     weight: float = 1.0
 
 
 class RecommendationResponse(BaseModel):
-    seeds: List[EntityItem]
-    negative_seeds: List[EntityItem] = []
+    seeds: list[EntityItem]
+    negative_seeds: list[EntityItem] = []
     known_items_count: int = 0
-    results: List[Dict[str, Any]]
-    graph: Dict[str, Any]  # {'nodes': [...], 'links': [...]}
+    results: list[dict[str, Any]]
+    graph: dict[str, Any]  # {'nodes': [...], 'links': [...]}
 
 
 # ---------------------------------------------------------------------------
@@ -90,15 +88,15 @@ class RecommendationResponse(BaseModel):
 @app.get("/api/search")
 def search_entities(
     q: str = Query(..., min_length=2),
-    entity_type: Optional[str] = Query(None),  # 'artist', 'track', 'movie', 'game'
+    entity_type: str | None = Query(None),  # 'artist', 'track', 'movie', 'game'
     limit: int = 10,
-) -> List[EntityItem]:
+) -> list[EntityItem]:
     """Busca em tempo real com filtro opcional de tipo e matching flexível."""
     q_str = q.strip()
     if not q_str:
         return []
 
-    items: List[EntityItem] = []
+    items: list[EntityItem] = []
     seen = set()
 
     with get_db() as conn:
@@ -287,7 +285,7 @@ def search_entities(
 
 
 # Cache em memória para evitar recalculação redundante em cliques rápidos
-_RECOMMENDATION_CACHE: Dict[str, RecommendationResponse] = {}
+_RECOMMENDATION_CACHE: dict[str, RecommendationResponse] = {}
 _MAX_CACHE_SIZE = 128
 
 
@@ -304,8 +302,8 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
 
 
     seed_set = set(req.seeds)
-    seeds_resolved: List[EntityItem] = []
-    diffusion_seeds: List[str] = []
+    seeds_resolved: list[EntityItem] = []
+    diffusion_seeds: list[str] = []
 
     with get_db() as conn:
         # 1. Carrega os metadados dos nós semente
@@ -381,9 +379,9 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
             diffusion_results = []
 
         # 3. Enriquece os resultados
-        results: List[Dict[str, Any]] = []
-        graph_nodes: List[Dict[str, Any]] = []
-        graph_links: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
+        graph_nodes: list[dict[str, Any]] = []
+        graph_links: list[dict[str, Any]] = []
 
         # Adiciona os nós semente ao grafo
         for seed_item in seeds_resolved:
@@ -414,7 +412,6 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                     })
 
             # Garante nós âncora estruturais para cada semente (ex: Developer para games, Tags para artistas)
-            seed_pfx = seed_item.id.split(":")[0]
             anchor_rows = conn.execute(
                 """
                 SELECT target_id, relation_type, base_weight
@@ -525,7 +522,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                     # Explicação auditável: arestas diretas ou tags compartilhadas com as sementes
                     explanation_parts = []
                     seed_ids_sql = ", ".join(f"'{s}'" for s in (diffusion_seeds if diffusion_seeds else req.seeds))
-                    
+
                     direct_edge = conn.execute(
                         f"""
                         SELECT e.relation_type, e.base_weight, ma_other.name
@@ -800,9 +797,9 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
 
             # Higienização topológica: elimina nós ponte que ficaram com grau 0 (sem arestas no subgrafo exibido)
             connected_node_ids = set()
-            for l in graph_links:
-                connected_node_ids.add(l["source"])
-                connected_node_ids.add(l["target"])
+            for link in graph_links:
+                connected_node_ids.add(link["source"])
+                connected_node_ids.add(link["target"])
 
             # Mantém seeds e recomendações sempre, mas se for nó ponte intermediário (keyword/person/author) sem conexão, remove
             graph_nodes = [
@@ -822,7 +819,7 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
             except ValueError:
                 continue
 
-            node_tags: List[str] = []
+            node_tags: list[str] = []
             node_desc = ""
 
             if pfx == "artist":

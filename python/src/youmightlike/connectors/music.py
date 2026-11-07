@@ -4,10 +4,11 @@ import logging
 import os
 import time
 from typing import Any
-import httpx
-from pydantic import BaseModel, Field
+
 import duckdb
+import httpx
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field
 
 load_dotenv()
 

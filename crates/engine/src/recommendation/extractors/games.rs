@@ -161,11 +161,7 @@ pub fn extract_games(
                                     active_seed_tags.push(tfmt.clone());
                                     candidate_bridges.insert(
                                         0,
-                                        (
-                                            e.target_key.to_string(),
-                                            tfmt,
-                                            "keyword".to_string(),
-                                        ),
+                                        (e.target_key.to_string(), tfmt, "keyword".to_string()),
                                     );
                                 }
                             } else if is_shared_seed_tag {
@@ -259,7 +255,10 @@ pub fn extract_games(
         }
         if let Some((_gid, ref gtitle, _w)) = found_similar_game {
             game_explanation.push(if ctx.is_pt {
-                format!("Co-jogabilidade na Steam: Jogadores de '{}' também jogam", gtitle)
+                format!(
+                    "Co-jogabilidade na Steam: Jogadores de '{}' também jogam",
+                    gtitle
+                )
             } else {
                 format!("Steam co-play: Players of '{}' also play", gtitle)
             });
@@ -452,34 +451,67 @@ pub fn extract_games(
             graph_links.push(GraphLinkPayload {
                 source: cand.nkey.clone(),
                 target: b_id,
-                label: if ctx.is_pt { "conectado_a".to_string() } else { "connected_to".to_string() },
+                label: if ctx.is_pt {
+                    "conectado_a".to_string()
+                } else {
+                    "connected_to".to_string()
+                },
                 weight: 2.5,
             });
         }
 
         // Direct link to seed game if similar_to or sharing developer
-        let seed_game_keys: Vec<String> = ctx.seed_set.iter().filter(|s| s.starts_with("game:")).cloned().collect();
+        let seed_game_keys: Vec<String> = ctx
+            .seed_set
+            .iter()
+            .filter(|s| s.starts_with("game:"))
+            .cloned()
+            .collect();
         for s_gkey in &seed_game_keys {
-            let is_similar = ctx.state.graph.out_edges_by_key(s_gkey).iter().any(|e| {
-                e.relation_type == "similar_to" && e.target_key == cand.nkey
-            });
-            if is_similar && !graph_links.iter().any(|l| (l.source == *s_gkey && l.target == cand.nkey) || (l.source == cand.nkey && l.target == *s_gkey)) {
+            let is_similar = ctx
+                .state
+                .graph
+                .out_edges_by_key(s_gkey)
+                .iter()
+                .any(|e| e.relation_type == "similar_to" && e.target_key == cand.nkey);
+            if is_similar
+                && !graph_links.iter().any(|l| {
+                    (l.source == *s_gkey && l.target == cand.nkey)
+                        || (l.source == cand.nkey && l.target == *s_gkey)
+                })
+            {
                 graph_links.push(GraphLinkPayload {
                     source: s_gkey.clone(),
                     target: cand.nkey.clone(),
-                    label: if ctx.is_pt { "co_jogabilidade".to_string() } else { "co_played".to_string() },
+                    label: if ctx.is_pt {
+                        "co_jogabilidade".to_string()
+                    } else {
+                        "co_played".to_string()
+                    },
                     weight: 3.5,
                 });
             }
 
             let shares_dev = ctx.state.graph.out_edges_by_key(s_gkey).iter().any(|e| {
-                e.relation_type == "developed_by" && parse_node_key(e.target_key).map(|(_, did)| cand.dev_ids.contains(&did)).unwrap_or(false)
+                e.relation_type == "developed_by"
+                    && parse_node_key(e.target_key)
+                        .map(|(_, did)| cand.dev_ids.contains(&did))
+                        .unwrap_or(false)
             });
-            if shares_dev && !graph_links.iter().any(|l| (l.source == *s_gkey && l.target == cand.nkey) || (l.source == cand.nkey && l.target == *s_gkey)) {
+            if shares_dev
+                && !graph_links.iter().any(|l| {
+                    (l.source == *s_gkey && l.target == cand.nkey)
+                        || (l.source == cand.nkey && l.target == *s_gkey)
+                })
+            {
                 graph_links.push(GraphLinkPayload {
                     source: s_gkey.clone(),
                     target: cand.nkey.clone(),
-                    label: if ctx.is_pt { "mesmo_estúdio".to_string() } else { "same_developer".to_string() },
+                    label: if ctx.is_pt {
+                        "mesmo_estúdio".to_string()
+                    } else {
+                        "same_developer".to_string()
+                    },
                     weight: 3.5,
                 });
             }
@@ -553,33 +585,66 @@ pub fn extract_games(
                 graph_links.push(GraphLinkPayload {
                     source: cand.nkey.clone(),
                     target: b_id,
-                    label: if ctx.is_pt { "conectado_a".to_string() } else { "connected_to".to_string() },
+                    label: if ctx.is_pt {
+                        "conectado_a".to_string()
+                    } else {
+                        "connected_to".to_string()
+                    },
                     weight: 2.5,
                 });
             }
 
-            let seed_game_keys: Vec<String> = ctx.seed_set.iter().filter(|s| s.starts_with("game:")).cloned().collect();
+            let seed_game_keys: Vec<String> = ctx
+                .seed_set
+                .iter()
+                .filter(|s| s.starts_with("game:"))
+                .cloned()
+                .collect();
             for s_gkey in &seed_game_keys {
-                let is_similar = ctx.state.graph.out_edges_by_key(s_gkey).iter().any(|e| {
-                    e.relation_type == "similar_to" && e.target_key == cand.nkey
-                });
-                if is_similar && !graph_links.iter().any(|l| (l.source == *s_gkey && l.target == cand.nkey) || (l.source == cand.nkey && l.target == *s_gkey)) {
+                let is_similar = ctx
+                    .state
+                    .graph
+                    .out_edges_by_key(s_gkey)
+                    .iter()
+                    .any(|e| e.relation_type == "similar_to" && e.target_key == cand.nkey);
+                if is_similar
+                    && !graph_links.iter().any(|l| {
+                        (l.source == *s_gkey && l.target == cand.nkey)
+                            || (l.source == cand.nkey && l.target == *s_gkey)
+                    })
+                {
                     graph_links.push(GraphLinkPayload {
                         source: s_gkey.clone(),
                         target: cand.nkey.clone(),
-                        label: if ctx.is_pt { "co_jogabilidade".to_string() } else { "co_played".to_string() },
+                        label: if ctx.is_pt {
+                            "co_jogabilidade".to_string()
+                        } else {
+                            "co_played".to_string()
+                        },
                         weight: 3.5,
                     });
                 }
 
                 let shares_dev = ctx.state.graph.out_edges_by_key(s_gkey).iter().any(|e| {
-                    e.relation_type == "developed_by" && parse_node_key(e.target_key).map(|(_, did)| cand.dev_ids.contains(&did)).unwrap_or(false)
+                    e.relation_type == "developed_by"
+                        && parse_node_key(e.target_key)
+                            .map(|(_, did)| cand.dev_ids.contains(&did))
+                            .unwrap_or(false)
                 });
-                if shares_dev && !graph_links.iter().any(|l| (l.source == *s_gkey && l.target == cand.nkey) || (l.source == cand.nkey && l.target == *s_gkey)) {
+                if shares_dev
+                    && !graph_links.iter().any(|l| {
+                        (l.source == *s_gkey && l.target == cand.nkey)
+                            || (l.source == cand.nkey && l.target == *s_gkey)
+                    })
+                {
                     graph_links.push(GraphLinkPayload {
                         source: s_gkey.clone(),
                         target: cand.nkey.clone(),
-                        label: if ctx.is_pt { "mesmo_estúdio".to_string() } else { "same_developer".to_string() },
+                        label: if ctx.is_pt {
+                            "mesmo_estúdio".to_string()
+                        } else {
+                            "same_developer".to_string()
+                        },
                         weight: 3.5,
                     });
                 }
