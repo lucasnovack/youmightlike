@@ -1,129 +1,129 @@
-# Fontes de Dados e Dumps Utilizados
+# Data Sources and Public Dumps
 
-O `youmightlike` foi desenhado com uma regra clara: **zero custo de API, zero dependência de aprovação cadastral e zero scraping frágil**.
+`youmightlike` was designed with an uncompromising architectural rule: **zero API subscription costs, zero registration or credential approvals, and zero fragile web scraping**.
 
-Toda a malha de dados é alimentada por datasets abertos (CC0 / Domínio Público / dumps comunitários) processados nativamente em arquivos colunares (Parquet e TSV compactados em gzip) direto para o DuckDB.
-
----
-
-## 1. Filmes e Pessoas (IMDb Non-Commercial Datasets)
-
-* **Origem:** [IMDb Datasets oficiais](https://developer.imdb.com/non-commercial-datasets/)
-* **Licença:** Gratuito para uso pessoal / não-comercial
-* **Formato:** TSV compactado (`.tsv.gz`)
-* **Arquivos utilizados:**
-  - `title.basics.tsv.gz`: Metadados dos títulos (filmes, ano de lançamento, duração, gêneros primários).
-  - `title.ratings.tsv.gz`: Avaliações médias e contagem de votos.
-  - `title.crew.tsv.gz`: Mapeamento de diretores e roteiristas de cada título.
-  - `name.basics.tsv.gz`: Nomes e identificadores canônicos de pessoas (`nmXXXXXXX`).
-* **Filtro de Ingestão:** Títulos do tipo `movie` com pelo menos 2.500 votos (corte de relevância estatística para evitar títulos obscuros sem conexões).
-* **Volume Ingerido:** ~29.200 filmes, ~37.000 diretores/roteiristas e ~100.500 créditos criativos.
+The entire graph dataset is powered by open datasets (CC0, Public Domain, and open community dumps) processed natively from columnar formats (Parquet and gzip-compressed TSVs) directly into DuckDB.
 
 ---
 
-## 1.1 Séries de TV e Minisséries (IMDb Non-Commercial Datasets)
+## 1. Movies and People (IMDb Non-Commercial Datasets)
 
-* **Origem:** [IMDb Datasets oficiais](https://developer.imdb.com/non-commercial-datasets/)
-* **Licença:** Gratuito para uso pessoal / não-comercial
-* **Formato:** TSV compactado (`.tsv.gz`)
-* **Papel no Grafo:** Integra produções seriadas notáveis (*Breaking Bad, Game of Thrones, Twin Peaks, Dark, Chernobyl, Succession, The Sopranos, Peaky Blinders*), seus criadores/showrunners, diretores e roteiristas (`has_director`, `has_writer`), gêneros e pontes de trilhas sonoras e adaptações literárias (`based_on`).
-* **Filtro de Ingestão:** Títulos do tipo `tvSeries` e `tvMiniSeries` com pelo menos 2.500 votos.
-* **Volume Ingerido:** 7.647 séries/minisséries, 59.308 créditos de direção/showrunning, 93.181 créditos de roteiro e 18.829 conexões de gêneros e tags.
-
----
-
-## 2. Semântica e Tags de Filmes (MovieLens Tag Genome / GroupLens)
-
-* **Origem:** [MovieLens 20M/25M Tag Genome](https://grouplens.org/datasets/movielens/) (GroupLens Research / Universidade de Minnesota)
-* **Licença:** Gratuito para pesquisa e uso não-comercial
-* **Formato:** CSVs tabulares (`genome_tags.csv`, `genome_scores.csv`, `link.csv`)
-* **Papel no Grafo:** Conecta filmes a tags conceituais de alta precisão (`cyberpunk`, `dystopia`, `mindfuck`, `existentialism`, `atmospheric`, `neo-noir`, `space-opera`, `dark`, `philosophical`) com pontuação de relevância contínua (0.0 a 1.0).
-* **Vínculo com IMDb:** Mapeamento exato via `link.imdbId` convertido em formato canônico (`ttXXXXXXX`).
-* **Filtro de Ingestão:** Tags com relevância $\ge 0.65$.
-* **Volume Ingerido:** 218.910 arestas conceituais conectando mais de 15.500 filmes a 1.111 tags estéticas refinadas.
+* **Source:** [Official IMDb Datasets](https://developer.imdb.com/non-commercial-datasets/)
+* **License:** Free for personal / non-commercial use
+* **Format:** Gzip-compressed TSV (`.tsv.gz`)
+* **Files Used:**
+  - `title.basics.tsv.gz`: Title metadata (movies, release year, runtime, primary genres).
+  - `title.ratings.tsv.gz`: Average ratings and total vote counts.
+  - `title.crew.tsv.gz`: Director and writer credits for each title.
+  - `name.basics.tsv.gz`: Canonical personal names and identifiers (`nmXXXXXXX`).
+* **Ingestion Threshold:** `movie` titles with at least 2,500 votes (statistical significance filter to exclude obscure entries without graph connectivity).
+* **Ingested Volume:** ~29,200 movies, ~37,000 directors/writers, and ~100,500 creative credits.
 
 ---
 
-## 3. Animações, Estúdios e Tropos (MyAnimeList Top Anime)
+## 1.1 TV Series and Mini-Series (IMDb Non-Commercial Datasets)
 
-* **Origem:** [MyAnimeList Top Anime Dataset](https://huggingface.co/datasets/lyfesan/myanimelist-top-anime-dataset)
-* **Licença:** Dados abertos de comunidade
-* **Formato:** CSV tabular (`top_anime.csv`, 9.2 MB)
-* **Papel no Grafo:** Conecta séries, OVAs e filmes de animação a estúdios renomados (*Studio Ghibli*, *Madhouse*, *Bones*, *Wit Studio*, *Mappa*) através da relação `produced_by` e introduz tropos/temas narrativos (*Time Travel*, *Psychological*, *Mecha*, *Samurai*, *Cyberpunk*).
-* **Prevenção de Duplicatas:** Casamento de títulos em inglês e japonês com obras já catalogadas pelo IMDb. Obras pré-existentes apenas recebem novos créditos e tags; obras inéditas entram com chave `mal:<id>`.
-* **Filtro de Ingestão:** Obras com pelo menos 20.000 membros na comunidade.
-* **Volume Ingerido:** 5.341 obras de anime integradas, 453 estúdios de animação únicos com 5.839 arestas de produção e 239.528 conexões temáticas totais.
-
----
-
-## 4. Jogos e Estúdios (Steam Community Dataset)
-
-* **Origem:** Dataset estruturado da loja Steam ([Hugging Face CC0](https://huggingface.co/datasets/FronkonGames/steam-games-dataset))
-* **Licença:** CC0 (Domínio Público)
-* **Formato:** Parquet nativo (`games.parquet`, 184 MB)
-* **Campos Extraídos:**
-  - `appID`: Steam App ID único.
-  - `name`: Título oficial do jogo.
-  - `release_date`: Ano de lançamento.
-  - `developers`: Array de estúdios desenvolvedores (`VARCHAR[]`).
-  - `genres` e `categories`: Tags de gameplay e estéticas (`VARCHAR[]`).
-  - `positive` / `negative`: Reviews da comunidade na Steam.
-* **Filtro de Ingestão:** Jogos com no mínimo 400 reviews totais.
-* **Volume Ingerido:** ~11.850 jogos, ~8.860 desenvolvedoras e ~112.700 tags estéticas.
+* **Source:** [Official IMDb Datasets](https://developer.imdb.com/non-commercial-datasets/)
+* **License:** Free for personal / non-commercial use
+* **Format:** Gzip-compressed TSV (`.tsv.gz`)
+* **Role in Graph:** Connects serialized narrative works (*Breaking Bad, Game of Thrones, Twin Peaks, Dark, Chernobyl, Succession, The Sopranos, Peaky Blinders*), their creators/showrunners, directors, and writers (`has_director`, `has_writer`), genres, soundtrack bridges, and literary adaptations (`based_on`).
+* **Ingestion Threshold:** `tvSeries` and `tvMiniSeries` titles with at least 2,500 votes.
+* **Ingested Volume:** 7,647 series/mini-series, 59,308 directing/showrunning credits, 93,181 writing credits, and 18,829 genre and tag connections.
 
 ---
 
-## 5. Clássicos de Console (Nintendo, PlayStation, Sega, Xbox)
+## 2. Movie Semantics and Tags (MovieLens Tag Genome / GroupLens)
 
-* **Origem:** [Video Game Sales Dataset](https://huggingface.co/datasets/Gokalp35/VideoGameSales)
-* **Licença:** Domínio Público / Dados Abertos
-* **Formato:** Parquet nativo (`console_games.parquet`, 1.5 MB)
-* **Papel no Grafo:** Incorpora clássicos fundamentais que não existem na Steam por exclusividade de plataforma (*The Legend of Zelda*, *Silent Hill*, *Super Mario*, *Bloodborne*, *Shadow of the Colossus*, *Pokémon*, *Metal Gear Solid clássico*), suas publicadoras e tags de plataforma.
-* **Prevenção de Duplicatas:** Join de título normalizado com os jogos existentes da Steam. Títulos multiplataforma pré-existentes não são duplicados; títulos inéditos recebem `app_id` sintético no espaço reservado (`2_000_000_000 + rank`).
-* **Filtro de Ingestão:** Obras com mais de 50.000 cópias vendidas globalmente.
-* **Volume Ingerido:** 8.205 clássicos inéditos integrados (totalizando 20.064 jogos no catálogo), 9.250 desenvolvedoras e 133.983 tags de jogos.
-
----
-
-## 6. Livros e Autores (Goodreads 100k Dataset)
-
-* **Origem:** Dataset aberto de literatura ([Hugging Face CC0](https://huggingface.co/datasets/euclaise/goodreads_100k))
-* **Licença:** CC0 1.0 (Public Domain)
-* **Formato:** Parquet nativo (`goodreads_100k.parquet`, 66 MB)
-* **Campos Extraídos:**
-  - `title`: Título do livro.
-  - `author`: Autores (separados por vírgula para desaninhamento).
-  - `desc`: Sinopse / resumo da obra.
-  - `genre`: Categorias, microgêneros e temas.
-  - `totalratings`: Quantidade de avaliações dos leitores.
-* **Filtro de Ingestão:** Obras com no mínimo 300 avaliações.
-* **Volume Ingerido:** ~38.200 livros, ~29.740 autores e ~400.200 conexões temáticas (`book_subjects`).
+* **Source:** [MovieLens 20M/25M Tag Genome](https://grouplens.org/datasets/movielens/) (GroupLens Research / University of Minnesota)
+* **License:** Free for research and non-commercial use
+* **Format:** Tabular CSVs (`genome_tags.csv`, `genome_scores.csv`, `link.csv`)
+* **Role in Graph:** Links films to high-precision conceptual tags (`cyberpunk`, `dystopia`, `mindfuck`, `existentialism`, `atmospheric`, `neo-noir`, `space-opera`, `dark`, `philosophical`) with continuous relevance scores (0.0 to 1.0).
+* **Link with IMDb:** Exact mapping via `link.imdbId` converted into canonical representation (`ttXXXXXXX`).
+* **Ingestion Threshold:** Tags with continuous relevance score $\ge 0.65$.
+* **Ingested Volume:** 218,910 conceptual edges linking over 15,500 films to 1,111 refined aesthetic tags.
 
 ---
 
-## 7. Música, Discografias e Grafo de Similaridade (MusicBrainz + Spotify + Last.fm)
+## 3. Animations, Studios, and Tropes (MyAnimeList Top Anime)
 
-* **Origem Primária (Metadados & MBIDs):** [MusicBrainz Artist Dump](https://huggingface.co/datasets/LeData/media-metadata-musicbrainz-artists) (CC0 1.0)
-* **Origem Complementar (Álbuns, Faixas & Audio Features):** Spotify 114k Tracks Dataset (CSV tabular com faixas, álbuns, subgêneros e métricas acústicas de áudio)
-* **Origem de Similaridade (Co-listening Graph):** [Last.fm HetRec 2011 Dataset](https://grouplens.org/datasets/hetrec2011/) (GroupLens / ACM RecSys)
-* **Campos Extraídos:**
-  - `mbid`: MusicBrainz Identifier canônico.
-  - `name`: Nome do artista / banda.
-  - `country` e `type`: País de origem e formato (`Person` vs `Group`).
-  - `tags`: Folksonomia e microgêneros musicais (`VARCHAR[]`).
-  - `album_name`: Títulos de álbuns e discografias.
-  - `track_name` & `audio_features`: Faixas individuais com `tempo` (BPM), `valence`, `energy`, `danceability`, `acousticness`, `instrumentalness`.
-  - `user_artists`: Histórico de co-escuta de ouvintes para cálculo vetorial de similaridade de cosseno com log-weight.
-* **Filtros de Ingestão:** 
-  - Artistas com pelo menos 2 tags de caracterização estética e nomes reais.
-  - Similaridade entre artistas com no mínimo 3 ouvintes compartilhados e índice de cosseno $\ge 0.15$.
-* **Volume Ingerido:** ~126.790 artistas, ~63.290 álbuns, **85.889 faixas musicais individuais**, ~475.780 arestas de tags musicais e **61.680 arestas bidirecionais de similaridade direta** (`artist_similarities`).
+* **Source:** [MyAnimeList Top Anime Dataset](https://huggingface.co/datasets/lyfesan/myanimelist-top-anime-dataset)
+* **License:** Open community dataset
+* **Format:** Tabular CSV (`top_anime.csv`, 9.2 MB)
+* **Role in Graph:** Links animated series, OVAs, and feature films to renowned studios (*Studio Ghibli*, *Madhouse*, *Bones*, *Wit Studio*, *Mappa*) via the `produced_by` relation and introduces narrative tropes and themes (*Time Travel*, *Psychological*, *Mecha*, *Samurai*, *Cyberpunk*).
+* **Deduplication Strategy:** English and Japanese title matching against existing IMDb records. Pre-existing works receive additional credits and tags; new anime entries are ingested under the canonical key `mal:<id>`.
+* **Ingestion Threshold:** Anime entries with at least 20,000 community members.
+* **Ingested Volume:** 5,341 anime works integrated, 453 unique animation studios with 5,839 production edges, and 239,528 total thematic connections.
 
 ---
 
-## 8. Conectores Pontuais (Wikidata & OpenLibrary APIs)
+## 4. Video Games and Studios (Steam Community Dataset)
 
-Para pesquisas sob demanda ou enriquecimento de obras específicas, o projeto possui conectores REST/SPARQL em `python/src/youmightlike/connectors/`:
-* `wikidata.py`: Extrai metadados semânticos via SPARQL (direção, compositores de trilha sonora, adaptações literárias e vínculos de IDs cruzados).
-* `music.py`: Integração com API REST do MusicBrainz e Last.fm para microgêneros ao vivo.
-* `books.py`: Integração com OpenLibrary API (Internet Archive) para metadados de edições.
+* **Source:** Structured Steam Store catalog ([Hugging Face CC0](https://huggingface.co/datasets/FronkonGames/steam-games-dataset))
+* **License:** CC0 1.0 (Public Domain)
+* **Format:** Native Parquet (`games.parquet`, 184 MB)
+* **Extracted Fields:**
+  - `appID`: Unique Steam App ID.
+  - `name`: Official game title.
+  - `release_date`: Release year.
+  - `developers`: Array of game development studios (`VARCHAR[]`).
+  - `genres` and `categories`: Gameplay and aesthetic tags (`VARCHAR[]`).
+  - `positive` / `negative`: Steam community review counters.
+* **Ingestion Threshold:** Games with at least 400 total user reviews.
+* **Ingested Volume:** ~11,850 games, ~8,860 developer studios, and ~112,700 aesthetic tags.
+
+---
+
+## 5. Console Classics (Nintendo, PlayStation, Sega, Xbox)
+
+* **Source:** [Video Game Sales Dataset](https://huggingface.co/datasets/Gokalp35/VideoGameSales)
+* **License:** Public Domain / Open Data
+* **Format:** Native Parquet (`console_games.parquet`, 1.5 MB)
+* **Role in Graph:** Incorporates seminal platform exclusives unavailable on Steam (*The Legend of Zelda*, *Silent Hill*, *Super Mario*, *Bloodborne*, *Shadow of the Colossus*, *Pokémon*, classic *Metal Gear Solid*), their publishers, and platform tags.
+* **Deduplication Strategy:** Normalized title join with existing Steam entries. Multiplatform titles already present are not duplicated; new console entries receive a synthetic `app_id` in a designated namespace (`2_000_000_000 + rank`).
+* **Ingestion Threshold:** Games with more than 50,000 copies sold globally.
+* **Ingested Volume:** 8,205 classic exclusive titles integrated (reaching 20,064 total catalog games), 9,250 developers, and 133,983 game tags.
+
+---
+
+## 6. Books and Authors (Goodreads 100k Dataset)
+
+* **Source:** Open literature dataset ([Hugging Face CC0](https://huggingface.co/datasets/euclaise/goodreads_100k))
+* **License:** CC0 1.0 (Public Domain)
+* **Format:** Native Parquet (`goodreads_100k.parquet`, 66 MB)
+* **Extracted Fields:**
+  - `title`: Book title.
+  - `author`: Authors (comma-separated for unnesting).
+  - `desc`: Narrative synopsis / summary.
+  - `genre`: Categories, microgenres, and themes.
+  - `totalratings`: Total reader ratings count.
+* **Ingestion Threshold:** Books with at least 300 ratings.
+* **Ingested Volume:** ~38,200 books, ~29,740 authors, and ~400,200 thematic connections (`book_subjects`).
+
+---
+
+## 7. Music, Discographies, and Similarity Graph (MusicBrainz + Spotify + Last.fm)
+
+* **Primary Source (Metadata & MBIDs):** [MusicBrainz Artist Dump](https://huggingface.co/datasets/LeData/media-metadata-musicbrainz-artists) (CC0 1.0)
+* **Complementary Source (Albums, Tracks & Audio Features):** Spotify 114k Tracks Dataset (tabular CSV with tracks, albums, subgenres, and acoustic audio features)
+* **Similarity Source (Co-listening Graph):** [Last.fm HetRec 2011 Dataset](https://grouplens.org/datasets/hetrec2011/) (GroupLens / ACM RecSys)
+* **Extracted Fields:**
+  - `mbid`: Canonical MusicBrainz Identifier.
+  - `name`: Artist / band name.
+  - `country` and `type`: Origin country and entity format (`Person` vs `Group`).
+  - `tags`: Folksonomy and musical microgenres (`VARCHAR[]`).
+  - `album_name`: Album titles and discographies.
+  - `track_name` & `audio_features`: Individual tracks with `tempo` (BPM), `valence`, `energy`, `danceability`, `acousticness`, `instrumentalness`.
+  - `user_artists`: Listener co-audition history used for cosine similarity computation with logarithmic listener weighting.
+* **Ingestion Thresholds:**
+  - Artists with at least 2 aesthetic characterization tags and verified names.
+  - Artist similarity with at least 3 shared listeners and a cosine score $\ge 0.15$.
+* **Ingested Volume:** ~126,790 artists, ~63,290 albums, **85,889 individual musical tracks**, ~475,780 musical tag edges, and **61,680 bidirectional direct similarity edges** (`artist_similarities`).
+
+---
+
+## 8. On-Demand Connectors (Wikidata & OpenLibrary APIs)
+
+For live queries and fine-grained enrichment of specific titles, the project maintains REST/SPARQL connectors under `python/src/youmightlike/connectors/`:
+* `wikidata.py`: Extracts semantic metadata via SPARQL (directors, original soundtrack composers, literary adaptations, and cross-domain entity IDs).
+* `music.py`: REST integration with MusicBrainz and Last.fm for live microgenres.
+* `books.py`: Integration with the OpenLibrary API (Internet Archive) for edition metadata.

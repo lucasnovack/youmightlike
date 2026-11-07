@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "youmightlike"
 version = "0.1.0"
-description = "Camada de Ingestão e Pipelines de Dados para o youmightlike"
+description = "Data ingestion layer, public API connectors, and DuckDB pipelines for youmightlike"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
