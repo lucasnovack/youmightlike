@@ -115,6 +115,7 @@ export const I18N = {
     receiptCopyImage: "Copiar Imagem",
     receiptImageCopied: "Imagem do cupom copiada para a área de transferência!",
     receiptCopyFailed: "Não foi possível copiar diretamente. Use o botão Baixar PNG.",
+    crossDomainNotice: "Descoberta transmidiática",
   },
   en: {
     nodes: "nodes",
@@ -231,6 +232,7 @@ export const I18N = {
     receiptCopyImage: "Copy Image",
     receiptImageCopied: "Receipt image copied to clipboard!",
     receiptCopyFailed: "Direct copy not supported in this browser. Please use Download PNG.",
+    crossDomainNotice: "Transmedia discovery",
   }
 };
 

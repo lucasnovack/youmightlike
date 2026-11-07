@@ -153,23 +153,23 @@ pub fn extract_games(
                         _touches_seed_tag = true;
                     }
 
-                    if is_active_seed || is_shared_seed_tag {
-                        if let Some(kname) = ctx.state.catalog.keywords.get(&tid) {
-                            let tfmt = format!("#{}", kname);
-                            if !is_steam_noise_tag(kname.as_str()) {
-                                if is_active_seed {
-                                    if !active_seed_tags.contains(&tfmt) {
-                                        active_seed_tags.push(tfmt.clone());
-                                        candidate_bridges.insert(
-                                            0,
-                                            (
-                                                e.target_key.to_string(),
-                                                tfmt,
-                                                "keyword".to_string(),
-                                            ),
-                                        );
-                                    }
-                                } else if specific_tags.len() < 5 && !specific_tags.contains(&tfmt) {
+                    if let Some(kname) = ctx.state.catalog.keywords.get(&tid) {
+                        let tfmt = format!("#{}", kname);
+                        if !is_steam_noise_tag(kname.as_str()) {
+                            if is_active_seed {
+                                if !active_seed_tags.contains(&tfmt) {
+                                    active_seed_tags.push(tfmt.clone());
+                                    candidate_bridges.insert(
+                                        0,
+                                        (
+                                            e.target_key.to_string(),
+                                            tfmt,
+                                            "keyword".to_string(),
+                                        ),
+                                    );
+                                }
+                            } else if is_shared_seed_tag {
+                                if specific_tags.len() < 5 && !specific_tags.contains(&tfmt) {
                                     specific_tags.push(tfmt.clone());
                                     if candidate_bridges.len() < 3 {
                                         candidate_bridges.push((
@@ -179,7 +179,7 @@ pub fn extract_games(
                                         ));
                                     }
                                 }
-                            } else if fallback_tags.len() < 2 && !fallback_tags.contains(&tfmt) {
+                            } else if fallback_tags.len() < 4 && !fallback_tags.contains(&tfmt) {
                                 fallback_tags.push(tfmt);
                             }
                         }
@@ -264,7 +264,7 @@ pub fn extract_games(
                 format!("Steam co-play: Players of '{}' also play", gtitle)
             });
         }
-        if let Some(dname) = found_dev {
+        if let Some(ref dname) = found_dev {
             if touches_seed_dev {
                 game_explanation.push(if ctx.is_pt {
                     format!("Mesmo estúdio desenvolvedor ({})", dname)
@@ -287,17 +287,68 @@ pub fn extract_games(
             } else {
                 format!("Shared thematic tags: {}", tag_str)
             });
-        } else if !fallback_tags.is_empty() {
-            game_explanation.push(format!("Tags: {}", fallback_tags.join(", ")));
         }
 
-        let default_game_reason = if ctx.is_pt {
-            "Afinidade de jogabilidade e universo temático"
-        } else {
-            "Gameplay and thematic universe affinity"
-        };
         let full_game_reason = if game_explanation.is_empty() {
-            default_game_reason.to_string()
+            let mut parts = Vec::new();
+            if ctx.is_pt {
+                parts.push("Descoberta transmidiática no grafo".to_string());
+                if let Some(ref dname) = found_dev {
+                    if let Some(pos) = g.positive_reviews {
+                        let k_str = if pos >= 1000 {
+                            format!("{:.1}k", pos as f64 / 1000.0)
+                        } else {
+                            pos.to_string()
+                        };
+                        parts.push(format!("{} ({} avaliações na Steam)", dname, k_str));
+                    } else {
+                        parts.push(format!("Estúdio: {}", dname));
+                    }
+                } else if let Some(pos) = g.positive_reviews {
+                    let k_str = if pos >= 1000 {
+                        format!("{:.1}k", pos as f64 / 1000.0)
+                    } else {
+                        pos.to_string()
+                    };
+                    parts.push(format!("Aclamação: {} avaliações na Steam", k_str));
+                }
+                if !fallback_tags.is_empty() {
+                    parts.push(format!("Vibe & Gêneros: {}", fallback_tags.join(", ")));
+                }
+            } else {
+                parts.push("Transmedia graph discovery".to_string());
+                if let Some(ref dname) = found_dev {
+                    if let Some(pos) = g.positive_reviews {
+                        let k_str = if pos >= 1000 {
+                            format!("{:.1}k", pos as f64 / 1000.0)
+                        } else {
+                            pos.to_string()
+                        };
+                        parts.push(format!("{} ({} Steam reviews)", dname, k_str));
+                    } else {
+                        parts.push(format!("Studio: {}", dname));
+                    }
+                } else if let Some(pos) = g.positive_reviews {
+                    let k_str = if pos >= 1000 {
+                        format!("{:.1}k", pos as f64 / 1000.0)
+                    } else {
+                        pos.to_string()
+                    };
+                    parts.push(format!("Acclaimed: {} Steam reviews", k_str));
+                }
+                if !fallback_tags.is_empty() {
+                    parts.push(format!("Vibe & Genres: {}", fallback_tags.join(", ")));
+                }
+            }
+            if parts.is_empty() {
+                if ctx.is_pt {
+                    "Afinidade de jogabilidade e universo temático".to_string()
+                } else {
+                    "Gameplay and thematic universe affinity".to_string()
+                }
+            } else {
+                parts.join(" • ")
+            }
         } else {
             game_explanation.join(" • ")
         };

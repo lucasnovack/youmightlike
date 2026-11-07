@@ -1,8 +1,8 @@
-import { createTranslator } from './i18n.js?v=3.0';
-import { getTypeBadgeClass, getTypeIcon, getSeedDotColor, getAffinityLabel, getAffinityBadgeClass, getRawType } from './config.js?v=3.0';
-import { searchEntities, fetchRecommendations } from './api.js?v=3.0';
-import { ConstellationEngine } from './constellation.js?v=3.0';
-import { generateCulturalReceipt } from './receipt.js?v=3.0';
+import { createTranslator } from './i18n.js?v=3.1';
+import { getTypeBadgeClass, getTypeIcon, getSeedDotColor, getAffinityLabel, getAffinityBadgeClass, getRawType } from './config.js?v=3.1';
+import { searchEntities, fetchRecommendations } from './api.js?v=3.1';
+import { ConstellationEngine } from './constellation.js?v=3.1';
+import { generateCulturalReceipt } from './receipt.js?v=3.1';
 
 const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
@@ -633,6 +633,10 @@ createApp({
       }
     };
 
+    const isNodeInGraph = (nodeId) => {
+      return constellation ? constellation.hasNode(nodeId) : false;
+    };
+
     const focusNodeOnGraph = (nodeId) => {
       selectedNodeIds.value = [nodeId];
       sidebarMode.value = 'inspector';
@@ -883,6 +887,7 @@ createApp({
       isLoadingInspectorRecs,
       setInspectorFilter,
       clearSelection,
+      isNodeInGraph,
       focusNodeOnGraph,
       onlySharedBridges,
       hideTrackNodes,

@@ -79,6 +79,10 @@ export class ConstellationEngine {
     }
   }
 
+  hasNode(id) {
+    return this.nodeMap ? this.nodeMap.has(id) : false;
+  }
+
   scheduleDraw() {
     if (this.rafPending) return;
     this.rafPending = true;
@@ -658,8 +662,11 @@ export class ConstellationEngine {
     ctx.translate(this.viewTransform.x, this.viewTransform.y);
     ctx.scale(this.viewTransform.k, this.viewTransform.k);
 
-    const focusSet = new Set(this.selectedNodeIds);
-    if (this.hoveredId) focusSet.add(this.hoveredId);
+    const validSelected = this.selectedNodeIds.filter(id => this.nodeMap && this.nodeMap.has(id));
+    const focusSet = new Set(validSelected);
+    if (this.hoveredId && this.nodeMap && this.nodeMap.has(this.hoveredId)) {
+      focusSet.add(this.hoveredId);
+    }
     const hasFocus = focusSet.size > 0;
     const isFlowMode = this.options.layoutMode === 'flow';
 

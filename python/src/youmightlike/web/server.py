@@ -718,8 +718,13 @@ def get_recommendations(req: RecommendationRequest) -> RecommendationResponse:
                         if any_tags:
                             game_explanation.append(f"Tags: {', '.join(f'#{t[0]}' for t in any_tags)}")
 
-                    default_game_reason = "Afinidade de jogabilidade e universo temático" if is_pt else "Gameplay and thematic universe affinity"
-                    full_game_reason = " • ".join(game_explanation) if game_explanation else default_game_reason
+                    if not game_explanation:
+                        parts = ["Descoberta transmidiática no grafo" if is_pt else "Transmedia graph discovery"]
+                        if len(row) > 2 and row[2]:
+                            parts.append(f"{row[2]}")
+                        full_game_reason = " • ".join(parts)
+                    else:
+                        full_game_reason = " • ".join(game_explanation)
                     game_subtitle = f"Jogo ({row[1] or 'N/A'})" if is_pt else f"Game ({row[1] or 'N/A'})"
 
                     results.append({
