@@ -232,6 +232,11 @@ createApp({
       return list;
     });
 
+    const isCurrentInspectorNodeNegative = computed(() => {
+      if (inspectedNodes.value.length === 0) return false;
+      return inspectedNodes.value.some(n => isNodeInNegativeSeeds(n.id, n.label));
+    });
+
     // Filters
     const setDomainFilter = (flt) => {
       targetFilter.value = flt;
@@ -372,6 +377,7 @@ createApp({
         type: rawType,
         subtitle: node.desc || rawType,
       });
+      inspectorRecs.value = [];
     };
 
     const searchAndAddTag = async (tagStr) => {
@@ -503,6 +509,13 @@ createApp({
     let inspectorAbortController = null;
     const fetchLiveInspectorRecommendations = async () => {
       if (selectedNodeIds.value.length === 0) {
+        inspectorRecs.value = [];
+        return;
+      }
+      const hasNegativeNode = selectedNodeIds.value.some(id =>
+        negativeSeeds.value.some(neg => neg.id === id)
+      );
+      if (hasNegativeNode) {
         inspectorRecs.value = [];
         return;
       }
@@ -856,6 +869,7 @@ createApp({
       selectedNodeIds,
       setHoveredNode,
       inspectedNodes,
+      isCurrentInspectorNodeNegative,
       inspectorRecs,
       inspectorFilter,
       filteredInspectorRecs,
