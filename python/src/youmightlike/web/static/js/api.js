@@ -17,6 +17,7 @@ export async function searchEntities(query, entityType = '', signal = null) {
 export async function fetchRecommendations({
   seeds,
   negativeSeeds = [],
+  knownItems = [],
   targetType = null,
   limit = 24,
   lang = 'pt',
@@ -26,6 +27,7 @@ export async function fetchRecommendations({
   const payload = {
     seeds: [...seeds],
     negative_seeds: [...(negativeSeeds || [])],
+    known_items: [...(knownItems || [])],
     target_type: targetType || null,
     limit,
     lang,

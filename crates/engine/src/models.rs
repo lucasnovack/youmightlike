@@ -252,6 +252,8 @@ pub struct RecommendationRequest {
     pub seeds: Vec<String>,
     #[serde(default, alias = "negative_seed_ids", alias = "anti_seeds")]
     pub negative_seeds: Vec<String>,
+    #[serde(default, alias = "known_item_ids", alias = "consumed_items")]
+    pub known_items: Vec<String>,
     pub target_type: Option<String>,
     #[serde(default = "default_rec_limit")]
     pub limit: usize,
@@ -307,6 +309,8 @@ pub struct RecommendationResponse {
     pub seeds: Vec<EntityItem>,
     #[serde(default)]
     pub negative_seeds: Vec<EntityItem>,
+    #[serde(default)]
+    pub known_items_count: usize,
     pub results: Vec<Value>,
     pub graph: GraphPayload,
 }

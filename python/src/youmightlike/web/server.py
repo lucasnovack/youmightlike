@@ -55,6 +55,7 @@ class EntityItem(BaseModel):
 class RecommendationRequest(BaseModel):
     seeds: List[str]  # Lista de IDs: ['artist:11', 'movie:12406']
     negative_seeds: List[str] = []
+    known_items: List[str] = []
     target_type: Optional[str] = None  # None ou 'music', 'movie', 'game', 'book'
     limit: int = 12
     lang: str = "pt"  # 'pt' | 'en'
@@ -78,6 +79,7 @@ class GraphEdge(BaseModel):
 class RecommendationResponse(BaseModel):
     seeds: List[EntityItem]
     negative_seeds: List[EntityItem] = []
+    known_items_count: int = 0
     results: List[Dict[str, Any]]
     graph: Dict[str, Any]  # {'nodes': [...], 'links': [...]}
 

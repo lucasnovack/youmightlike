@@ -97,6 +97,14 @@ export const I18N = {
     addAsAntiSeed: "− Evitar",
     antiSeedsCount: "anti-sementes ativas",
     betaLabel: "Força de Repulsão",
+    knownAction: "Já conheço",
+    knownTooltip: "Marcar como já consumido para abrir espaço para novas novidades",
+    knownSection: "Obras Já Conhecidas",
+    knownCount: "conhecidas",
+    emptyKnownDesc: "Nenhuma obra marcada como conhecida ainda. Ao marcar recomendações que já consumiu, o motor libera vagas para novas descobertas inéditas sem penalizar seu gosto.",
+    clearKnown: "limpar conhecidas",
+    promoteToSeed: "Promover a semente",
+    unmarkKnown: "Remover dos conhecidos",
   },
   en: {
     nodes: "nodes",
@@ -195,6 +203,14 @@ export const I18N = {
     addAsAntiSeed: "− Dislike",
     antiSeedsCount: "active anti-seeds",
     betaLabel: "Repulsion Strength",
+    knownAction: "Already know",
+    knownTooltip: "Mark as already consumed to make room for fresh novelties",
+    knownSection: "Already Known Works",
+    knownCount: "known works",
+    emptyKnownDesc: "No works marked as known yet. Marking recommendations as known frees up room for fresh discoveries without dampening your taste.",
+    clearKnown: "clear known",
+    promoteToSeed: "Promote to seed",
+    unmarkKnown: "Remove from known",
   }
 };
 

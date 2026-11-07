@@ -34,6 +34,7 @@ pub fn run_recommendation_pipeline(
         return Ok(RecommendationResponse {
             seeds: Vec::new(),
             negative_seeds: Vec::new(),
+            known_items_count: req.known_items.len(),
             results: Vec::new(),
             graph: GraphPayload {
                 nodes: Vec::new(),
@@ -52,10 +53,15 @@ pub fn run_recommendation_pipeline(
     sorted_neg_seeds.sort();
     sorted_neg_seeds.dedup();
 
+    let mut sorted_known = req.known_items.clone();
+    sorted_known.sort();
+    sorted_known.dedup();
+
     let cache_key = format!(
-        "{}:{}:{}:{}:{}:{}",
+        "{}:{}:{}:{}:{}:{}:{}",
         sorted_seeds.join(","),
         sorted_neg_seeds.join(","),
+        sorted_known.join(","),
         req.target_type.as_deref().unwrap_or("all"),
         req.limit,
         req.lang,
@@ -68,7 +74,10 @@ pub fn run_recommendation_pipeline(
         }
     }
 
-    let seed_set: HashSet<String> = sorted_seeds.iter().cloned().collect();
+    let mut seed_set: HashSet<String> = sorted_seeds.iter().cloned().collect();
+    for k in &sorted_known {
+        seed_set.insert(k.clone());
+    }
     let mut seeds_resolved: Vec<EntityItem> = Vec::new();
     let mut diffusion_seeds: Vec<String> = Vec::new();
     let mut seed_artist_names: HashMap<String, String> = HashMap::new();
@@ -547,6 +556,11 @@ pub fn run_recommendation_pipeline(
             exclude_ids.insert(uid);
         }
     }
+    for s in &sorted_known {
+        if let Some(uid) = state.graph.get_node_id(s) {
+            exclude_ids.insert(uid);
+        }
+    }
     for s in &sorted_neg_seeds {
         if let Some(uid) = state.graph.get_node_id(s) {
             exclude_ids.insert(uid);
@@ -838,6 +852,7 @@ pub fn run_recommendation_pipeline(
     let resp_obj = RecommendationResponse {
         seeds: seeds_resolved,
         negative_seeds: negative_seeds_resolved,
+        known_items_count: sorted_known.len(),
         results,
         graph: GraphPayload {
             nodes: graph_nodes,

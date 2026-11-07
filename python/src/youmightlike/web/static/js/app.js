@@ -25,6 +25,7 @@ createApp({
     const profileSeeds = ref([]);
     const negativeSeeds = ref([]);
     const negativeBeta = ref(1.2);
+    const knownItems = ref([]);
     const recommendations = ref([]);
     const isLoadingRecs = ref(false);
     const targetFilter = ref(null);
@@ -120,12 +121,32 @@ createApp({
       if (savedBeta) {
         negativeBeta.value = parseFloat(savedBeta) || 1.2;
       }
+
+      const savedKnown = localStorage.getItem('ym_known_items');
+      if (savedKnown) {
+        try {
+          const parsedKnown = JSON.parse(savedKnown);
+          if (Array.isArray(parsedKnown)) {
+            const seenIds = new Set();
+            const dedupedKnown = [];
+            for (const k of parsedKnown) {
+              if (!k || !k.id || seenIds.has(k.id)) continue;
+              seenIds.add(k.id);
+              dedupedKnown.push(k);
+            }
+            knownItems.value = dedupedKnown;
+          }
+        } catch (e) {
+          console.error('Failed to parse saved known items:', e);
+        }
+      }
     };
 
     const saveProfile = () => {
       localStorage.setItem('ym_taste_profile', JSON.stringify(profileSeeds.value));
       localStorage.setItem('ym_negative_seeds', JSON.stringify(negativeSeeds.value));
       localStorage.setItem('ym_negative_beta', String(negativeBeta.value));
+      localStorage.setItem('ym_known_items', JSON.stringify(knownItems.value));
     };
 
     const getSearchPlaceholder = () => {
@@ -398,6 +419,52 @@ createApp({
       }
     };
 
+    const markAsKnown = (item) => {
+      if (!item || !item.id) return;
+      if (!knownItems.value.some(k => k.id === item.id)) {
+        knownItems.value.push({
+          id: item.id,
+          name: item.title || item.name || item.id,
+          type: item.type || getRawType(item),
+          subtitle: item.subtitle || '',
+        });
+        saveProfile();
+      }
+      recommendations.value = recommendations.value.filter(r => r.id !== item.id);
+      inspectorRecs.value = inspectorRecs.value.filter(r => r.id !== item.id);
+      if (profileSeeds.value.length > 0) {
+        computeRecommendations();
+      }
+    };
+
+    const unmarkKnown = (id) => {
+      knownItems.value = knownItems.value.filter(k => k.id !== id);
+      saveProfile();
+      if (profileSeeds.value.length > 0) {
+        computeRecommendations();
+      }
+    };
+
+    const clearKnownItems = () => {
+      knownItems.value = [];
+      saveProfile();
+      if (profileSeeds.value.length > 0) {
+        computeRecommendations();
+      }
+    };
+
+    const promoteKnownToSeed = (item) => {
+      if (!item || !item.id) return;
+      knownItems.value = knownItems.value.filter(k => k.id !== item.id);
+      saveProfile();
+      addSeed({
+        id: item.id,
+        name: item.name || item.title || item.id,
+        type: item.type || getRawType(item),
+        subtitle: item.subtitle || '',
+      });
+    };
+
     const clearProfile = () => {
       profileSeeds.value = [];
       negativeSeeds.value = [];
@@ -431,6 +498,7 @@ createApp({
       try {
         const data = await fetchRecommendations({
           seeds: selectedNodeIds.value,
+          knownItems: knownItems.value.map(k => k.id),
           targetType: inspectorFilter.value,
           limit: 16,
           lang: currentLang.value,
@@ -473,6 +541,7 @@ createApp({
           const data = await fetchRecommendations({
             seeds: profileSeeds.value.map(s => s.id),
             negativeSeeds: negativeSeeds.value.map(s => s.id),
+            knownItems: knownItems.value.map(k => k.id),
             beta: Number(negativeBeta.value) || 1.2,
             targetType: targetFilter.value,
             limit: 20,
@@ -635,6 +704,11 @@ createApp({
       profileSeeds,
       negativeSeeds,
       negativeBeta,
+      knownItems,
+      markAsKnown,
+      unmarkKnown,
+      clearKnownItems,
+      promoteKnownToSeed,
       recommendations,
       isLoadingRecs,
       targetFilter,
