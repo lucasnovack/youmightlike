@@ -8,7 +8,7 @@ Instead of isolated domain silos, `youmightlike` projects deep cultural relation
 
 ## Key Features
 
-* **Bipolar Diffusion with Negative Feedback (Anti-Seeds):** Damps unwanted aesthetics using vector subtraction $p_{\text{final}} = \max(0.0, p_{\text{pos}} - \beta \cdot p_{\text{neg}})$ executed in parallel across CPU cores with Rayon. Negative seeds render with distinct crimson repulsion halos on the canvas.
+* **Bipolar Diffusion with Negative Feedback (Anti-Seeds):** Damps unwanted aesthetics using vector subtraction `p_final = max(0.0, p_pos - β · p_neg)` executed in parallel across CPU cores with Rayon. Negative seeds render with distinct crimson repulsion halos on the canvas.
 * **Cultural Ticket (Receiptify / Aesthetic Snapshot):** Generates high-DPI (2x) thermal receipts on HTML5 `<canvas>` with perforated saw-tooth tear, functional taste hash barcode, orbital constellation mini-map, and unconsumed recommendations ready for PNG export or clipboard copy.
 * **"Already Know" & Serendipity Filter:** Neutral discard action (`[Already Know]`) that stores consumed works locally (`known_items`) and frees recommendation quota for undiscovered works without negatively warping taste diffusion.
 * **Explainable Behavioral Bridges:** Explicit contextual resonance labels: Last.fm listener co-audition overlap (`match_score`), Steam co-play similarity ("Players of X also play Y"), cross-domain literary adaptations, and composed original soundtracks.
@@ -29,17 +29,17 @@ $$\text{weight}(u, v) = \frac{w_{\text{base}}(u, v)}{\ln(1 + \text{degree}(v))}$
 Rare, specific connections (e.g. niche tag *"post-cyberpunk"*, auteur director, or specific soundtrack composer) preserve high probability transfer.
 
 ### 2. Bidirectional Symmetric Diffusion
-Directed semantic edges $(u, v)$ (*e.g., movie $\to$ keyword*) receive symmetric pairs $(v, u)$ during Compressed Sparse Row (CSR) matrix construction. This allows Markovian energy to flow from a seed work into thematic concepts and disperse back into kindred albums, games, and novels.
+Directed semantic edges `(u, v)` (*e.g., movie → keyword*) receive symmetric pairs `(v, u)` during Compressed Sparse Row (CSR) matrix construction. This allows Markovian energy to flow from a seed work into thematic concepts and disperse back into kindred albums, games, and novels.
 
-### 3. Inter-Domain Balancing ($\gamma$)
-Inter-domain balancing exponent (`YML_DOMAIN_GAMMA`, $\gamma \in [0.0, 1.0]$) prevents catalog mass disparity (e.g. 40M music tracks vs 20k games) from skewing multi-media walks. $\gamma = 0.0$ splits transition probability equally across item domains, while $\gamma = 1.0$ preserves natural degrees.
+### 3. Inter-Domain Balancing (γ)
+Inter-domain balancing exponent (`YML_DOMAIN_GAMMA`, `γ ∈ [0.0, 1.0]`) prevents catalog mass disparity (e.g. 40M music tracks vs 20k games) from skewing multi-media walks. `γ = 0.0` splits transition probability equally across item domains, while `γ = 1.0` preserves natural degrees.
 
 ### 4. Bipolar Repulsive Damping
 Negative seeds inject a repulsive vector subtracted from positive energy:
 
 $$p_{\text{final}}(v) = \max\left(0.0,\, p_{\text{pos}}(v) - \beta \cdot p_{\text{neg}}(v)\right)$$
 
-Where $\beta$ (default $1.2$) tunes repulsion strength, zeroing out aversive clusters without negative probability artifacts.
+Where `β` (default 1.2) tunes repulsion strength, zeroing out aversive clusters without negative probability artifacts.
 
 ---
 

@@ -39,7 +39,7 @@ The entire graph dataset is powered by open datasets (CC0, Public Domain, and op
 * **Format:** Tabular CSVs (`genome_tags.csv`, `genome_scores.csv`, `link.csv`)
 * **Role in Graph:** Links films to high-precision conceptual tags (`cyberpunk`, `dystopia`, `mindfuck`, `existentialism`, `atmospheric`, `neo-noir`, `space-opera`, `dark`, `philosophical`) with continuous relevance scores (0.0 to 1.0).
 * **Link with IMDb:** Exact mapping via `link.imdbId` converted into canonical representation (`ttXXXXXXX`).
-* **Ingestion Threshold:** Tags with continuous relevance score $\ge 0.65$.
+* **Ingestion Threshold:** Tags with continuous relevance score ≥ 0.65.
 * **Ingested Volume:** 218,910 conceptual edges linking over 15,500 films to 1,111 refined aesthetic tags.
 
 ---
@@ -116,7 +116,7 @@ The entire graph dataset is powered by open datasets (CC0, Public Domain, and op
   - `user_artists`: Listener co-audition history used for cosine similarity computation with logarithmic listener weighting.
 * **Ingestion Thresholds:**
   - Artists with at least 2 aesthetic characterization tags and verified names.
-  - Artist similarity with at least 3 shared listeners and a cosine score $\ge 0.15$.
+  - Artist similarity with at least 3 shared listeners and a cosine score ≥ 0.15.
 * **Ingested Volume:** ~126,790 artists, ~63,290 albums, **85,889 individual musical tracks**, ~475,780 musical tag edges, and **61,680 bidirectional direct similarity edges** (`artist_similarities`).
 
 ---

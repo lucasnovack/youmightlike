@@ -23,8 +23,8 @@ In the original directed graph, edges such as `movie -> keyword` or `artist -> t
 
 ### 2.2 Solution: Symmetric Mirroring in CSR Matrices
 During graph loading (`crates/engine/src/graph.rs`):
-* Every directed semantic edge $(u, v)$ automatically receives its symmetric counterpart $(v, u)$ during adjacency list construction.
-* Stochastic row normalization $\sum_j P_{ij} = 1$ is computed after bidirectional edge inclusion, preserving mathematical convergence.
+* Every directed semantic edge `(u, v)` automatically receives its symmetric counterpart `(v, u)` during adjacency list construction.
+* Stochastic row normalization `∑_j P_{ij} = 1` is computed after bidirectional edge inclusion, preserving mathematical convergence.
 * PPR diffusion now transfers probability mass fluidly across different media domains via shared conceptual nodes.
 
 ---
@@ -46,7 +46,7 @@ During graph loading (`crates/engine/src/graph.rs`):
 
 ---
 
-## 4. Semantic Tag Densification (Target: $\ge 10$ Tags per Entity)
+## 4. Semantic Tag Densification (Target: ≥ 10 Tags per Entity)
 
 To prevent niche entities from becoming isolated or receiving disproportionate weights, an enrichment policy was established ("*expand coverage without removing entities*"):
 1. **Electronic Music & Tech House:** Ingestion of specific tags for electronic producers and DJs (*e.g., Mochakk, Beltran, Vintage Culture, Booka Shade, Solomun*), ensuring descriptors like `#tech-house`, `#deep-house`, `#groove`, `#minimal`, `#underground`.
