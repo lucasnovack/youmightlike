@@ -10,6 +10,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUSTFLAGS: "-C debuginfo=0"
+
 jobs:
   rust-engine:
     name: Rust Engine (PPR, Graph Diffusion & Topology)
@@ -29,11 +34,14 @@ jobs:
       - name: Check Formatting
         run: cargo fmt --check
 
+      - name: Build Engine & Dependencies
+        run: cargo test --no-run --workspace
+
       - name: Clippy Linter
         run: cargo clippy --all-targets -- -D warnings
 
       - name: Run Test Suite
-        run: cargo test --workspace --verbose
+        run: cargo test --workspace
 
   python-layer:
     name: Python Contracts & REST API

@@ -1,89 +1,87 @@
-# Arquitetura do Sistema e Modelo de Grafo
+# System Architecture and Graph Model
 
-O `youmightlike` opera sobre uma premissa técnica: **bancos relacionais colunares modernos (DuckDB) são feature stores excepcionais para alimentar algoritmos matriciais esparsos em CPU**.
+`youmightlike` operates on a foundational engineering premise: **modern columnar relational databases (DuckDB) serve as exceptional in-process feature stores for feeding sparse linear algebra and graph diffusion algorithms on CPU**.
 
-Em vez de manter bancos de grafos dedicados pesados (Neo4j) ou depender de embeddings caros e opacos via APIs de LLM, o sistema estrutura o conhecimento em tabelas relacionais dimensionais e projeta o grafo cultural por meio de views SQL de alto desempenho.
+Instead of maintaining cumbersome external graph databases (e.g. Neo4j) or relying on costly, opaque LLM embedding APIs, the system structures domain knowledge in typed dimensional tables and projects the cultural graph dynamically via high-performance SQL views.
 
 ---
 
-## 1. Topologia da Arquitetura
+## 1. Architectural Topology
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      FONTES DE DADOS                        │
+│                        DATA SOURCES                         │
 │   IMDb Dumps   │   Steam Parquet   │  Goodreads  │  Music   │
 └──────────────────────────────┬──────────────────────────────┘
                                │
                        DuckDB Ingestion
                                ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                 DUCKDB (Feature Store Local)                │
-│  - Tabelas Canônicas: movies, people, games, books, etc.     │
-│  - Tabela Central de Vocabulário: keywords                  │
+│                 DUCKDB (Local Feature Store)                │
+│  - Canonical Tables: movies, people, games, books, etc.     │
+│  - Central Vocabulary Table: keywords                       │
 │                                                             │
-│  VIEWS DE PROJEÇÃO:                                         │
-│    ├─ v_graph_nodes           (Nós unificados: 392k)        │
-│    ├─ v_graph_edges           (Arestas tipadas: 1.23M)      │
-│    └─ v_weighted_graph_edges  (Arestas com Adamic-Adar/IDF) │
+│  PROJECTION VIEWS:                                          │
+│    ├─ v_graph_nodes           (Unified nodes: 392k)         │
+│    ├─ v_graph_edges           (Typed edges: 1.23M)          │
+│    └─ v_weighted_graph_edges  (Edges with Adamic-Adar/IDF)  │
 └──────────────────────────────┬──────────────────────────────┘
                                │
                      Zero-Copy / Memory Scan
                                ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                 MOTOR DE DIFUSÃO ESTATÍSTICA                │
+│                  STATISTICAL DIFFUSION CORE                 │
 │             (Personalized PageRank / Random Walk)           │
 │                                                             │
-│  - Seeds do usuário: [Filme X, Álbum Y, Game Z]             │
-│  - Matriz Esparsa de Adjacência: A[u, v] com pesos IDF      │
-│  - Iteração de Potência: p_{k+1} = α · P^T · p_k + (1-α)·s  │
-│  - Explicabilidade: Backtracking dos caminhos com maior fluxo│
+│  - User Active Seeds: [Movie X, Album Y, Game Z]            │
+│  - Sparse Transition Matrix: A[u, v] with IDF weights       │
+│  - Power Iteration: p_{k+1} = α · P^T · p_k + (1-α)·s       │
+│  - Explainability: Path backtracking along maximum flux     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. Esquema Relacional e Pontes Transmidiáticas
+## 2. Relational Schema and Transmedia Bridges
 
-As tabelas canônicas armazenam os registros de cada domínio de mídia. As pontes transmidiáticas são formadas por:
+Canonical tables store entity records for each cultural domain. Transmedia bridges are formed by:
 
-1. **Pessoas e Compositores de Trilha (`movie_credits` ➔ `people` ➔ `music_artists`):**
-   Compositores de cinema (ex: Vangelis, Trent Reznor, Hans Zimmer, Ennio Morricone, Joe Hisaishi) conectam filmes diretamente à sua discografia e artistas relacionados (`is_artist` e `has_composer`).
-2. **Adaptações Literárias (`movies.based_on_wikidata_id` ➔ `books`):**
-   Filmes baseados em livros formam a aresta `based_on`.
-3. **Vocabulário Estético Unificado (`keywords`):**
-   Gêneros do cinema, tags da comunidade Steam, tópicos literários e microgêneros musicais convergem para a tabela `keywords`. Assim, um filme de ficção científica, um jogo cyberpunk, um livro distópico e um álbum de dark synthwave compartilham os mesmos nós temáticos.
-
----
-
-## 3. Ponderação de Arestas e Mitigação de Hubs (Adamic-Adar / IDF)
-
-Se todas as conexões tivessem o mesmo peso, tags ultragenéricas (como *"Action"*, *"Rock"*, *"Fiction"*) agiriam como "sumidouros de energia" no grafo, fazendo o PageRank sugerir apenas blockbusters óbvios.
-
-Para resolver isso de forma determinística, a view `v_weighted_graph_edges` aplica atenuação pelo inverso do logaritmo do grau do nó de destino:
-
-$$w_{\text{efetivo}}(u, v) = \frac{w_{\text{base}}(u, v)}{\ln(1 + \text{grau}(v))}$$
-
-* Conexões específicas e raras (ex: tag de nicho *"post-cyberpunk"*, autor cult, compositor específico) mantêm alta transferência de probabilidade.
-* Conexões amplas e massivas (ex: *"drama"*, *"music"*) têm seu fluxo atenuado proporcionalmente à sua saturação no grafo.
+1. **People and Soundtrack Composers (`movie_credits` ➔ `people` ➔ `music_artists`):**
+   Film composers (e.g., Vangelis, Trent Reznor, Hans Zimmer, Ennio Morricone, Joe Hisaishi) connect cinema directly to their discographies and peer artists via `is_artist` and `has_composer`.
+2. **Literary Adaptations (`movies.based_on_wikidata_id` ➔ `books`):**
+   Films and television series based on novels form the `based_on` / `adapted_as` cross-domain edge.
+3. **Unified Aesthetic Vocabulary (`keywords`):**
+   Cinema genres, Steam community tags, literary tropes, and musical microgenres converge into the unified `keywords` table. Thus, a sci-fi film, a cyberpunk video game, a dystopian novel, and a dark synthwave album share identical thematic anchor nodes.
 
 ---
 
-## 4. Projeção das Views de Grafo
+## 3. Edge Weighting and Hub Mitigation (Adamic-Adar / IDF)
 
-O grafo inteiro é mantido como views dinâmicas sobre as tabelas:
+If all connections shared identical edge weights, ultra-generic tags (such as *"Action"*, *"Rock"*, *"Fiction"*) would act as probability sinks in the graph, biasing PageRank toward obvious mainstream blockbusters.
 
-* **`v_graph_nodes`:** Projeção unificada com ID composto no formato `<tipo>:<id>` (ex: `movie:183`, `artist:5490`, `book:12401`), nome da entidade, tipo do nó e domínio cultural (`movie`, `game`, `book`, `music`, `concept`).
-* **`v_graph_edges`:** União de todas as relações orientadas do sistema (`has_director`, `has_composer`, `is_artist`, `released`, `written_by`, `has_subject`, `has_tag`, `has_keyword`, `developed_by`).
-* **`v_weighted_graph_edges`:** Calcula dinamicamente o grau de cada nó e expõe `(source_id, target_id, effective_weight)` pronta para ser carregada diretamente em estruturas matriciais esparsas (CSR / CSC).
+To solve this deterministically, the `v_weighted_graph_edges` view attenuates edge weights using the inverse logarithm of the target node's in-degree:
+
+$$w_{\text{effective}}(u, v) = \frac{w_{\text{base}}(u, v)}{\ln(1 + \text{degree}(v))}$$
+
+* Rare, specific connections (e.g. niche tag *"post-cyberpunk"*, cult author, specific soundtrack composer) retain high energy transfer.
+* Broad, ubiquitous connections (e.g. *"drama"*, *"music"*) have their transition probability penalized proportionally to their saturation across the graph.
 
 ---
 
-## 5. Escala Atual do Grafo e Atualizações Recentes
+## 4. Projection Views in DuckDB
 
-Para o detalhamento completo das melhorias recentes no motor de difusão bidirecional em Rust, resolução transmidiática (âncoras estruturais de estúdio/diretor), links de trilhas sonoras e sistema de highlight interativo no ForceGraph, consulte [Atualizações do Sistema (Novembro 2026)](./system_evolution_2026.md).
+The entire graph is projected dynamically over the underlying tables:
 
-* **Arestas Semânticas:** 3.587.306 arestas ativas no DuckDB (`graph_semantic_edges`).
-* **Catálogo:** >34k filmes, >20k jogos, >38k livros, >3.25M artistas e >40.4M faixas.
-* **Motor:** `youmightlike-engine` em Rust (Personalized PageRank bidirecional sobre matriz CSR paralelizada com Rayon).
+* **`v_graph_nodes`:** Unified projection with compound keys in `<type>:<id>` format (e.g. `movie:183`, `artist:5490`, `book:12401`), entity display name, node type, and cultural domain (`movie`, `game`, `book`, `music`, `concept`).
+* **`v_graph_edges`:** Union of all oriented relations across the system (`has_director`, `has_composer`, `is_artist`, `released`, `written_by`, `has_subject`, `has_tag`, `has_keyword`, `developed_by`, `similar_to`, `soundtrack_track`, `based_on`).
+* **`v_weighted_graph_edges`:** Dynamically calculates node degrees and produces `(source_id, target_id, effective_weight)` ready to be loaded into Compressed Sparse Row (CSR) / Compressed Sparse Column (CSC) matrix structures in Rust.
 
+---
 
+## 5. Current Scale and Engine Details
+
+For an in-depth breakdown of bidirectional diffusion in Rust, structural seed anchors, soundtrack link tables, and the zero-freeze HTML5 Canvas force rendering engine, see [System Evolution (November 2026)](./system_evolution_2026.md).
+
+* **Active Semantic Edges:** 3,587,306 active edges in DuckDB (`graph_semantic_edges`).
+* **Catalog Coverage:** >34k films, >20k games, >38k books, >3.25M artists, and >40.4M tracks.
+* **Diffusion Engine:** `youmightlike-engine` in Rust (bidirectional Personalized PageRank over CSR matrix parallelized with Rayon and hosted via Axum).

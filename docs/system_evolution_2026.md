@@ -1,84 +1,84 @@
-# Atualizações do Sistema e Evolução Técnica (Novembro 2026)
+# System Architecture Updates & Technical Evolution (November 2026)
 
-Este documento registra a evolução arquitetural, as correções críticas de topologia transmidiática, o motor de difusão bidirecional em Rust e o sistema interativo de visualização de grafos implementados no `youmightlike`.
-
----
-
-## 1. Visão Geral dos Avanços
-
-O sistema evoluiu de um protótipo inicial para uma plataforma de recomendação cultural completa de alta fidelidade:
-* **Escala do Grafo Semântico:** 3.587.306 arestas semânticas ativas no DuckDB, conectando mais de 34.000 filmes, 20.000 jogos, 38.000 livros, 3.25 milhões de artistas e 40.4 milhões de faixas.
-* **Motor Bidirecional em Rust:** Algoritmo Personalized PageRank (PPR) paralelizado com Rayon, operando sobre representação CSR (*Compressed Sparse Row*) com espelhamento simétrico de arestas.
-* **Interface Monocromática e Minimalista:** Arquitetura SPA moderna com FastAPI, tipografia JetBrains Mono, paleta sóbria calibrada (Studio Minimalist) e ausência total de emojis e ruídos visuais.
-* **Visualização Topológica Interativa:** Renderizador canvas 2D ForceGraph com destaque de vizinhança de 1-hop, seleção múltipla (Shift+Click) e inspeção estrutural de pontes.
+This document records the architectural evolution, critical transmedia topology fixes, the native bidirectional Rust diffusion engine, and the interactive graph visualization engine implemented in `youmightlike`.
 
 ---
 
-## 2. Motor de Difusão Bidirecional em Rust (`crates/engine`)
+## 1. Overview of Key Advancements
 
-### 2.1 O Problema da Orientação das Arestas
-No grafo original, arestas como `movie -> keyword` ou `artist -> tag` eram estritamente direcionadas do item para o conceito. Em caminhadas aleatórias (Random Walk / PageRank):
-* A energia partindo de uma semente (ex.: *Donnie Darko*) fluía para a tag (`#cult`, `#soundtrack`).
-* Porém, sem a aresta reversa (`tag -> movie`), a probabilidade ficava represada nas folhas conceituais e não retornava para outros filmes, álbuns ou jogos que compartilhavam a mesma tag.
-
-### 2.2 Solução: Espelhamento Simétrico na Matriz CSR
-No carregamento do grafo (`crates/engine/src/graph.rs`):
-* Todas as arestas dirigidas $(u, v)$ recebem automaticamente o par reverso $(v, u)$ durante a montagem das listas de adjacência.
-* A normalização estocástica $\sum_j P_{ij} = 1$ é calculada após a inclusão das arestas reversas, preservando a convergência matemática do PageRank.
-* O cálculo do PPR agora difunde energia fluidamente entre itens de diferentes mídias através de conceitos compartilhados.
+The system evolved from an initial prototype into a high-fidelity cultural discovery and recommendation platform:
+* **Semantic Graph Scale:** 3,587,306 active semantic edges in DuckDB, connecting over 34,000 films, 20,000 games, 38,000 books, 3.25 million artists, and 40.4 million tracks.
+* **Native Rust Bidirectional Engine:** Parallelized Personalized PageRank (PPR) using Rayon, operating over Compressed Sparse Row (CSR) matrices with symmetric diffusion mirroring.
+* **Studio Minimalist Interface:** Modern Single-Page Application (SPA) with FastAPI/Axum, JetBrains Mono typography, calibrated sober color palette, and zero visual noise or emojis.
+* **Interactive Topological Visualization:** Native 2D Canvas ForceGraph renderer with 1-hop neighborhood highlighting, multi-node selection (Shift+Click), and structural bridge inspection.
 
 ---
 
-## 3. Topologia Transmidiática e Âncoras Estruturais
+## 2. Bidirectional Diffusion Engine in Rust (`crates/engine`)
 
-### 3.1 Correção do Bug de Desconexão Transmidiática (Ex.: Skyrim + Booka Shade)
-* **Sintoma:** Ao combinar itens de domínios diferentes no perfil (ex.: o jogo *The Elder Scrolls V: Skyrim* e a dupla eletrônica *Booka Shade*), o cluster do Skyrim aparecia isolado no canvas, sem nenhuma aresta visível.
-* **Causa Raiz:** O backend limitava os nós intermediários do grafo (*bridges*) a 8 slots globais e aceitava apenas os prefixos `keyword:` e `person:`. As tags da cena eletrônica consumiam todos os 8 slots, deixando de fora os nós de estúdio/desenvolvedor (`developer:Bethesda Game Studios`) e as tags do jogo (`keyword:rpg`). Sem a Bethesda no conjunto de nós exibidos, a query de arestas `WHERE source_id IN (nodes) AND target_id IN (nodes)` retornava 0 ligações para o Skyrim.
-* **Implementação de Âncoras Estruturais por Semente:**
-  - O extrator em `python/src/youmightlike/web/server.py` agora reserva **âncoras dedicadas para cada semente do perfil** (`seeds_resolved`), garantindo que seus conectores fundamentais (estúdio para jogos, diretor/compositor para filmes, gênero primário para música) estejam sempre presentes no subgrafo visual.
-  - O parser de pontes foi expandido para suportar prefixos `developer:` e `author:`.
-  - Resultado: o cluster do Skyrim conecta-se com precisão à Bethesda Game Studios e aos jogos da mesma árvore genealógica (*Morrowind*, *Oblivion*, *Fallout 3*, *Fallout 4*, *Starfield*).
+### 2.1 The Edge Orientation Challenge
+In the original directed graph, edges such as `movie -> keyword` or `artist -> tag` flowed strictly from works to concepts. In random walk diffusion (PageRank):
+* Energy radiating from an active seed (*e.g. Donnie Darko*) flowed into concept tags (`#cult`, `#soundtrack`).
+* Without reverse edges (`tag -> movie`), probability mass pooled at conceptual leaves and failed to flow back into related films, albums, or games sharing the same tag.
 
-### 3.2 Vínculos Diretos de Trilha Sonora (*Donnie Darko* ⇄ *The Killing Moon*)
-* Criada a tabela canônica `movie_soundtrack_links` no DuckDB.
-* O filme *Donnie Darko* (`movie:22697`) foi associado com peso semântico máximo diretamente a todas as instâncias catalogadas de *The Killing Moon* (`track:12883639` e `track:60808`) via aresta `soundtrack_track`, e à banda *Echo & the Bunnymen* (`artist:927`) via `soundtrack_featured`.
-* As arestas de trilha sonora possuem prioridade de exibição e ganham realce visual imediato quando ambos os nós são selecionados.
+### 2.2 Solution: Symmetric Mirroring in CSR Matrices
+During graph loading (`crates/engine/src/graph.rs`):
+* Every directed semantic edge $(u, v)$ automatically receives its symmetric counterpart $(v, u)$ during adjacency list construction.
+* Stochastic row normalization $\sum_j P_{ij} = 1$ is computed after bidirectional edge inclusion, preserving mathematical convergence.
+* PPR diffusion now transfers probability mass fluidly across different media domains via shared conceptual nodes.
 
 ---
 
-## 4. Densificação Semântica de Tags (Meta: $\ge 10$ Tags por Entidade)
+## 3. Transmedia Topology & Structural Anchors
 
-Para evitar que entidades de nicho fiquem isoladas ou com pesos desproporcionais, estabeleceu-se a política de enriquecimento sem perda de catálogo ("*apenas ir atrás, sem remover ninguém*"):
-1. **Música Eletrônica & Tech House:** Ingestão de tags específicas para DJs e produtores da cena nacional e internacional (ex.: *Mochakk*, *Beltran*, *Vintage Culture*, *Booka Shade*, *Solomun*), garantindo rótulos como `#tech-house`, `#deep-house`, `#groove`, `#minimal`, `#underground`.
-2. **Bandas e Artistas Históricos:** Enriquecimento de bandas clássicas com tags de subgênero, época e atmosfera (ex.: *Echo & the Bunnymen* passou de tags esparsas para 40 descritores como `#post-punk`, `#goth`, `#dark wave`, `#80s`, `#melancholic`, `#coldwave`).
-3. **Resolução Priorizada de Nomes:** No autocomplete e resolução de sementes, entidades canônicas individuais (ex.: *Massive Attack*) recebem desempate positivo por relevância/grau para evitar que remixes ou colaborações ofusquem a entidade original.
+### 3.1 Transmedia Disconnection Resolution (e.g., Skyrim + Booka Shade)
+* **Symptom:** When combining cross-domain seeds in a profile (*e.g., the video game The Elder Scrolls V: Skyrim and electronic duo Booka Shade*), the Skyrim cluster appeared visually isolated on the canvas with zero incoming or outgoing edges.
+* **Root Cause:** The backend limited intermediate bridge nodes to 8 global slots and only accepted `keyword:` and `person:` prefixes. Electronic scene tags consumed all 8 slots, excluding game developer nodes (`developer:Bethesda Game Studios`) and game tags (`keyword:rpg`). Without Bethesda in the displayed node set, the edge query `WHERE source_id IN (nodes) AND target_id IN (nodes)` returned 0 links for Skyrim.
+* **Dedicated Seed Structural Anchors:**
+  - The graph builder now reserves **dedicated structural anchors for each active profile seed** (`seeds_resolved`), ensuring foundational connectors (studio for games, director/composer for movies, primary genre for music) are always present in the visual subgraph.
+  - Bridge parsing expanded to support `developer:` and `author:` prefixes.
+  - Result: Skyrim connects reliably to Bethesda Game Studios and kindred lineage titles (*Morrowind*, *Oblivion*, *Fallout 3*, *Fallout 4*, *Starfield*).
+
+### 3.2 Direct Soundtrack Links (*Donnie Darko* ⇄ *The Killing Moon*)
+* Created canonical `movie_soundtrack_links` table in DuckDB.
+* *Donnie Darko* (`movie:22697`) is mapped with maximum semantic weight directly to indexed instances of *The Killing Moon* (`track:12883639` and `track:60808`) via `soundtrack_track` edges, and to band *Echo & the Bunnymen* (`artist:927`) via `soundtrack_featured`.
+* Soundtrack edges receive prioritized rendering and immediate visual luminescence when either node is selected.
 
 ---
 
-## 5. Interface Gráfica e Interatividade do Grafo
+## 4. Semantic Tag Densification (Target: $\ge 10$ Tags per Entity)
 
-### 5.1 Destaque de Vizinhança (Single & Multi-Node Highlighting)
-A visualização em `python/src/youmightlike/web/static/index.html` adota uma lógica determinística de foco:
-* **Seleção Simples (Clique):**
-  - O nó clicado recebe anel duplo de destaque nas cores da paleta (`#e84855` coral e `#182825` ônix) e raio ampliado.
-  - Vizinhos diretos (1-hop) permanecem com 100% de opacidade e rótulos de texto visíveis.
-  - Todos os nós e arestas desconectados são atenuados para opacidade reduzida (`globalAlpha = 0.12`).
-* **Seleção Múltipla (Shift + Clique):**
-  - Permite inspecionar múltiplos nós simultaneamente (ex.: comparar *Donnie Darko* e *The Killing Moon* ou *Skyrim* e *Fallout 3*).
-  - A união de vizinhos de todos os nós selecionados é preservada.
-  - Arestas que conectam nós selecionados diretamente acendem em coral com largura triplicada e partículas animadas aceleradas.
+To prevent niche entities from becoming isolated or receiving disproportionate weights, an enrichment policy was established ("*expand coverage without removing entities*"):
+1. **Electronic Music & Tech House:** Ingestion of specific tags for electronic producers and DJs (*e.g., Mochakk, Beltran, Vintage Culture, Booka Shade, Solomun*), ensuring descriptors like `#tech-house`, `#deep-house`, `#groove`, `#minimal`, `#underground`.
+2. **Classic Bands & Legacy Artists:** Enriched with subgenres, era, and atmosphere (*e.g., Echo & the Bunnymen expanded from sparse tags to 40 descriptors including #post-punk, #goth, #dark-wave, #80s, #melancholic, #coldwave*).
+3. **Prioritized Name Resolution:** In search autocomplete and seed resolution, canonical individual entities (*e.g., Massive Attack*) receive positive tie-breaking by degree/relevance to prevent remixes or collaborations from obscuring parent entities.
+
+---
+
+## 5. Graphical Interface & Graph Interactivity
+
+### 5.1 Neighborhood Highlighting (Single & Multi-Node)
+The Canvas renderer in `python/src/youmightlike/web/static/js/constellation.js` employs deterministic focus logic:
+* **Single Click Selection:**
+  - The clicked node receives a dual highlight ring using palette tones (`#e84855` coral and `#182825` onyx) and an expanded radius.
+  - Direct 1-hop neighbors retain 100% opacity with visible text labels.
+  - Disconnected nodes and edges attenuate to reduced opacity (`globalAlpha = 0.12`).
+* **Multi-Node Selection (Shift + Click):**
+  - Allows simultaneous inspection of multiple nodes (*e.g., comparing Donnie Darko and The Killing Moon, or Skyrim and Fallout 3*).
+  - The union of neighbors from all selected nodes is preserved.
+  - Edges directly linking selected nodes illuminate in coral with tripled stroke width and accelerated particle animation.
 * **Inspector Card:**
-  - Painel flutuante no canto superior direito que lista os itens sob inspeção, a contagem de conexões mútuas e atalho para resetar o foco (`Esc` ou botão `[limpar]`).
+  - Floating panel in the upper-right corner listing inspected items, mutual connection count, and reset shortcut (`Esc` or `[clear]` button).
 
-### 5.2 Filtro por Tipo de Mídia na Busca
-O campo de pesquisa do perfil inclui um seletor rápido de tipo de entidade (`all`, `movie`, `game`, `book`, `artist`, `track`), garantindo precisão ao buscar termos ambíguos (ex.: selecionar especificamente o jogo *Skyrim* em vez de faixas de sua trilha sonora).
+### 5.2 Media Type Filter in Search
+The search input includes a media filter selector (`all`, `movie`, `game`, `book`, `artist`, `track`), ensuring precision when searching for ambiguous terms (*e.g., finding the game Skyrim rather than tracks from its soundtrack*).
 
-### 5.3 Paleta de Cores e Tipografia
-A interface utiliza uma paleta de 5 tons de alto contraste e sobriedade técnica:
-* **Deep Onyx (`#182825`):** Textos principais, anéis estruturais e contornos.
-* **Warm Eggshell (`#faf3dd`):** Fundos de cartões, badges e superfícies secundárias.
-* **Sage Green (`#4e937a`):** Conectores conceituais, tags e pesos moderados.
-* **Accent Coral (`#e84855`):** Destaque de foco, nós semente e arestas de alto fluxo.
-* **Steel Blue (`#2660a4`):** Identificadores canônicos e nós de domínio artístico.
-* **Tipografia:** `JetBrains Mono` em toda a hierarquia visual.
-* **Padronização:** Remoção integral de emojis em logs de console, saídas CLI e elementos visuais, assegurando um padrão minimalista no estilo ferramentas Unix/Apple.
+### 5.3 Color Palette & Typography
+The interface uses a 5-tone palette calibrated for high contrast and technical sobriety:
+* **Deep Onyx (`#182825`):** Primary text, structural rings, and borders.
+* **Warm Eggshell (`#faf3dd`):** Card backgrounds, badges, and secondary surfaces.
+* **Sage Green (`#4e937a`):** Conceptual connectors, tags, and moderate weights.
+* **Accent Coral (`#e84855`):** Focus highlights, seed nodes, and high-flux edges.
+* **Steel Blue (`#2660a4`):** Canonical identifiers and artistic domain nodes.
+* **Typography:** `JetBrains Mono` across the entire visual hierarchy.
+* **Standardization:** Complete elimination of emojis in console logs, CLI outputs, and visual elements, ensuring a refined Unix/Apple aesthetic.
