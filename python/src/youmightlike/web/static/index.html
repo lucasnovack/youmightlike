@@ -123,8 +123,6 @@
             </svg>
           </button>
 
-          <kbd class="px-1.5 py-0.5 text-[9px] font-mono font-medium text-slate-400 bg-white/80 border border-slate-200/80 rounded shadow-2xs shrink-0 select-none mr-1.5">⌘K</kbd>
-
           <button
             type="submit"
             :disabled="isSearching || searchQuery.trim().length === 0"
@@ -241,18 +239,18 @@
         </button>
 
         <!-- Language Segmented Control -->
-        <div class="segmented-control text-xs">
+        <div class="flex items-center bg-[#f2f2f7] p-0.5 rounded-xl border border-[#e5e5ea] text-xs font-semibold ml-2 shrink-0">
           <button
             @click="setLang('pt')"
-            :class="currentLang === 'pt' ? 'segmented-pill-active' : ''"
-            class="segmented-pill"
+            :class="currentLang === 'pt' ? 'bg-white text-[#1d1d1f] shadow-2xs font-bold' : 'text-slate-400 hover:text-slate-700'"
+            class="px-2.5 py-1 rounded-lg transition-all cursor-pointer text-xs"
           >
             PT
           </button>
           <button
             @click="setLang('en')"
-            :class="currentLang === 'en' ? 'segmented-pill-active' : ''"
-            class="segmented-pill"
+            :class="currentLang === 'en' ? 'bg-white text-[#1d1d1f] shadow-2xs font-bold' : 'text-slate-400 hover:text-slate-700'"
+            class="px-2.5 py-1 rounded-lg transition-all cursor-pointer text-xs"
           >
             EN
           </button>

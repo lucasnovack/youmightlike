@@ -175,7 +175,7 @@ export class ConstellationEngine {
 
   stepPhysics() {
     const scale = this.options.spacingScale || 1.15;
-    const idealDist = 95 * scale;
+    const idealDist = 150 * scale;
     const springStrength = 0.16 * this.alpha;
 
     // 1. Link springs (Hooke's Law - elastic pull between connected neighbors)
@@ -201,9 +201,9 @@ export class ConstellationEngine {
     }
 
     // 2. Collision / Elliptical Repulsion between pairs (Apple HIG Card Separation)
-    const minSepX = 175 * scale;
-    const minSepY = 60 * scale;
-    const repStrength = 0.35 * this.alpha;
+    const minSepX = 220 * scale;
+    const minSepY = 80 * scale;
+    const repStrength = 0.50 * this.alpha;
 
     for (let i = 0; i < this.canvasNodes.length; i++) {
       const a = this.canvasNodes[i];
@@ -239,15 +239,15 @@ export class ConstellationEngine {
     }
 
     // 3. Tether to parent seed & corridor bounds
-    const maxClusterRadius = 240 * scale;
+    const maxClusterRadius = Math.max(500, 260 + Math.sqrt(this.canvasNodes.length) * 45) * scale;
     for (const n of this.canvasNodes) {
       if (n === this.draggingNode || n.isSeed) continue;
 
       if (n.isBridge && n.seedNbrs && n.seedNbrs.length >= 2) {
         // Corridor bridge: attract towards center X = 0
         n.vx -= n.x * 0.06 * this.alpha;
-        if (Math.abs(n.x) > 95 * scale) {
-          n.x = Math.sign(n.x) * 95 * scale;
+        if (Math.abs(n.x) > 130 * scale) {
+          n.x = Math.sign(n.x) * 130 * scale;
           n.vx *= 0.5;
         }
       } else {
@@ -257,8 +257,8 @@ export class ConstellationEngine {
           const dx = n.x - pSeedPos.x;
           const dy = n.y - pSeedPos.y;
           const dist = Math.hypot(dx, dy) || 1;
-          if (dist > maxClusterRadius * 0.70) {
-            const pull = (dist - maxClusterRadius * 0.70) * 0.035 * this.alpha;
+          if (dist > maxClusterRadius * 0.75) {
+            const pull = (dist - maxClusterRadius * 0.75) * 0.035 * this.alpha;
             n.vx -= (dx / dist) * pull;
             n.vy -= (dy / dist) * pull;
           }
@@ -509,8 +509,8 @@ export class ConstellationEngine {
 
       children.forEach((c, i) => {
         const angle = (i + 1) * GOLDEN_ANGLE;
-        // Natural staggered orbits: compact core, spacious exterior
-        const rOrbit = (90 + Math.sqrt(i + 1) * 36) * scale;
+        // Natural staggered orbits: spacious core and breathing room for cards
+        const rOrbit = (130 + Math.sqrt(i + 1) * 60) * scale;
         const x = pos.x + Math.cos(angle) * rOrbit;
         const y = pos.y + Math.sin(angle) * rOrbit;
         const isBridge = ['keyword', 'developer', 'person', 'author'].includes(c.type);
@@ -522,18 +522,18 @@ export class ConstellationEngine {
     // 3. Place corridor bridges vertically in center corridor
     const bCount = corridorBridges.length;
     corridorBridges.forEach((b, i) => {
-      const y = (i - (bCount - 1) / 2) * 52 * scale;
-      const x = (i % 2 - 0.5) * 35 * scale;
+      const y = (i - (bCount - 1) / 2) * 65 * scale;
+      const x = (i % 2 - 0.5) * 45 * scale;
       nodeById.set(b.id, createNodeRecord(b, x, y, false, true, false));
     });
 
-    // 4. Bounded Relaxation: strictly prevent overlapping cards and keep clusters compact
+    // 4. Bounded Relaxation: strictly prevent overlapping cards and keep clusters comfortable
     const allNodes = Array.from(nodeById.values());
-    const minSepX = 175 * scale;
-    const minSepY = 60 * scale;
-    const maxClusterRadius = 260 * scale;
+    const minSepX = 220 * scale;
+    const minSepY = 80 * scale;
+    const maxClusterRadius = Math.max(550, 240 + Math.sqrt(allNodes.length) * 55) * scale;
 
-    for (let iter = 0; iter < 35; iter++) {
+    for (let iter = 0; iter < 60; iter++) {
       // Repulsion between overlapping pairs (corrected normalized elliptical distance)
       for (let i = 0; i < allNodes.length; i++) {
         for (let j = i + 1; j < allNodes.length; j++) {
@@ -552,7 +552,7 @@ export class ConstellationEngine {
             normDist = Math.hypot(nx, ny) || 0.1;
           }
           if (normDist < 1.0) {
-            const push = (1.0 - normDist) * 0.40;
+            const push = (1.0 - normDist) * 0.65;
             const px = (nx / normDist) * push * (minSepX * 0.5);
             const py = (ny / normDist) * push * (minSepY * 0.5);
             if (!a.isSeed) { a.x -= px; a.y -= py; }
@@ -567,8 +567,8 @@ export class ConstellationEngine {
         const sNbrs = n.seedNbrs || [];
         if (sNbrs.length >= 2) {
           // Corridor bridge: clamp horizontal drift
-          if (Math.abs(n.x) > 95 * scale) {
-            n.x = Math.sign(n.x) * 95 * scale;
+          if (Math.abs(n.x) > 130 * scale) {
+            n.x = Math.sign(n.x) * 130 * scale;
           }
         } else {
           // Cluster node: clamp to max radius from parent seed
@@ -658,19 +658,19 @@ export class ConstellationEngine {
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const n of this.canvasNodes) {
       if (typeof n.x !== 'number' || isNaN(n.x)) continue;
-      const padR = 60;
+      const padR = 100;
       if (n.x - padR < minX) minX = n.x - padR;
       if (n.x + padR > maxX) maxX = n.x + padR;
       if (n.y - padR < minY) minY = n.y - padR;
       if (n.y + padR > maxY) maxY = n.y + padR;
     }
 
-    const pad = 80;
-    const spanX = Math.max(300, (maxX - minX) + pad * 2);
-    const spanY = Math.max(220, (maxY - minY) + pad * 2);
+    const pad = 100;
+    const spanX = Math.max(340, (maxX - minX) + pad * 2);
+    const spanY = Math.max(240, (maxY - minY) + pad * 2);
 
-    // Natural 1.0x scale framing (never shrink into micro-specks)
-    const k = Math.min(1.15, Math.max(0.72, Math.min(rect.width / spanX, rect.height / spanY)));
+    // Natural scale framing (comfortable overview, never cramped)
+    const k = Math.min(1.05, Math.max(0.42, Math.min(rect.width / spanX, rect.height / spanY)));
     const cx = (minX + maxX) / 2;
     const cy = (minY + maxY) / 2;
 
