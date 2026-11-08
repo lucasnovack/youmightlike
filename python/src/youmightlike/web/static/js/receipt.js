@@ -930,35 +930,48 @@ export function generateCulturalReceipt(canvas, {
   );
   curY += 18;
 
+  const maxRecScore = topRecs.reduce((m, r) => Math.max(m, Number(r.score) || 0), 1);
+
   for (let i = 0; i < topRecs.length; i++) {
     const item = topRecs[i];
     const rankStr = String(i + 1).padStart(2, '0');
     const bInfo = getBadgeInfo(item.type);
     const bLabel = isPt ? bInfo.labelPt : bInfo.labelEn;
     const title = cleanItemTitle(item.title || item.name || item.id, item);
-    const affinityScore = item.score !== undefined ? `+${Math.round(item.score * 100)}%` : '+95%';
+
+    // Intuitive log-normalized match percentage (68% to 99% Match) instead of raw 25000%
+    const rawS = Number(item.score) || 0;
+    const ratio = maxRecScore > 0 ? Math.max(0, Math.min(1, Math.log10(1 + rawS) / Math.log10(1 + maxRecScore))) : 0.8;
+    const matchPct = Math.round(68 + ratio * 31);
+    const affinityLabel = `${matchPct}% Match`;
     const reason = item.reason || (isPt ? 'Confluência multidimensional no grafo' : 'Multidimensional graph confluence');
 
-    // Line 1: Rank + Type Pill + Title ............... Affinity%
+    // Line 1: Rank + Type Pill + Title ............... Affinity Match%
     ctx.font = `500 11px ${APPLE_FONTS.mono}`;
     ctx.fillStyle = '#86868b';
     ctx.fillText(rankStr, padX, curY);
 
     const bW = drawPillBadge(ctx, bLabel, padX + 22, curY, bInfo);
 
-    ctx.font = `600 12px ${APPLE_FONTS.sans}`;
-    ctx.fillStyle = '#1d1d1f';
-    ctx.fillText(truncate(title, 32), padX + 26 + bW, curY);
-
     // Affinity pill in emerald green
-    ctx.font = `600 10px ${APPLE_FONTS.sans}`;
-    const affMetrics = ctx.measureText(affinityScore);
-    const affW = affMetrics.width + 12;
-    drawRoundedRect(ctx, width - padX - affW, curY - 11, affW, 16, 8, '#ecfdf5', 'rgba(16, 185, 129, 0.2)', 0.8);
+    ctx.font = `600 9px ${APPLE_FONTS.sans}`;
+    const affMetrics = ctx.measureText(affinityLabel);
+    const affW = affMetrics.width + 14;
+    drawRoundedRect(ctx, width - padX - affW, curY - 11, affW, 17, 8.5, '#ecfdf5', 'rgba(16, 185, 129, 0.25)', 0.8);
     ctx.fillStyle = '#047857';
     ctx.textAlign = 'center';
-    ctx.fillText(affinityScore, width - padX - affW / 2, curY + 1);
+    ctx.fillText(affinityLabel, width - padX - affW / 2, curY + 1);
     ctx.textAlign = 'left';
+
+    // Dynamic title truncation so it never touches the affinity badge
+    const availTitleW = width - padX * 2 - bW - affW - 36;
+    ctx.font = `600 12px ${APPLE_FONTS.sans}`;
+    let displayTitle = title;
+    while (ctx.measureText(displayTitle).width > availTitleW && displayTitle.length > 5) {
+      displayTitle = displayTitle.slice(0, -2) + '…';
+    }
+    ctx.fillStyle = '#1d1d1f';
+    ctx.fillText(displayTitle, padX + 26 + bW, curY);
 
     curY += 16;
 
