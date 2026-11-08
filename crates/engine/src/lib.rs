@@ -13,7 +13,8 @@ pub mod service;
 pub use graph::{DirectedEdge, GraphCSR};
 pub use ppr::{
     run_personalized_pagerank, run_personalized_pagerank_filtered,
-    run_personalized_pagerank_scores, top_k_from_scores, ScoredNode,
+    run_personalized_pagerank_multi_hit, run_personalized_pagerank_scores,
+    top_k_from_scores, ScoredNode,
 };
 
 /// Basic representation of a recommended node

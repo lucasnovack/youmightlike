@@ -35,3 +35,10 @@ target/
 **/*.rs.bk
 Cargo.lock
 
+# Media recordings
+recordings/raw/
+
+# Precompiled shared libraries
+lib/
+
+

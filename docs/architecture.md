@@ -85,3 +85,6 @@ For an in-depth breakdown of bidirectional diffusion in Rust, structural seed an
 * **Active Semantic Edges:** 3,587,306 active edges in DuckDB (`graph_semantic_edges`).
 * **Catalog Coverage:** >34k films, >20k games, >38k books, >3.25M artists, and >40.4M tracks.
 * **Diffusion Engine:** `youmightlike-engine` in Rust (bidirectional Personalized PageRank over CSR matrix parallelized with Rayon and hosted via Axum).
+
+For academic foundations and theoretical lineage (Pixie, Topic-Sensitive PageRank, Adamic-Adar, PathSim), see [Academic Foundations & Prior Art](./references.md).
+

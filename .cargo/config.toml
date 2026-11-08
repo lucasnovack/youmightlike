@@ -1,0 +1,6 @@
+[env]
+DUCKDB_LIB_DIR = { value = "lib/duckdb", relative = true }
+DUCKDB_INCLUDE_DIR = { value = "lib/duckdb", relative = true }
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-Wl,-rpath,$ORIGIN/../../lib/duckdb"]

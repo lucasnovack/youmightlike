@@ -58,6 +58,7 @@ class RecommendationRequest(BaseModel):
     limit: int = 12
     lang: str = "pt"  # 'pt' | 'en'
     beta: float = 1.2
+    multi_hit: bool = True
 
 
 class GraphNode(BaseModel):

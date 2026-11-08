@@ -88,6 +88,83 @@ pub fn run_personalized_pagerank_scores_weighted(
     Ok(p)
 }
 
+/// Executes Personalized PageRank with Pixie-style Multi-Hit Booster (Eksombatchai et al., WWW 2018).
+/// When multiple distinct seeds Q are provided, individual stationary diffusion vectors p_q are computed
+/// for each seed independently, and then non-linearly combined:
+///
+///   p_multi[v] = ( \sum_{q \in Q} \sqrt{w_q \cdot p_q[v]} )^2
+///
+/// Candidates that receive energy from multiple disparate query seeds receive a quadratic boost,
+/// naturally surfacing cross-domain cultural bridges while reducing to standard PPR when |Q| == 1.
+pub fn run_personalized_pagerank_multi_hit(
+    graph: &GraphCSR,
+    seed_weights: &[(&str, f32)],
+    alpha: f32,
+    max_iter: usize,
+    tol: f32,
+) -> Result<Vec<f32>> {
+    let mut resolved: Vec<(&str, f32)> = Vec::new();
+    let mut total_w = 0.0f32;
+
+    for &(key, w) in seed_weights {
+        if w > 0.0 && graph.get_node_id(key).is_some() {
+            resolved.push((key, w));
+            total_w += w;
+        }
+    }
+
+    if resolved.is_empty() || total_w <= 0.0 {
+        anyhow::bail!("None of the specified seed keys were found in the loaded graph.");
+    }
+
+    // If there is only 1 seed, multi-hit reduces to linear PPR
+    if resolved.len() == 1 {
+        return run_personalized_pagerank_scores_weighted(graph, &resolved, alpha, max_iter, tol);
+    }
+
+    // Normalize weights so sum(w_q) = 1.0
+    let normalized_seeds: Vec<(&str, f32)> = resolved
+        .iter()
+        .map(|&(k, w)| (k, w / total_w))
+        .collect();
+
+    // Compute individual PPR vectors for each seed in parallel
+    let p_vectors: Vec<Vec<f32>> = normalized_seeds
+        .par_iter()
+        .map(|&(k, _w)| {
+            let single = [(k, 1.0f32)];
+            run_personalized_pagerank_scores_weighted(graph, &single, alpha, max_iter, tol)
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    let n = graph.num_nodes;
+    let mut p_boosted = vec![0.0f32; n];
+
+    // Compute ( \sum_q \sqrt{w_q * p_q[v]} )^2 in parallel across all nodes
+    p_boosted
+        .par_iter_mut()
+        .enumerate()
+        .for_each(|(v, out)| {
+            let mut sum_sqrt = 0.0f32;
+            for (i, p_vec) in p_vectors.iter().enumerate() {
+                let w = normalized_seeds[i].1;
+                let val = p_vec[v].max(0.0);
+                sum_sqrt += (w * val).sqrt();
+            }
+            *out = sum_sqrt * sum_sqrt;
+        });
+
+    // Re-normalize to conserve stochastic probability mass (\sum p_i = 1.0)
+    let total_boosted: f32 = p_boosted.par_iter().sum();
+    if total_boosted > 0.0 {
+        p_boosted.par_iter_mut().for_each(|val| {
+            *val /= total_boosted;
+        });
+    }
+
+    Ok(p_boosted)
+}
+
 /// Applies repulsive negative feedback penalty:
 /// p_pos[v] = max(0.0, p_pos[v] - beta * p_neg[v])
 /// Executed in parallel using Rayon across all nodes.
@@ -311,4 +388,53 @@ mod tests {
         // index 3: 0.05 - 1.5 * 0.1 = -0.1 -> clamped to 0.0
         assert_eq!(p_pos[3], 0.0);
     }
+
+    #[test]
+    fn test_multi_hit_booster_probability_conservation_and_intersection_boost() {
+        let graph = sample_graph();
+        let seed_weights = [("movie:1", 0.5), ("game:1", 0.5)];
+
+        // Compute standard linear weighted PPR
+        let p_linear = run_personalized_pagerank_scores_weighted(
+            &graph,
+            &seed_weights,
+            0.85,
+            150,
+            1e-6,
+        )
+        .expect("linear PPR should succeed");
+
+        // Compute multi-hit boosted PPR
+        let p_multi = run_personalized_pagerank_multi_hit(
+            &graph,
+            &seed_weights,
+            0.85,
+            150,
+            1e-6,
+        )
+        .expect("multi-hit PPR should succeed");
+
+        // 1. Verify stochastic conservation: sum(p_multi) = 1.0
+        let sum_multi: f32 = p_multi.iter().sum();
+        assert!(
+            (sum_multi - 1.0).abs() < 1e-4,
+            "Multi-hit probability sum must be 1.0, got {sum_multi}"
+        );
+
+        // 2. keyword:cyberpunk is connected to BOTH movie:1 and game:1
+        // person:1 is connected ONLY to movie:1
+        // developer:1 is connected ONLY to game:1
+        let bridge_id = graph.get_node_id("keyword:cyberpunk").unwrap() as usize;
+        let single_movie_branch = graph.get_node_id("person:1").unwrap() as usize;
+
+        // Ratio of bridge energy to single branch in multi-hit should exceed linear ratio!
+        let ratio_linear = p_linear[bridge_id] / p_linear[single_movie_branch];
+        let ratio_multi = p_multi[bridge_id] / p_multi[single_movie_branch];
+
+        assert!(
+            ratio_multi > ratio_linear,
+            "Multi-hit booster must amplify intersection node ratio ({ratio_multi} > {ratio_linear})"
+        );
+    }
 }
+

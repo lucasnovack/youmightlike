@@ -8,6 +8,7 @@ Instead of isolated domain silos, `youmightlike` projects deep cultural relation
 
 ## Key Features
 
+* **Pixie-Style Multi-Hit Booster:** When multiple seeds $Q$ are provided, energy is non-linearly aggregated as $p_{\text{multi}}(v) = (\sum_{q \in Q} \sqrt{w_q \cdot p_q(v)})^2$, conferring quadratic reinforcement to candidates at the intersection of diverse taste anchors.
 * **Bipolar Diffusion with Negative Feedback (Anti-Seeds):** Damps unwanted aesthetics using vector subtraction `p_final = max(0.0, p_pos - β · p_neg)` executed in parallel across CPU cores with Rayon. Negative seeds render with distinct crimson repulsion halos on the canvas.
 * **Cultural Ticket (Receiptify / Aesthetic Snapshot):** Generates high-DPI (2x) thermal receipts on HTML5 `<canvas>` with perforated saw-tooth tear, functional taste hash barcode, orbital constellation mini-map, and unconsumed recommendations ready for PNG export or clipboard copy.
 * **"Already Know" & Serendipity Filter:** Neutral discard action (`[Already Know]`) that stores consumed works locally (`known_items`) and frees recommendation quota for undiscovered works without negatively warping taste diffusion.
@@ -109,6 +110,9 @@ source .venv/bin/activate
 
 # Install Python package with dev tools
 pip install -e "python/[dev]"
+
+# Download precompiled DuckDB shared library (~30MB) for instant sub-second builds
+./scripts/setup_duckdb.sh
 ```
 
 ### 3. Launching the Native Web Server
@@ -147,6 +151,20 @@ pytest python/tests
 # Run Python linter
 ruff check python/
 ```
+
+---
+
+## References & Academic Foundations
+
+`youmightlike` builds upon seminal concepts in graph random walks, link prediction, and sparse matrix linear algebra:
+
+* **[Pixie (Pinterest, WWW '18)](docs/references.md#1-real-time-graph-walks--multi-seed-diffusion):** Real-time random walk recommendation on object graphs, multi-hit booster aggregation, and degree-scaled query allocation.
+* **[Personalized PageRank (Stanford, WWW '02 / '03)](docs/references.md#2-stochastic-diffusion--personalized-pagerank):** Topic-sensitive teleport vectors and stationary probability distributions over directed networks.
+* **[Adamic-Adar Index (Social Networks '03)](docs/references.md#3-link-weighting--hub-attenuation):** Inverse-log in-degree weighting to suppress hub sinks and amplify niche semantic conductance.
+* **[PathSim & Heterogeneous Networks (VLDB '11)](docs/references.md#4-heterogeneous-information-networks-hin):** Meta-path discovery across transmedia adaptations, original soundtracks, and co-listening graphs.
+* **[TrustRank & Bipolar Walks (VLDB '04)](docs/references.md#5-repulsive-random-walks--signed-graphs):** Dual-diffusion signed damping with repulsive negative vectors.
+
+See the complete bibliography and mathematical mapping in [docs/references.md](docs/references.md).
 
 ---
 

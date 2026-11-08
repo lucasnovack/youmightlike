@@ -21,7 +21,8 @@ use crate::models::{
     RecommendationRequest, RecommendationResponse,
 };
 use crate::ppr::{
-    penalize_negative_scores, run_personalized_pagerank_scores_weighted, top_k_from_scores,
+    penalize_negative_scores, run_personalized_pagerank_multi_hit,
+    run_personalized_pagerank_scores_weighted, top_k_from_scores,
 };
 use serde_json::Value;
 
@@ -529,9 +530,13 @@ pub fn run_recommendation_pipeline(
         }
     }
 
-    let mut p =
+    let mut p = if req.multi_hit {
+        run_personalized_pagerank_multi_hit(&state.graph, &seed_weights, 0.85, 25, 1e-6)
+            .unwrap_or_else(|_| vec![0.0; state.graph.num_nodes])
+    } else {
         run_personalized_pagerank_scores_weighted(&state.graph, &seed_weights, 0.85, 25, 1e-6)
-            .unwrap_or_else(|_| vec![0.0; state.graph.num_nodes]);
+            .unwrap_or_else(|_| vec![0.0; state.graph.num_nodes])
+    };
 
     // Apply repulsive negative feedback diffusion if negative seeds are active
     let active_neg_seeds: Vec<&str> = if negative_diffusion_seeds.is_empty() {

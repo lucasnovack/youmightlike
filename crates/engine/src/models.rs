@@ -267,6 +267,12 @@ pub struct RecommendationRequest {
     pub lang: String,
     #[serde(default = "default_beta")]
     pub beta: f64,
+    #[serde(default = "default_multi_hit")]
+    pub multi_hit: bool,
+}
+
+pub fn default_multi_hit() -> bool {
+    true
 }
 
 pub fn default_rec_limit() -> usize {
