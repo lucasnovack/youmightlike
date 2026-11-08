@@ -36,7 +36,7 @@ target/
 Cargo.lock
 
 # Media recordings
-recordings/raw/
+recordings/
 
 # Precompiled shared libraries
 lib/
