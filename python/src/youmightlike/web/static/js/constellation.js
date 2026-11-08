@@ -1,6 +1,60 @@
 // Dual-Mode Visualization Engine: Galaxy (Obsidian) & Flow (Sankey)
-// Formatted with BFS cluster classification, Golden-Angle spiral dispersion, and strict bounding
+// Formatted with Apple HIG Typography, floating cards, and dot grid canvas
 import { DOMAIN_COLORS, getRawType } from './config.js';
+
+function drawRoundRect(ctx, x, y, w, h, r) {
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+  }
+}
+
+function truncateText(ctx, text, maxWidth) {
+  if (!text) return '';
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let low = 0, high = text.length;
+  while (low < high) {
+    const mid = Math.floor((low + high + 1) / 2);
+    if (ctx.measureText(text.slice(0, mid) + '…').width <= maxWidth) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return text.slice(0, low) + '…';
+}
+
+function getDomainBadgeInfo(rawType, isSeed, isAntiSeed) {
+  if (isAntiSeed) {
+    return { text: 'REPULSION', bg: '#fee2e2', color: '#b91c1c' };
+  }
+  if (isSeed) {
+    return { text: 'SEED', bg: '#1d1d1f', color: '#ffffff' };
+  }
+  switch (rawType) {
+    case 'movie':
+      return { text: 'CINEMA', bg: '#fef3c7', color: '#b45309' };
+    case 'artist':
+      return { text: 'ARTIST', bg: '#ffedd5', color: '#c2410c' };
+    case 'track':
+      return { text: 'TRACK', bg: '#e0f2fe', color: '#0369a1' };
+    case 'game':
+      return { text: 'GAME', bg: '#ede9fe', color: '#6d28d9' };
+    case 'series':
+      return { text: 'SERIES', bg: '#fae8ff', color: '#7e22ce' };
+    default:
+      return { text: 'WORK', bg: '#f1f5f9', color: '#475569' };
+  }
+}
 
 export class ConstellationEngine {
   constructor(canvasEl, callbacks = {}) {
@@ -146,9 +200,9 @@ export class ConstellationEngine {
       }
     }
 
-    // 2. Collision / Elliptical Repulsion between pairs
-    const minSepX = 115 * scale;
-    const minSepY = 52 * scale;
+    // 2. Collision / Elliptical Repulsion between pairs (Apple HIG Card Separation)
+    const minSepX = 175 * scale;
+    const minSepY = 60 * scale;
     const repStrength = 0.35 * this.alpha;
 
     for (let i = 0; i < this.canvasNodes.length; i++) {
@@ -289,10 +343,10 @@ export class ConstellationEngine {
 
     const createNodeRecord = (n, x, y, isSeed, isBridge, isTrack) => {
       const sNbrs = Array.from(seedNeighbors.get(n.id) || []);
-      let r = 11.5;
-      if (isSeed) r = 15;
-      else if (isBridge) r = sNbrs.length >= 2 ? 6.5 : 5.0;
-      else if (isTrack) r = 8.5;
+      const isBridgeNode = isBridge && !isSeed;
+      const cardW = isBridgeNode ? 116 : (isSeed ? 168 : 156);
+      const cardH = isBridgeNode ? 28 : (isSeed ? 50 : 46);
+      let r = 15;
 
       const existing = existingNodeMap.get(n.id);
       const posX = existing && typeof existing.x === 'number' && !isNaN(existing.x) ? existing.x : x;
@@ -307,6 +361,8 @@ export class ConstellationEngine {
         isTrack,
         sharedSeedsCount: sNbrs.length,
         seedNbrs: sNbrs,
+        cardW,
+        cardH,
         r,
         x: posX,
         y: posY,
@@ -471,11 +527,11 @@ export class ConstellationEngine {
       nodeById.set(b.id, createNodeRecord(b, x, y, false, true, false));
     });
 
-    // 4. Bounded Relaxation: strictly prevent overlapping pills and keep clusters compact
+    // 4. Bounded Relaxation: strictly prevent overlapping cards and keep clusters compact
     const allNodes = Array.from(nodeById.values());
-    const minSepX = 115 * scale;
-    const minSepY = 52 * scale;
-    const maxClusterRadius = 240 * scale;
+    const minSepX = 175 * scale;
+    const minSepY = 60 * scale;
+    const maxClusterRadius = 260 * scale;
 
     for (let iter = 0; iter < 35; iter++) {
       // Repulsion between overlapping pairs (corrected normalized elliptical distance)
@@ -651,7 +707,9 @@ export class ConstellationEngine {
     const ctx = this.ctx;
     ctx.save();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = '#f8fafc';
+
+    // Apple porcelain canvas background
+    ctx.fillStyle = '#fbfbfd';
     ctx.fillRect(0, 0, rect.width, rect.height);
 
     if (this.canvasNodes.length === 0) {
@@ -662,6 +720,23 @@ export class ConstellationEngine {
     ctx.translate(this.viewTransform.x, this.viewTransform.y);
     ctx.scale(this.viewTransform.k, this.viewTransform.k);
 
+    // Apple subtle canvas dot grid
+    const gridSize = 32;
+    const startX = Math.floor((-this.viewTransform.x / this.viewTransform.k) / gridSize) * gridSize;
+    const startY = Math.floor((-this.viewTransform.y / this.viewTransform.k) / gridSize) * gridSize;
+    const endX = startX + (rect.width / this.viewTransform.k) + gridSize * 2;
+    const endY = startY + (rect.height / this.viewTransform.k) + gridSize * 2;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.035)';
+    const dotR = 1.0 / this.viewTransform.k;
+    for (let gx = startX; gx <= endX; gx += gridSize) {
+      for (let gy = startY; gy <= endY; gy += gridSize) {
+        ctx.beginPath();
+        ctx.arc(gx, gy, dotR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
     const validSelected = this.selectedNodeIds.filter(id => this.nodeMap && this.nodeMap.has(id));
     const focusSet = new Set(validSelected);
     if (this.hoveredId && this.nodeMap && this.nodeMap.has(this.hoveredId)) {
@@ -670,7 +745,7 @@ export class ConstellationEngine {
     const hasFocus = focusSet.size > 0;
     const isFlowMode = this.options.layoutMode === 'flow';
 
-    // 1. Draw Links
+    // 1. Draw Links (Apple smooth curves)
     for (const l of this.canvasLinks) {
       const s = l.source;
       const t = l.target;
@@ -687,14 +762,26 @@ export class ConstellationEngine {
         ctx.moveTo(s.x, s.y);
         ctx.bezierCurveTo(cpX, s.y, cpX, t.y, t.x, t.y);
       } else {
-        ctx.moveTo(s.x, s.y);
-        ctx.lineTo(t.x, t.y);
+        const dx = t.x - s.x;
+        const dy = t.y - s.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 35) {
+          const mx = (s.x + t.x) / 2;
+          const my = (s.y + t.y) / 2;
+          const nx = (-dy / dist) * 7;
+          const ny = (dx / dist) * 7;
+          ctx.moveTo(s.x, s.y);
+          ctx.quadraticCurveTo(mx + nx, my + ny, t.x, t.y);
+        } else {
+          ctx.moveTo(s.x, s.y);
+          ctx.lineTo(t.x, t.y);
+        }
       }
 
       if (!hasFocus) {
         if (l.label === 'repelled_by' || s.isAntiSeed || t.isAntiSeed) {
-          ctx.strokeStyle = 'rgba(239, 68, 68, 0.50)';
-          ctx.lineWidth = 1.1 / this.viewTransform.k;
+          ctx.strokeStyle = 'rgba(239, 68, 68, 0.45)';
+          ctx.lineWidth = 1.0 / this.viewTransform.k;
           ctx.setLineDash([3, 4]);
         } else if (l.isLeafTrackRel) {
           ctx.strokeStyle = 'rgba(203, 213, 225, 0.35)';
@@ -702,17 +789,17 @@ export class ConstellationEngine {
           ctx.setLineDash([3, 4]);
         } else {
           const isBridgeLink = s.isBridge || t.isBridge;
-          ctx.strokeStyle = isBridgeLink ? 'rgba(203, 213, 225, 0.45)' : 'rgba(148, 163, 184, 0.40)';
-          ctx.lineWidth = (isBridgeLink ? 0.85 : 1.25) / this.viewTransform.k;
+          ctx.strokeStyle = isBridgeLink ? 'rgba(203, 213, 225, 0.40)' : 'rgba(148, 163, 184, 0.30)';
+          ctx.lineWidth = (isBridgeLink ? 0.75 : 1.1) / this.viewTransform.k;
           ctx.setLineDash([]);
         }
       } else if (bothFocused) {
-        ctx.strokeStyle = '#6366f1';
-        ctx.lineWidth = 2.6 / this.viewTransform.k;
+        ctx.strokeStyle = '#0071e3';
+        ctx.lineWidth = 2.2 / this.viewTransform.k;
         ctx.setLineDash([]);
       } else if (oneFocused) {
-        ctx.strokeStyle = '#334155';
-        ctx.lineWidth = 1.7 / this.viewTransform.k;
+        ctx.strokeStyle = '#1d1d1f';
+        ctx.lineWidth = 1.4 / this.viewTransform.k;
         ctx.setLineDash([]);
       } else {
         ctx.strokeStyle = 'rgba(226, 232, 240, 0.12)';
@@ -723,7 +810,7 @@ export class ConstellationEngine {
     }
     ctx.setLineDash([]);
 
-    // 2. Draw Nodes
+    // 2. Draw Apple HIG Floating Cards
     for (const n of this.canvasNodes) {
       if (typeof n.x !== 'number' || isNaN(n.x)) continue;
 
@@ -742,112 +829,141 @@ export class ConstellationEngine {
       }
       const isHighlighted = !hasFocus || isSelected || isNeighbor;
 
-      let fill = '#64748b';
-      if (n.isSeed) fill = DOMAIN_COLORS.seed;
-      else if (n.rawType === 'game') fill = DOMAIN_COLORS.game;
-      else if (n.rawType === 'artist') fill = DOMAIN_COLORS.artist;
-      else if (n.rawType === 'track') fill = DOMAIN_COLORS.track;
-      else if (n.rawType === 'movie') fill = DOMAIN_COLORS.movie;
-      else if (n.rawType === 'series') fill = DOMAIN_COLORS.series;
-      else if (n.rawType === 'developer') fill = DOMAIN_COLORS.developer;
-      else if (n.rawType === 'keyword') fill = n.sharedSeedsCount >= 2 ? (DOMAIN_COLORS.bridgeShared || '#334155') : DOMAIN_COLORS.keyword;
+      const isBridgeNode = n.isBridge && !n.isSeed;
+      const cardW = n.cardW || (isBridgeNode ? 116 : (n.isSeed ? 168 : 156));
+      const cardH = n.cardH || (isBridgeNode ? 28 : (n.isSeed ? 50 : 46));
+      const x0 = n.x - cardW / 2;
+      const y0 = n.y - cardH / 2;
 
       ctx.save();
       if (hasFocus && !isHighlighted) {
         ctx.globalAlpha = 0.14;
       }
 
-      // Soft cosmic glowing aura for seeds
-      if (n.isSeed) {
-        const glowR = n.r * 2.8;
-        const grad = ctx.createRadialGradient(n.x, n.y, n.r * 0.4, n.x, n.y, glowR);
-        grad.addColorStop(0, 'rgba(99, 102, 241, 0.30)');
-        grad.addColorStop(0.5, 'rgba(99, 102, 241, 0.10)');
-        grad.addColorStop(1, 'rgba(99, 102, 241, 0)');
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, glowR, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      if (isBridgeNode) {
+        // Tag / Bridge Pill
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.03)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetY = 1;
 
-      // Halo for Seeds & Focused Nodes
-      if (n.isSeed || isSelected) {
         ctx.beginPath();
-        const haloR = n.r + (isSelected ? 6.5 : 5.0) / this.viewTransform.k;
-        ctx.arc(n.x, n.y, haloR, 0, Math.PI * 2);
-        ctx.fillStyle = isSelected ? 'rgba(99, 102, 241, 0.28)' : 'rgba(99, 102, 241, 0.18)';
+        drawRoundRect(ctx, x0, y0, cardW, cardH, 7);
+        ctx.fillStyle = isSelected ? '#ffffff' : (n.sharedSeedsCount >= 2 ? '#f1f5f9' : '#f8fafc');
         ctx.fill();
-        ctx.strokeStyle = isSelected ? '#4f46e5' : '#6366f1';
-        ctx.lineWidth = (isSelected ? 2.4 : 1.8) / this.viewTransform.k;
-        ctx.stroke();
-      }
+        ctx.restore();
 
-      // Diamond for Bridges vs Circle for Discoveries & Seeds
-      if (n.isBridge && !n.isSeed) {
-        const d = n.r * 1.15;
         ctx.beginPath();
-        ctx.moveTo(n.x, n.y - d);
-        ctx.lineTo(n.x + d, n.y);
-        ctx.lineTo(n.x, n.y + d);
-        ctx.lineTo(n.x - d, n.y);
-        ctx.closePath();
-        ctx.fillStyle = fill;
-        ctx.fill();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.2 / this.viewTransform.k;
+        drawRoundRect(ctx, x0, y0, cardW, cardH, 7);
+        ctx.strokeStyle = isSelected ? '#0071e3' : (n.sharedSeedsCount >= 2 ? '#cbd5e1' : '#e2e8f0');
+        ctx.lineWidth = (isSelected ? 1.8 : 1.0) / this.viewTransform.k;
         ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '500 9.5px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif';
+        ctx.fillStyle = isSelected ? '#0071e3' : (n.sharedSeedsCount >= 2 ? '#1e293b' : '#64748b');
+        const tagText = (n.sharedSeedsCount >= 2) ? `${n.label} (${n.sharedSeedsCount})` : `# ${n.label}`;
+        const truncatedTag = truncateText(ctx, tagText, cardW - 12);
+        ctx.fillText(truncatedTag, n.x, n.y);
       } else {
+        // Floating Apple Work / Seed Card
+        const radius = 10;
+
+        // Card Drop Shadow
+        ctx.save();
+        if (isSelected) {
+          ctx.shadowColor = 'rgba(0, 113, 227, 0.22)';
+          ctx.shadowBlur = 12;
+          ctx.shadowOffsetY = 3;
+        } else if (n.isSeed) {
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.08)';
+          ctx.shadowBlur = 10;
+          ctx.shadowOffsetY = 3;
+        } else {
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.04)';
+          ctx.shadowBlur = 6;
+          ctx.shadowOffsetY = 2;
+        }
+
         ctx.beginPath();
-        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
-        ctx.fillStyle = n.isAntiSeed ? '#ef4444' : fill;
+        drawRoundRect(ctx, x0, y0, cardW, cardH, radius);
+        ctx.fillStyle = '#ffffff';
         ctx.fill();
-        ctx.strokeStyle = n.isAntiSeed ? '#b91c1c' : (n.isSeed ? '#4f46e5' : '#ffffff');
-        ctx.lineWidth = (n.isSeed || n.isAntiSeed ? 2.4 : 1.6) / this.viewTransform.k;
-        ctx.stroke();
-      }
+        ctx.restore();
 
-      // 3. Clear, High-Legibility Labels (ALWAYS visible, clean rounded pill backdrop)
-      const fontSize = Math.min(13, Math.max(9.5, (n.isSeed || n.isAntiSeed || isSelected ? 11.5 : 10.0) / Math.pow(this.viewTransform.k, 0.25)));
-      ctx.font = `${n.isSeed || n.isAntiSeed || isSelected ? '700' : '600'} ${fontSize}px "JetBrains Mono", monospace`;
-
-      let rawLabel = (n.isBridge && n.sharedSeedsCount >= 2)
-        ? `${n.label} (${n.sharedSeedsCount})`
-        : (n.label || '');
-
-      if (!isSelected && this.hoveredId !== n.id && rawLabel.length > 18) {
-        rawLabel = rawLabel.slice(0, 17) + '…';
-      }
-
-      const textMetrics = ctx.measureText(rawLabel);
-      const textWidth = textMetrics.width;
-      const textY = n.y + n.r + 4.0 / this.viewTransform.k;
-      const pillX = n.x - textWidth / 2 - 4.5;
-      const pillY = textY - 1;
-      const pillW = textWidth + 9;
-      const pillH = fontSize + 4;
-
-      ctx.save();
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
-      ctx.strokeStyle = isSelected ? '#818cf8' : (n.isAntiSeed ? '#fca5a5' : 'rgba(226, 232, 240, 0.9)');
-      ctx.lineWidth = 1 / this.viewTransform.k;
-
-      if (typeof ctx.roundRect === 'function') {
+        // Card Border
+        ctx.save();
         ctx.beginPath();
-        ctx.roundRect(pillX, pillY, pillW, pillH, 4);
-        ctx.fill();
+        drawRoundRect(ctx, x0, y0, cardW, cardH, radius);
+        if (isSelected) {
+          ctx.strokeStyle = '#0071e3';
+          ctx.lineWidth = 2.0 / this.viewTransform.k;
+        } else if (n.isAntiSeed) {
+          ctx.strokeStyle = '#f87171';
+          ctx.lineWidth = 1.4 / this.viewTransform.k;
+        } else if (n.isSeed) {
+          ctx.strokeStyle = '#1d1d1f';
+          ctx.lineWidth = 1.5 / this.viewTransform.k;
+        } else {
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
+          ctx.lineWidth = 1.0 / this.viewTransform.k;
+        }
         ctx.stroke();
-      } else {
-        ctx.fillRect(pillX, pillY, pillW, pillH);
-        ctx.strokeRect(pillX, pillY, pillW, pillH);
-      }
-      ctx.restore();
+        ctx.restore();
 
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillStyle = isSelected
-        ? '#4f46e5'
-        : (n.isAntiSeed ? '#b91c1c' : (n.isSeed ? '#1e1b4b' : (n.isBridge ? '#475569' : '#0f172a')));
-      ctx.fillText(rawLabel, n.x, textY + 1);
+        // Domain Badge
+        const badge = getDomainBadgeInfo(n.rawType, n.isSeed, n.isAntiSeed);
+        ctx.font = '700 7.5px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif';
+        const badgeMetrics = ctx.measureText(badge.text);
+        const badgeW = badgeMetrics.width + 8;
+        const badgeH = 12;
+        const badgeX = x0 + 8;
+        const badgeY = y0 + 6;
+
+        ctx.save();
+        ctx.beginPath();
+        drawRoundRect(ctx, badgeX, badgeY, badgeW, badgeH, 3);
+        ctx.fillStyle = badge.bg;
+        ctx.fill();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = badge.color;
+        ctx.fillText(badge.text, badgeX + badgeW / 2, badgeY + badgeH / 2 + 0.5);
+        ctx.restore();
+
+        // Work Title
+        ctx.save();
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif';
+        ctx.fillStyle = '#1d1d1f';
+        const maxTitleW = cardW - 16;
+        const titleText = truncateText(ctx, n.label || '', maxTitleW);
+        ctx.fillText(titleText, x0 + 8, y0 + 26);
+
+        // Subtitle (Year · Creator / Subtitle)
+        let subText = '';
+        if (n.metadata) {
+          const parts = [];
+          if (n.metadata.year) parts.push(n.metadata.year);
+          if (n.metadata.director) parts.push(`Dir. ${n.metadata.director}`);
+          else if (n.metadata.developer) parts.push(n.metadata.developer);
+          else if (n.metadata.album) parts.push(n.metadata.album);
+          else if (n.metadata.author) parts.push(n.metadata.author);
+          subText = parts.join(' · ');
+        }
+        if (!subText && n.desc) subText = n.desc;
+        if (!subText && n.subtitle) subText = n.subtitle;
+
+        if (subText) {
+          ctx.font = '400 9px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif';
+          ctx.fillStyle = '#86868b';
+          const subStr = truncateText(ctx, String(subText), maxTitleW);
+          ctx.fillText(subStr, x0 + 8, y0 + 39);
+        }
+        ctx.restore();
+      }
 
       ctx.restore();
     }
@@ -863,10 +979,13 @@ export class ConstellationEngine {
   }
 
   findNodeAt(wx, wy) {
-    const hitPad = 8 / this.viewTransform.k;
+    const hitPad = 6 / this.viewTransform.k;
     for (let i = this.canvasNodes.length - 1; i >= 0; i--) {
       const n = this.canvasNodes[i];
-      if (Math.hypot(wx - n.x, wy - n.y) <= n.r + hitPad) {
+      const isBridgeNode = n.isBridge && !n.isSeed;
+      const halfW = (n.cardW || (isBridgeNode ? 116 : 156)) / 2 + hitPad;
+      const halfH = (n.cardH || (isBridgeNode ? 28 : 46)) / 2 + hitPad;
+      if (Math.abs(wx - n.x) <= halfW && Math.abs(wy - n.y) <= halfH) {
         return n;
       }
     }

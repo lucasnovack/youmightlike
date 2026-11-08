@@ -3,46 +3,54 @@
   display: none !important;
 }
 
-/* Design Tokens & Global Resets */
+/* Apple HIG Design Tokens & Global Resets */
 :root {
-  --color-canvas-bg: #f8fafc;
+  --color-canvas-bg: #fbfbfd;
   --color-canvas-panel: #ffffff;
-  --color-canvas-sidebar: #f1f5f9;
-  --color-canvas-border: #e2e8f0;
-  --color-canvas-border-dark: #cbd5e1;
-  --color-canvas-text: #0f172a;
-  --color-canvas-muted: #64748b;
-  --color-canvas-pine: #0f172a;
-  --color-canvas-sage: #0d9488;
-  --color-canvas-orange: #ea580c;
-  --color-canvas-coral: #e11d48;
-  --color-canvas-denim: #2563eb;
-  --color-canvas-amber: #ca8a04;
-  --color-canvas-violet: #7c3aed;
+  --color-canvas-sidebar: #f5f5f7;
+  --color-canvas-border: #e5e5ea;
+  --color-canvas-border-subtle: #f2f2f7;
+  --color-canvas-border-dark: #d1d1d6;
+  --color-canvas-text: #1d1d1f;
+  --color-canvas-muted: #86868b;
+  --color-apple-accent: #0071e3;
+  --color-apple-accent-hover: #0077ed;
+  --color-apple-gray-subtle: #f2f2f7;
+  --color-apple-gray-field: #e8e8ed;
+  --color-badge-cinema: #b45309;
+  --color-badge-cinema-bg: #fef3c7;
+  --color-badge-music: #0284c7;
+  --color-badge-music-bg: #e0f2fe;
+  --color-badge-game: #7c3aed;
+  --color-badge-game-bg: #ede9fe;
+  --color-badge-series: #9333ea;
+  --color-badge-series-bg: #fae8ff;
+  --color-badge-tag: #475569;
+  --color-badge-tag-bg: #f1f5f9;
 }
 
 * {
-  font-feature-settings: "zero" 1;
   box-sizing: border-box;
 }
 
 body {
   background-color: var(--color-canvas-bg);
   color: var(--color-canvas-text);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
 }
 
 ::selection {
-  background: var(--color-canvas-text);
-  color: #ffffff;
+  background: rgba(0, 113, 227, 0.2);
+  color: var(--color-canvas-text);
 }
 
-/* Custom Scrollbars */
+/* Apple Sleek Scrollbars */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -50,10 +58,10 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-canvas-border-dark);
-  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: rgba(0, 0, 0, 0.22);
 }

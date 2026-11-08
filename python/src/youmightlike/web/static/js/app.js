@@ -813,6 +813,25 @@ createApp({
         }
       });
 
+      // Apple HIG Spotlight shortcut (⌘K / Ctrl+K) & Escape to dismiss
+      window.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+          e.preventDefault();
+          const searchInput = document.getElementById('main-search-input');
+          if (searchInput) {
+            searchInput.focus();
+            searchInput.select();
+          }
+        } else if (e.key === 'Escape') {
+          const searchInput = document.getElementById('main-search-input');
+          if (document.activeElement === searchInput) {
+            searchInput.blur();
+          }
+          searchResults.value = [];
+          hasSearched.value = false;
+        }
+      });
+
       window.addEventListener('online', () => {
         isOffline.value = false;
       });
