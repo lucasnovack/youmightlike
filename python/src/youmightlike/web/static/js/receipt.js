@@ -438,6 +438,74 @@ function computeLabelPlacement(n, nodes, boxX, boxY, boxW, boxH) {
   return { align, lx, ly };
 }
 
+const APPLE_FONTS = {
+  sans: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", system-ui, sans-serif',
+  mono: '"SF Mono", "JetBrains Mono", ui-monospace, Menlo, monospace',
+};
+
+const APPLE_BADGES = {
+  game: { labelPt: 'JOGO', labelEn: 'GAME', bg: '#ede9fe', text: '#6d28d9', border: 'rgba(109, 40, 217, 0.2)' },
+  artist: { labelPt: 'ARTISTA', labelEn: 'ARTIST', bg: '#ffedd5', text: '#c2410c', border: 'rgba(194, 65, 12, 0.2)' },
+  track: { labelPt: 'MÚSICA', labelEn: 'TRACK', bg: '#e0f2fe', text: '#0369a1', border: 'rgba(3, 105, 161, 0.2)' },
+  movie: { labelPt: 'FILME', labelEn: 'CINEMA', bg: '#fef3c7', text: '#b45309', border: 'rgba(180, 83, 9, 0.2)' },
+  series: { labelPt: 'SÉRIE', labelEn: 'SERIES', bg: '#fae8ff', text: '#7e22ce', border: 'rgba(126, 34, 206, 0.2)' },
+  book: { labelPt: 'LIVRO', labelEn: 'BOOK', bg: '#d1fae5', text: '#047857', border: 'rgba(4, 120, 87, 0.2)' },
+  default: { labelPt: 'OBRA', labelEn: 'WORK', bg: '#f2f2f7', text: '#475569', border: 'rgba(71, 85, 105, 0.2)' },
+};
+
+function getBadgeInfo(type) {
+  const t = (type || '').toLowerCase();
+  return APPLE_BADGES[t] || APPLE_BADGES.default;
+}
+
+function drawRoundedRect(ctx, x, y, w, h, r, fill = null, stroke = null, strokeWidth = 1) {
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    const rad = Math.min(r, w / 2, h / 2);
+    ctx.moveTo(x + rad, y);
+    ctx.lineTo(x + w - rad, y);
+    ctx.arcTo(x + w, y, x + w, y + rad, rad);
+    ctx.lineTo(x + w, y + h - rad);
+    ctx.arcTo(x + w, y + h, x + w - rad, y + h, rad);
+    ctx.lineTo(x + rad, y + h);
+    ctx.arcTo(x, y + h, x, y + h - rad, rad);
+    ctx.lineTo(x, y + rad);
+    ctx.arcTo(x, y, x + rad, y, rad);
+    ctx.closePath();
+  }
+  if (fill) {
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+  if (stroke) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = strokeWidth;
+    ctx.stroke();
+  }
+}
+
+function drawPillBadge(ctx, text, x, y, badgeConf) {
+  ctx.save();
+  ctx.font = `600 8.5px ${APPLE_FONTS.sans}`;
+  const padX = 7;
+  const metrics = ctx.measureText(text);
+  const w = metrics.width + padX * 2;
+  const h = 17;
+  const rx = x;
+  const ry = y - 12;
+
+  drawRoundedRect(ctx, rx, ry, w, h, 5, badgeConf.bg, badgeConf.border, 0.8);
+
+  ctx.fillStyle = badgeConf.text;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, rx + padX, ry + h / 2);
+  ctx.restore();
+  return w;
+}
+
 export function generateCulturalReceipt(canvas, {
   seeds = [],
   negativeSeeds = [],
@@ -461,7 +529,7 @@ export function generateCulturalReceipt(canvas, {
     for (const r of recommendations) {
       if (r.tags && Array.isArray(r.tags)) {
         for (const t of r.tags) {
-          if (t && t.length > 1 && tagsSet.size < 8) {
+          if (t && t.length > 1 && tagsSet.size < 7) {
             tagsSet.add(t.toLowerCase().replace(/\s+/g, '-'));
           }
         }
@@ -470,7 +538,7 @@ export function generateCulturalReceipt(canvas, {
   }
   if (tagsSet.size < 4 && graph && graph.nodes) {
     for (const n of graph.nodes) {
-      if ((n.type === 'tag' || n.type === 'keyword') && tagsSet.size < 8) {
+      if ((n.type === 'tag' || n.type === 'keyword') && tagsSet.size < 7) {
         tagsSet.add((n.label || '').toLowerCase().replace(/\s+/g, '-'));
       }
     }
@@ -481,26 +549,25 @@ export function generateCulturalReceipt(canvas, {
   const topRecs = selectBalancedTicketRecs(recommendations, seeds, 7);
 
   // Compute dynamic height
-  const toothDepth = 8;
   let estimatedHeight = 0;
-  estimatedHeight += 24; // Top margin & jagged teeth
-  estimatedHeight += 120; // Header & order meta
+  estimatedHeight += 36; // Top padding
+  estimatedHeight += 90; // Header & order meta
   estimatedHeight += 24; // Divider
-  estimatedHeight += 32 + (seeds.length * 24); // Seeds section
+  estimatedHeight += 32 + (seeds.length * 36); // Seeds section
   if (negativeSeeds.length > 0) {
-    estimatedHeight += 28 + (negativeSeeds.length * 24); // Negative seeds
+    estimatedHeight += 28 + (negativeSeeds.length * 32); // Negative seeds
   }
-  estimatedHeight += 20; // Divider
-  estimatedHeight += 54; // DNA Tags
-  estimatedHeight += 20; // Divider
-  estimatedHeight += 275; // Mini-map frame with generous breathing space
-  estimatedHeight += 20; // Divider
-  estimatedHeight += 36 + (topRecs.length * 44); // Fresh recommendations
-  estimatedHeight += 20; // Divider
-  estimatedHeight += 105; // Totals & audit
-  estimatedHeight += 18; // Double line
-  estimatedHeight += 135; // Barcode, link & footer
-  estimatedHeight += 24; // Bottom tear & margin
+  estimatedHeight += 22; // Divider
+  estimatedHeight += 58; // DNA Tags
+  estimatedHeight += 24; // Divider
+  estimatedHeight += 270; // Mini-map frame with generous breathing space
+  estimatedHeight += 24; // Divider
+  estimatedHeight += 38 + (topRecs.length * 48); // Fresh recommendations
+  estimatedHeight += 24; // Divider
+  estimatedHeight += 95; // Totals metric cards
+  estimatedHeight += 24; // Divider
+  estimatedHeight += 110; // Barcode, link & footer
+  estimatedHeight += 36; // Bottom margin
 
   const height = Math.round(estimatedHeight);
 
@@ -512,71 +579,21 @@ export function generateCulturalReceipt(canvas, {
   ctx.save();
   ctx.scale(dpr, dpr);
 
-  // 1. Draw Paper Background with Perforated Sawtooth Top & Bottom
-  ctx.beginPath();
-  const numTeeth = 32;
-  const toothWidth = width / numTeeth;
-
-  // Top edge zig-zag
-  ctx.moveTo(0, toothDepth);
-  for (let i = 0; i < numTeeth; i++) {
-    const xMid = (i + 0.5) * toothWidth;
-    const xEnd = (i + 1) * toothWidth;
-    ctx.lineTo(xMid, 0);
-    ctx.lineTo(xEnd, toothDepth);
-  }
-
-  // Right edge straight down
-  ctx.lineTo(width, height - toothDepth);
-
-  // Bottom edge zig-zag
-  for (let i = numTeeth - 1; i >= 0; i--) {
-    const xMid = (i + 0.5) * toothWidth;
-    const xStart = i * toothWidth;
-    ctx.lineTo(xMid, height);
-    ctx.lineTo(xStart, height - toothDepth);
-  }
-
-  // Left edge straight up
-  ctx.lineTo(0, toothDepth);
-  ctx.closePath();
-
-  // Paper fill (vintage thermal off-white)
-  ctx.fillStyle = '#faf8f2';
-  ctx.fill();
-
-  // Paper stroke border
-  ctx.lineWidth = 1.2;
-  ctx.strokeStyle = '#dedacb';
-  ctx.stroke();
+  // 1. Draw Apple Card Canvas Background (Porcelain White with Soft Outer Border)
+  drawRoundedRect(ctx, 1.5, 1.5, width - 3, height - 3, 24, '#ffffff', '#e5e5ea', 1.5);
 
   // Layout Cursor
-  let curY = 32;
+  let curY = 36;
   const padX = 40;
   const contentWidth = width - padX * 2;
 
-  // Helper drawing functions
-  const drawDottedLine = (y) => {
+  const drawDivider = (y) => {
     ctx.save();
-    ctx.strokeStyle = '#cbbfad';
+    ctx.strokeStyle = '#f2f2f7';
     ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
     ctx.beginPath();
     ctx.moveTo(padX, y);
     ctx.lineTo(width - padX, y);
-    ctx.stroke();
-    ctx.restore();
-  };
-
-  const drawDoubleLine = (y) => {
-    ctx.save();
-    ctx.strokeStyle = '#1c1917';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(padX, y);
-    ctx.lineTo(width - padX, y);
-    ctx.moveTo(padX, y + 3);
-    ctx.lineTo(width - padX, y + 3);
     ctx.stroke();
     ctx.restore();
   };
@@ -587,153 +604,166 @@ export function generateCulturalReceipt(canvas, {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
-  }).toUpperCase();
+  });
   const timeStr = now.toLocaleTimeString(isPt ? 'pt-BR' : 'en-US', {
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit',
   });
 
-  // 2. HEADER: Brand & Order Metadata
-  ctx.fillStyle = '#1c1917';
+  // 2. HEADER: Brand & Order Metadata (Apple Passbook Style)
+  // Monogram circle
+  ctx.beginPath();
+  ctx.arc(padX + 18, curY + 18, 18, 0, Math.PI * 2);
+  ctx.fillStyle = '#1d1d1f';
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `700 13px ${APPLE_FONTS.sans}`;
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Y', padX + 18, curY + 18);
 
-  ctx.font = '700 18px "JetBrains Mono", monospace';
-  ctx.fillText('*** YOUMIGHTLIKE ***', width / 2, curY);
-  curY += 18;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = `700 16px ${APPLE_FONTS.sans}`;
+  ctx.fillStyle = '#1d1d1f';
+  ctx.fillText('youmightlike', padX + 46, curY + 16);
 
-  ctx.font = '600 11px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#44403c';
+  ctx.font = `500 11px ${APPLE_FONTS.sans}`;
+  ctx.fillStyle = '#86868b';
   ctx.fillText(
-    isPt ? 'TICKET CULTURAL // GRAFO TRANSMIDIÁTICO' : 'CULTURAL TICKET // TRANSMEDIA GRAPH',
-    width / 2,
-    curY
+    isPt ? 'Passaporte de Afinidade Cultural' : 'Cultural Affinity Passport',
+    padX + 46,
+    curY + 31
   );
+
+  // Top-right pill for Order / Date
+  const metaCode = `#YM-${tasteHash}`;
+  ctx.font = `600 10px ${APPLE_FONTS.mono}`;
+  const metaW = ctx.measureText(metaCode).width + 20;
+  drawRoundedRect(ctx, width - padX - metaW, curY + 4, metaW, 24, 12, '#f2f2f7', '#e5e5ea', 1);
+
+  ctx.fillStyle = '#1d1d1f';
+  ctx.textAlign = 'center';
+  ctx.fillText(metaCode, width - padX - metaW / 2, curY + 20);
+
+  curY += 48;
+
+  // Subheader line: Date & Engine Specs
+  ctx.textAlign = 'left';
+  ctx.font = `500 10px ${APPLE_FONTS.sans}`;
+  ctx.fillStyle = '#86868b';
+  ctx.fillText(`${dateStr} • ${timeStr}`, padX, curY);
+
+  ctx.textAlign = 'right';
+  ctx.fillText('Engine: Stochastic PPR • Transmedia Graph', width - padX, curY);
   curY += 16;
 
-  ctx.font = '400 9.5px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#78716c';
+  drawDivider(curY);
+  curY += 24;
+
+  // 3. SECTION 1: Base Ingredients (Profile Seeds)
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#1d1d1f';
+  ctx.font = `700 12px ${APPLE_FONTS.sans}`;
   ctx.fillText(
-    isPt ? 'MOTOR PPR ESTOCÁSTICO • SERENDIPIDADE & GRAFO DISPERSO' : 'STOCHASTIC PPR ENGINE • SERENDIPITY & GRAPH DISPERSION',
-    width / 2,
+    isPt ? 'Sementes do Perfil (Atração)' : 'Profile Seeds (Attraction Poles)',
+    padX,
     curY
   );
   curY += 20;
 
-  // Metadata Box (Order & Date)
-  ctx.font = '500 10.5px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#1c1917';
-  ctx.textAlign = 'left';
-  ctx.fillText(`${isPt ? 'PEDIDO' : 'ORDER'}: #YM-${tasteHash}`, padX, curY);
-  ctx.textAlign = 'right';
-  ctx.fillText(`${dateStr} ${timeStr}`, width - padX, curY);
-  curY += 15;
-
-  ctx.textAlign = 'left';
-  ctx.font = '400 9.5px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#78716c';
-  ctx.fillText('TERMINAL: ENGINE-RUST-v2.8', padX, curY);
-  ctx.textAlign = 'right';
-  ctx.fillText('STATUS: OK (CONVERGED)', width - padX, curY);
-  curY += 14;
-
-  drawDottedLine(curY);
-  curY += 18;
-
-  // 3. SECTION 1: Base Ingredients (Profile Seeds)
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#1c1917';
-  ctx.font = '700 11px "JetBrains Mono", monospace';
-  ctx.fillText(
-    isPt ? '[01] INGREDIENTES BASE (SEMENTES DO PERFIL)' : '[01] BASE INGREDIENTS (PROFILE SEEDS)',
-    padX,
-    curY
-  );
-  curY += 18;
-
   for (let i = 0; i < seeds.length; i++) {
     const s = seeds[i];
-    const typeLabel = getDomainBadge(s.type, isPt);
+    const bInfo = getBadgeInfo(s.type);
+    const bLabel = isPt ? bInfo.labelPt : bInfo.labelEn;
     const name = s.name || s.id;
-    const sub = translateSubtitle(s.subtitle, isPt) ? `(${translateSubtitle(s.subtitle, isPt)})` : '';
+    const sub = translateSubtitle(s.subtitle, isPt);
 
-    ctx.font = '700 10px "JetBrains Mono", monospace';
-    ctx.fillStyle = '#e11d48'; // Ruby accent
-    ctx.fillText(typeLabel, padX, curY);
+    const badgeW = drawPillBadge(ctx, bLabel, padX, curY, bInfo);
 
-    ctx.font = '500 10.5px "JetBrains Mono", monospace';
-    ctx.fillStyle = '#1c1917';
-    ctx.fillText(truncate(name, 34), padX + 68, curY);
+    ctx.font = `600 12px ${APPLE_FONTS.sans}`;
+    ctx.fillStyle = '#1d1d1f';
+    ctx.fillText(truncate(name, 34), padX + badgeW + 10, curY);
 
     if (sub) {
       ctx.textAlign = 'right';
-      ctx.font = '400 9px "JetBrains Mono", monospace';
-      ctx.fillStyle = '#78716c';
-      ctx.fillText(truncate(sub, 18), width - padX, curY);
+      ctx.font = `400 11px ${APPLE_FONTS.sans}`;
+      ctx.fillStyle = '#86868b';
+      ctx.fillText(truncate(sub, 22), width - padX, curY);
       ctx.textAlign = 'left';
     }
-    curY += 20;
+    curY += 28;
   }
 
   // Negative seeds (if any)
   if (negativeSeeds && negativeSeeds.length > 0) {
-    curY += 6;
-    ctx.font = '700 10px "JetBrains Mono", monospace';
-    ctx.fillStyle = '#dc2626';
+    curY += 8;
+    ctx.font = `700 11px ${APPLE_FONTS.sans}`;
+    ctx.fillStyle = '#e11d48';
     ctx.fillText(
-      isPt ? `[--] PÓLOS DE REPULSÃO (EVITADOS - β: ${negativeBeta.toFixed(1)}x)` : `[--] REPULSIVE POLES (AVOIDED - β: ${negativeBeta.toFixed(1)}x)`,
+      isPt ? `Pólos de Repulsão (Evitados • β: ${negativeBeta.toFixed(1)}x)` : `Repulsive Poles (Avoided • β: ${negativeBeta.toFixed(1)}x)`,
       padX,
       curY
     );
-    curY += 16;
+    curY += 18;
 
     for (const neg of negativeSeeds) {
-      ctx.font = '700 10px "JetBrains Mono", monospace';
-      ctx.fillStyle = '#dc2626';
-      ctx.fillText('[EVITAR]', padX, curY);
+      const negBadge = { bg: '#fee2e2', text: '#991b1b', border: 'rgba(239, 68, 68, 0.25)' };
+      const bW = drawPillBadge(ctx, isPt ? 'EVITAR' : 'AVOID', padX, curY, negBadge);
 
-      ctx.font = '500 10.5px "JetBrains Mono", monospace';
-      ctx.fillStyle = '#44403c';
-      ctx.fillText(truncate(neg.name || neg.id, 38), padX + 68, curY);
-      curY += 18;
+      ctx.font = `500 11.5px ${APPLE_FONTS.sans}`;
+      ctx.fillStyle = '#475569';
+      ctx.fillText(truncate(neg.name || neg.id, 40), padX + bW + 10, curY);
+      curY += 24;
     }
   }
 
   curY += 6;
-  drawDottedLine(curY);
-  curY += 18;
+  drawDivider(curY);
+  curY += 22;
 
-  // 4. SECTION 2: Aesthetic DNA & Resonance Tags
+  // 4. SECTION 2: Aesthetic DNA & Resonance Tags (Pill Capsules)
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#1c1917';
-  ctx.font = '700 11px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#1d1d1f';
+  ctx.font = `700 12px ${APPLE_FONTS.sans}`;
   ctx.fillText(
-    isPt ? '[02] DNA ESTÉTICO & CONFLUÊNCIAS' : '[02] AESTHETIC DNA & CONFLUENCES',
+    isPt ? 'DNA Estético & Confluências' : 'Aesthetic DNA & Confluences',
     padX,
     curY
   );
   curY += 18;
 
-  ctx.font = '500 10px "JetBrains Mono", monospace';
   if (resonanceTags.length > 0) {
-    const tagString = resonanceTags.map(t => `#${t}`).join('   ');
-    ctx.fillStyle = '#4f46e5'; // Indigo accent
-    ctx.fillText(truncate(tagString, 62), padX, curY);
+    let tagCursorX = padX;
+    ctx.font = `500 10px ${APPLE_FONTS.sans}`;
+    for (const tag of resonanceTags) {
+      const tagText = `#${tag}`;
+      const tMetrics = ctx.measureText(tagText);
+      const tagW = tMetrics.width + 16;
+      if (tagCursorX + tagW > width - padX) break;
+
+      drawRoundedRect(ctx, tagCursorX, curY - 12, tagW, 20, 10, '#f2f2f7', '#e5e5ea', 0.8);
+      ctx.fillStyle = '#475569';
+      ctx.fillText(tagText, tagCursorX + 8, curY + 2);
+      tagCursorX += tagW + 6;
+    }
   } else {
-    ctx.fillStyle = '#78716c';
+    ctx.font = `400 11px ${APPLE_FONTS.sans}`;
+    ctx.fillStyle = '#86868b';
     ctx.fillText(isPt ? 'Confluência transmidiática multidimensional' : 'Multidimensional transmedia confluence', padX, curY);
   }
-  curY += 18;
+  curY += 24;
 
-  drawDottedLine(curY);
-  curY += 18;
+  drawDivider(curY);
+  curY += 22;
 
-  // 5. SECTION 3: Constellation Topological Map (Micro Force-Directed Graph)
+  // 5. SECTION 3: Constellation Topological Map (Apple Canvas View)
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#1c1917';
-  ctx.font = '700 11px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#1d1d1f';
+  ctx.font = `700 12px ${APPLE_FONTS.sans}`;
   ctx.fillText(
-    isPt ? '[03] MAPA TOPOLÓGICO DA CONSTELAÇÃO' : '[03] TOPOLOGICAL CONSTELLATION MAP',
+    isPt ? 'Mapa Topológico da Constelação' : 'Topological Constellation Map',
     padX,
     curY
   );
@@ -742,49 +772,20 @@ export function generateCulturalReceipt(canvas, {
   const mapBoxX = padX;
   const mapBoxY = curY;
   const mapBoxW = contentWidth;
-  const mapBoxH = 224;
+  const mapBoxH = 210;
 
-  // Frame background
-  ctx.fillStyle = '#f3efe6';
-  ctx.fillRect(mapBoxX, mapBoxY, mapBoxW, mapBoxH);
-  ctx.strokeStyle = '#d3cdbe';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(mapBoxX, mapBoxY, mapBoxW, mapBoxH);
+  // Rounded container for graph
+  drawRoundedRect(ctx, mapBoxX, mapBoxY, mapBoxW, mapBoxH, 16, '#fbfbfd', '#e5e5ea', 1);
 
   // Background subtle dot matrix grid
-  ctx.fillStyle = 'rgba(120, 113, 108, 0.18)';
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
   for (let gx = mapBoxX + 16; gx < mapBoxX + mapBoxW; gx += 20) {
     for (let gy = mapBoxY + 16; gy < mapBoxY + mapBoxH; gy += 20) {
-      ctx.fillRect(gx, gy, 1.2, 1.2);
+      ctx.beginPath();
+      ctx.arc(gx, gy, 1.0, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
-
-  // Crosshairs in corners
-  ctx.strokeStyle = '#a8a29e';
-  ctx.lineWidth = 1;
-  const chLen = 6;
-  const corners = [
-    [mapBoxX + 6, mapBoxY + 6],
-    [mapBoxX + mapBoxW - 6, mapBoxY + 6],
-    [mapBoxX + 6, mapBoxY + mapBoxH - 6],
-    [mapBoxX + mapBoxW - 6, mapBoxY + mapBoxH - 6],
-  ];
-  for (const [cx, cy] of corners) {
-    ctx.beginPath();
-    ctx.moveTo(cx - chLen, cy);
-    ctx.lineTo(cx + chLen, cy);
-    ctx.moveTo(cx, cy - chLen);
-    ctx.lineTo(cx, cy + chLen);
-    ctx.stroke();
-  }
-
-  // Technical Watermark inside Map Header
-  ctx.font = '500 7px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#8f887f';
-  ctx.textAlign = 'left';
-  ctx.fillText('TOPOLOGY: MULTIDOMAIN CONSTELLATION', mapBoxX + 10, mapBoxY + 12);
-  ctx.textAlign = 'right';
-  ctx.fillText('PPR RELAXATION: CONVERGED', mapBoxX + mapBoxW - 10, mapBoxY + 12);
 
   // Run Force-Directed Simulation Layout for organic constellation topology
   const { nodes: layoutNodes, edges: layoutEdges } = layoutConstellationGraph({
@@ -797,9 +798,9 @@ export function generateCulturalReceipt(canvas, {
     boxH: mapBoxH,
   });
 
-  // Draw intra-seed backbone bridges (cool slate dashed line)
+  // Draw intra-seed backbone bridges (smooth blue line)
   ctx.save();
-  ctx.strokeStyle = '#94a3b8';
+  ctx.strokeStyle = 'rgba(0, 113, 227, 0.35)';
   ctx.lineWidth = 1.2;
   ctx.setLineDash([4, 3]);
   for (const e of layoutEdges) {
@@ -812,9 +813,9 @@ export function generateCulturalReceipt(canvas, {
   }
   ctx.restore();
 
-  // Draw discovery-to-seed topological bridges (fine dotted line)
+  // Draw discovery-to-seed topological bridges (fine subtle line)
   ctx.save();
-  ctx.strokeStyle = '#b8b2a0';
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.40)';
   ctx.lineWidth = 1;
   ctx.setLineDash([2.5, 3]);
   for (const e of layoutEdges) {
@@ -827,14 +828,14 @@ export function generateCulturalReceipt(canvas, {
   }
   ctx.restore();
 
-  // Draw Discovery Nodes (Colored cores with white border)
+  // Draw Discovery Nodes (Colored cores with white ring)
   for (const n of layoutNodes.filter(n => !n.isSeed)) {
-    const col = DOMAIN_COLORS[n.type] || '#2563eb';
+    const col = DOMAIN_COLORS[n.type] || '#0071e3';
 
-    // Faint aura
+    // Faint halo
     ctx.beginPath();
     ctx.arc(n.x, n.y, 6.5, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(120, 113, 108, 0.12)';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
     ctx.fill();
 
     // Solid core
@@ -842,183 +843,173 @@ export function generateCulturalReceipt(canvas, {
     ctx.arc(n.x, n.y, 4.5, 0, Math.PI * 2);
     ctx.fillStyle = col;
     ctx.fill();
-    ctx.strokeStyle = '#faf8f2';
-    ctx.lineWidth = 1.3;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
   }
 
-  // Draw Seed Nodes (Ruby double-ring stars)
+  // Draw Seed Nodes (Apple Blue Double-Ring Stars)
   for (const n of layoutNodes.filter(n => n.isSeed)) {
-    // Outer ruby halo
+    // Outer blue halo
     ctx.beginPath();
-    ctx.arc(n.x, n.y, 8.5, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(225, 29, 72, 0.15)';
+    ctx.arc(n.x, n.y, 9, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 113, 227, 0.15)';
     ctx.fill();
 
-    // Outer ruby ring
+    // Outer ring
     ctx.beginPath();
     ctx.arc(n.x, n.y, 5.5, 0, Math.PI * 2);
-    ctx.fillStyle = '#e11d48';
+    ctx.fillStyle = '#0071e3';
     ctx.fill();
-    ctx.strokeStyle = '#faf8f2';
+    ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
     // Inner bright white pin
     ctx.beginPath();
-    ctx.arc(n.x, n.y, 1.8, 0, Math.PI * 2);
+    ctx.arc(n.x, n.y, 2.0, 0, Math.PI * 2);
     ctx.fillStyle = '#ffffff';
     ctx.fill();
   }
 
-  // Draw Collision-Free Text Labels with protective background pills
+  // Draw Collision-Free Text Labels with protective white background pills
   for (const n of layoutNodes) {
     const labelText = truncate(n.name, n.isSeed ? 16 : 14);
     const { align, lx, ly } = computeLabelPlacement(n, layoutNodes, mapBoxX, mapBoxY, mapBoxW, mapBoxH);
 
     ctx.save();
-    ctx.font = n.isSeed ? '700 8.5px "JetBrains Mono", monospace' : '600 8px "JetBrains Mono", monospace';
+    ctx.font = n.isSeed ? `600 9px ${APPLE_FONTS.sans}` : `500 8.5px ${APPLE_FONTS.sans}`;
     const tw = ctx.measureText(labelText).width;
-    const th = 11;
+    const th = 13;
     let px = lx;
     if (align === 'center') px = lx - tw / 2;
     else if (align === 'right') px = lx - tw;
-    const py = ly - 8.5;
+    const py = ly - 9.5;
 
-    // Semi-transparent vintage thermal paper background pill for guaranteed legibility
-    ctx.fillStyle = 'rgba(250, 248, 242, 0.92)';
-    ctx.fillRect(px - 2.5, py, tw + 5, th);
+    // Semi-transparent pill background for guaranteed legibility
+    drawRoundedRect(ctx, px - 3, py, tw + 6, th, 4, 'rgba(255, 255, 255, 0.95)', '#e5e5ea', 0.6);
 
     // Text stroke & fill
     ctx.textAlign = align;
-    ctx.fillStyle = n.isSeed ? '#9f1239' : '#1c1917';
+    ctx.fillStyle = n.isSeed ? '#0071e3' : '#1d1d1f';
     ctx.fillText(labelText, lx, ly);
     ctx.restore();
   }
 
   // Mini-map legend footer
-  ctx.font = '500 8px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#78716c';
+  ctx.font = `500 9px ${APPLE_FONTS.sans}`;
+  ctx.fillStyle = '#86868b';
   ctx.textAlign = 'center';
   ctx.fillText(
-    isPt ? '● SEMENTES (RUBI)   ○ DESCOBERTAS TRANSMIDIÁTICAS   ── PONTES DE AFINIDADE' : '● SEEDS (RUBY)   ○ TRANSMEDIA DISCOVERIES   ── AFFINITY BRIDGES',
+    isPt ? '● Sementes   ○ Descobertas Transmidiáticas   ── Pontes de Confluência' : '● Seeds   ○ Transmedia Discoveries   ── Confluence Bridges',
     mapBoxX + mapBoxW / 2,
-    mapBoxY + mapBoxH - 8
+    mapBoxY + mapBoxH - 9
   );
 
-  curY = mapBoxY + mapBoxH + 16;
-  drawDottedLine(curY);
-  curY += 18;
+  curY = mapBoxY + mapBoxH + 18;
+  drawDivider(curY);
+  curY += 22;
 
-  // 6. SECTION 4: Fresh Discoveries Menu (Cardápio)
+  // 6. SECTION 4: Fresh Discoveries Menu (Apple Table Row Style)
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#1c1917';
-  ctx.font = '700 11px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#1d1d1f';
+  ctx.font = `700 12px ${APPLE_FONTS.sans}`;
   ctx.fillText(
-    isPt ? '[04] CARDÁPIO DE DESCOBERTAS INÉDITAS' : '[04] FRESH CULTURAL DISCOVERIES MENU',
-    padX,
-    curY
-  );
-  curY += 14;
-
-  ctx.font = '400 9px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#78716c';
-  ctx.fillText(
-    isPt ? '(Obras inéditas recomendadas • Filtradas pelo seu perfil)' : '(Curated fresh works • Filtered by your profile)',
+    isPt ? 'Descobertas Recomendadas' : 'Curated Fresh Discoveries',
     padX,
     curY
   );
   curY += 16;
+
+  ctx.font = `400 10.5px ${APPLE_FONTS.sans}`;
+  ctx.fillStyle = '#86868b';
+  ctx.fillText(
+    isPt ? 'Obras inéditas selecionadas pelo grafo para expandir seu repertório' : 'Fresh works selected by the graph to expand your repertoire',
+    padX,
+    curY
+  );
+  curY += 18;
 
   for (let i = 0; i < topRecs.length; i++) {
     const item = topRecs[i];
     const rankStr = String(i + 1).padStart(2, '0');
-    const typeLabel = getDomainBadge(item.type, isPt);
+    const bInfo = getBadgeInfo(item.type);
+    const bLabel = isPt ? bInfo.labelPt : bInfo.labelEn;
     const title = cleanItemTitle(item.title || item.name || item.id, item);
-    const affinityScore = item.score !== undefined ? `${Math.round(item.score * 100)}%` : '95%';
+    const affinityScore = item.score !== undefined ? `+${Math.round(item.score * 100)}%` : '+95%';
     const reason = item.reason || (isPt ? 'Confluência multidimensional no grafo' : 'Multidimensional graph confluence');
 
-    // Line 1: Rank + Type + Title ............... Affinity%
-    ctx.font = '700 10.5px "JetBrains Mono", monospace';
-    ctx.fillStyle = '#1c1917';
-    ctx.fillText(`${rankStr}.`, padX, curY);
+    // Line 1: Rank + Type Pill + Title ............... Affinity%
+    ctx.font = `500 11px ${APPLE_FONTS.mono}`;
+    ctx.fillStyle = '#86868b';
+    ctx.fillText(rankStr, padX, curY);
 
-    ctx.font = '700 9.5px "JetBrains Mono", monospace';
-    ctx.fillStyle = DOMAIN_COLORS[item.type] || '#2563eb';
-    ctx.fillText(typeLabel, padX + 24, curY);
+    const bW = drawPillBadge(ctx, bLabel, padX + 22, curY, bInfo);
 
-    ctx.font = '600 10.5px "JetBrains Mono", monospace';
-    ctx.fillStyle = '#1c1917';
-    ctx.fillText(truncate(title, 32), padX + 88, curY);
+    ctx.font = `600 12px ${APPLE_FONTS.sans}`;
+    ctx.fillStyle = '#1d1d1f';
+    ctx.fillText(truncate(title, 32), padX + 26 + bW, curY);
 
-    ctx.textAlign = 'right';
-    ctx.font = '700 10px "JetBrains Mono", monospace';
-    ctx.fillStyle = '#0f766e';
-    ctx.fillText(`${affinityScore}`, width - padX, curY);
+    // Affinity pill in emerald green
+    ctx.font = `600 10px ${APPLE_FONTS.sans}`;
+    const affMetrics = ctx.measureText(affinityScore);
+    const affW = affMetrics.width + 12;
+    drawRoundedRect(ctx, width - padX - affW, curY - 11, affW, 16, 8, '#ecfdf5', 'rgba(16, 185, 129, 0.2)', 0.8);
+    ctx.fillStyle = '#047857';
+    ctx.textAlign = 'center';
+    ctx.fillText(affinityScore, width - padX - affW / 2, curY + 1);
     ctx.textAlign = 'left';
-    curY += 14;
+
+    curY += 16;
 
     // Line 2: Reason / Bridge (Indented)
-    ctx.font = '400 9px "JetBrains Mono", monospace';
-    ctx.fillStyle = '#57534e';
-    ctx.fillText(`↳ ${truncate(reason, 62)}`, padX + 24, curY);
-    curY += 24;
+    ctx.font = `400 10px ${APPLE_FONTS.sans}`;
+    ctx.fillStyle = '#86868b';
+    ctx.fillText(`↳ ${truncate(reason, 64)}`, padX + 24, curY);
+    curY += 26;
   }
 
-  drawDottedLine(curY);
-  curY += 16;
+  drawDivider(curY);
+  curY += 20;
 
-  // 7. SECTION 5: Graph Totals & Audit
-  ctx.font = '500 10px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#44403c';
+  // 7. SECTION 5: Graph Totals & Audit (3 Metrics Cards)
+  const cardGap = 12;
+  const cardW = (contentWidth - cardGap * 2) / 3;
+  const cardH = 58;
 
-  const rowAudit = (label, val, y) => {
-    ctx.textAlign = 'left';
-    ctx.fillText(label, padX, y);
-    ctx.textAlign = 'right';
-    ctx.fillText(String(val), width - padX, y);
+  const drawMetricCard = (x, y, label, value, sub = '') => {
+    drawRoundedRect(ctx, x, y, cardW, cardH, 12, '#fbfbfd', '#e5e5ea', 1);
+    ctx.font = `500 9.5px ${APPLE_FONTS.sans}`;
+    ctx.fillStyle = '#86868b';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x + cardW / 2, y + 18);
+
+    ctx.font = `700 15px ${APPLE_FONTS.sans}`;
+    ctx.fillStyle = '#1d1d1f';
+    ctx.fillText(String(value), x + cardW / 2, y + 38);
+
+    if (sub) {
+      ctx.font = `400 8.5px ${APPLE_FONTS.sans}`;
+      ctx.fillStyle = '#86868b';
+      ctx.fillText(sub, x + cardW / 2, y + 50);
+    }
   };
 
-  rowAudit(
-    isPt ? 'TOTAL DE DESCOBERTAS GERADAS:' : 'TOTAL DISCOVERIES GENERATED:',
-    recommendations.length,
-    curY
-  );
-  curY += 16;
+  drawMetricCard(padX, curY, isPt ? 'Descobertas' : 'Discoveries', recommendations.length);
+  drawMetricCard(padX + cardW + cardGap, curY, isPt ? 'Conhecidas' : 'Known Items', knownCount);
+  drawMetricCard(padX + (cardW + cardGap) * 2, curY, isPt ? 'Serendipidade' : 'Serendipity', '100%', isPt ? 'Inédito' : 'Fresh');
 
-  rowAudit(
-    isPt ? 'OBRAS CONHECIDAS FILTRADAS:' : 'KNOWN ITEMS FILTERED OUT:',
-    knownCount,
-    curY
-  );
-  curY += 16;
-
-  if (negativeSeeds.length > 0) {
-    rowAudit(
-      isPt ? 'PÓLOS DE REPULSÃO ATIVOS:' : 'ACTIVE REPULSION POLES:',
-      `${negativeSeeds.length} (β=${negativeBeta.toFixed(1)}x)`,
-      curY
-    );
-    curY += 16;
-  }
-
-  rowAudit(
-    isPt ? 'ÍNDICE DE NOVIDADE / SERENDIPIDADE:' : 'NOVELTY / SERENDIPITY RATE:',
-    '100% INÉDITO',
-    curY
-  );
-  curY += 18;
-
-  drawDoubleLine(curY);
-  curY += 20;
+  curY += cardH + 22;
+  drawDivider(curY);
+  curY += 24;
 
   // 8. SECTION 6: Procedural Barcode, Link & Closing Motto
   const barcodeY = curY;
-  const barcodeH = 34;
-  const barcodeW = 280;
+  const barcodeH = 30;
+  const barcodeW = 240;
   const barcodeX = (width - barcodeW) / 2;
 
-  ctx.fillStyle = '#1c1917';
+  ctx.fillStyle = '#1d1d1f';
   let curBx = barcodeX;
   for (let i = 0; i < tasteHash.length; i++) {
     const val = parseInt(tasteHash[i], 16);
@@ -1040,14 +1031,14 @@ export function generateCulturalReceipt(canvas, {
 
   // Numeric code below barcode
   ctx.textAlign = 'center';
-  ctx.font = '500 10px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#1c1917';
-  ctx.fillText(`* YM - ${tasteHash} - ${now.getFullYear()} *`, width / 2, curY);
-  curY += 22;
+  ctx.font = `500 10px ${APPLE_FONTS.mono}`;
+  ctx.fillStyle = '#86868b';
+  ctx.fillText(`YM - ${tasteHash} - ${now.getFullYear()}`, width / 2, curY);
+  curY += 20;
 
   // Footer slogan
-  ctx.font = '600 10px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#44403c';
+  ctx.font = `600 10px ${APPLE_FONTS.sans}`;
+  ctx.fillStyle = '#1d1d1f';
   ctx.fillText(
     isPt ? 'CULTIVE SEU PRÓPRIO REPERTÓRIO CULTURAL' : 'CULTIVATE YOUR OWN CULTURAL REPERTOIRE',
     width / 2,
@@ -1055,10 +1046,10 @@ export function generateCulturalReceipt(canvas, {
   );
   curY += 14;
 
-  ctx.font = '400 8.5px "JetBrains Mono", monospace';
-  ctx.fillStyle = '#78716c';
+  ctx.font = `400 9px ${APPLE_FONTS.sans}`;
+  ctx.fillStyle = '#86868b';
   ctx.fillText(
-    isPt ? 'OBRIGADO POR EXPLORAR O GRAFO' : 'THANK YOU FOR EXPLORING THE GRAPH',
+    'youmightlike • transmedia discovery engine',
     width / 2,
     curY
   );

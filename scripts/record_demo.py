@@ -82,9 +82,9 @@ def record():
             page.mouse.move(cx - 120, cy + 80, steps=10)
             page.wait_for_timeout(500)
 
-        # 3. Open Cultural Taste Receipt (Receiptify modal in English)
-        print("Opening English Receipt modal...")
-        receipt_btn = page.locator("button:has-text('Receipt')").first
+        # 3. Open Cultural Affinity Passport modal
+        print("Opening English Cultural Passport modal...")
+        receipt_btn = page.locator("button:has-text('Passport'), button:has-text('Passaporte'), button:has-text('Ticket')").first
         if receipt_btn.is_visible():
             receipt_btn.click()
             page.wait_for_timeout(2600)  # Show English receipt with barcode and map
