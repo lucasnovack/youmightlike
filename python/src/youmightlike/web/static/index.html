@@ -186,7 +186,7 @@
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
-            <span>[fechar]</span>
+            <span>[{{ t('close').toLowerCase() }}]</span>
           </button>
         </div>
       </div>
@@ -229,7 +229,7 @@
           @click="computeRecommendations"
           :disabled="profileSeeds.length === 0 || isLoadingRecs"
           class="bg-[#1d1d1f] hover:bg-black active:scale-98 disabled:opacity-30 disabled:pointer-events-none text-white font-medium text-xs py-1 px-3.5 rounded-full transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
-          :title="profileSeeds.length === 0 ? 'Adicione sementes para calcular a difusão' : 'Calcular difusão no grafo'"
+          :title="profileSeeds.length === 0 ? t('runDiffusionEmptyTooltip') : t('runDiffusionTooltip')"
         >
           <span v-if="isLoadingRecs" class="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
           <svg v-else class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -313,28 +313,28 @@
               :class="targetFilter === 'game' ? 'bg-[#1d1d1f] text-white shadow-2xs' : 'bg-[#f2f2f7] text-slate-600 hover:bg-[#e8e8ed]'"
               class="px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors shrink-0 cursor-pointer"
             >
-              Jogos ({{ domainCounts.game }})
+              {{ t('typeGames') }} ({{ domainCounts.game }})
             </button>
             <button
               @click="setDomainFilter('music')"
               :class="targetFilter === 'music' ? 'bg-[#1d1d1f] text-white shadow-2xs' : 'bg-[#f2f2f7] text-slate-600 hover:bg-[#e8e8ed]'"
               class="px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors shrink-0 cursor-pointer"
             >
-              Música ({{ domainCounts.music }})
+              {{ t('filterMusic') }} ({{ domainCounts.music }})
             </button>
             <button
               @click="setDomainFilter('movie')"
               :class="targetFilter === 'movie' ? 'bg-[#1d1d1f] text-white shadow-2xs' : 'bg-[#f2f2f7] text-slate-600 hover:bg-[#e8e8ed]'"
               class="px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors shrink-0 cursor-pointer"
             >
-              Filmes ({{ domainCounts.movie }})
+              {{ t('typeMovies') }} ({{ domainCounts.movie }})
             </button>
             <button
               @click="setDomainFilter('series')"
               :class="targetFilter === 'series' ? 'bg-[#1d1d1f] text-white shadow-2xs' : 'bg-[#f2f2f7] text-slate-600 hover:bg-[#e8e8ed]'"
               class="px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors shrink-0 cursor-pointer"
             >
-              Séries ({{ domainCounts.series }})
+              {{ t('typeSeries') }} ({{ domainCounts.series }})
             </button>
           </div>
         </div>
@@ -604,7 +604,7 @@
                       class="px-2 py-1 bg-[#f2f2f7] hover:bg-[#1d1d1f] hover:text-white text-slate-700 text-[10px] font-medium rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
                       :title="t('promoteToSeed')"
                     >
-                      <span>+ Semente</span>
+                      <span>+ {{ t('addAsSeed') }}</span>
                     </button>
                     <button
                       @click="unmarkKnown(known.id)"
@@ -692,9 +692,9 @@
 
                 <!-- Subtitle / Creator Details -->
                 <p v-if="node.desc || node.subtitle || (node.metadata && (node.metadata.director || node.metadata.developer || node.metadata.artists || node.metadata.author))" class="text-xs text-[#86868b] mt-0.5">
-                  <span v-if="node.metadata && node.metadata.director">Directed by {{ node.metadata.director }}</span>
-                  <span v-else-if="node.metadata && node.metadata.developer">Developed by {{ node.metadata.developer }}</span>
-                  <span v-else-if="node.metadata && node.metadata.author">By {{ node.metadata.author }}</span>
+                  <span v-if="node.metadata && node.metadata.director">{{ t('directedBy') }} {{ node.metadata.director }}</span>
+                  <span v-else-if="node.metadata && node.metadata.developer">{{ t('developedBy') }} {{ node.metadata.developer }}</span>
+                  <span v-else-if="node.metadata && node.metadata.author">{{ t('byAuthor') }} {{ node.metadata.author }}</span>
                   <span v-else-if="node.metadata && node.metadata.artists">{{ node.metadata.artists.join(', ') }}</span>
                   <span v-else>{{ node.desc || node.subtitle }}</span>
                 </p>
@@ -702,7 +702,7 @@
                 <!-- Structured Metadata Chips -->
                 <div v-if="node.metadata" class="flex flex-wrap items-center gap-1.5 mt-3 pt-2.5 border-t border-slate-100">
                   <span v-if="node.metadata.album" class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-[#f2f2f7] text-slate-700 rounded-md">
-                    <span>Álbum:</span> {{ node.metadata.album }}
+                    <span>{{ t('album') }}:</span> {{ node.metadata.album }}
                   </span>
                   <span v-if="node.metadata.tempo" class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md">
                     <span>{{ node.metadata.tempo }} BPM</span>
@@ -800,28 +800,28 @@
                   :class="inspectorFilter === 'game' ? 'bg-[#1d1d1f] text-white shadow-2xs' : 'bg-[#f2f2f7] text-slate-600 hover:bg-[#e8e8ed]'"
                   class="px-2.5 py-0.5 rounded-full text-[10px] font-medium transition-colors cursor-pointer"
                 >
-                  jogos
+                  {{ t('typeGames').toLowerCase() }}
                 </button>
                 <button
                   @click="setInspectorFilter('music')"
                   :class="inspectorFilter === 'music' ? 'bg-[#1d1d1f] text-white shadow-2xs' : 'bg-[#f2f2f7] text-slate-600 hover:bg-[#e8e8ed]'"
                   class="px-2.5 py-0.5 rounded-full text-[10px] font-medium transition-colors cursor-pointer"
                 >
-                  música
+                  {{ t('filterMusic').toLowerCase() }}
                 </button>
                 <button
                   @click="setInspectorFilter('movie')"
                   :class="inspectorFilter === 'movie' ? 'bg-[#1d1d1f] text-white shadow-2xs' : 'bg-[#f2f2f7] text-slate-600 hover:bg-[#e8e8ed]'"
                   class="px-2.5 py-0.5 rounded-full text-[10px] font-medium transition-colors cursor-pointer"
                 >
-                  filmes
+                  {{ t('typeMovies').toLowerCase() }}
                 </button>
                 <button
                   @click="setInspectorFilter('series')"
                   :class="inspectorFilter === 'series' ? 'bg-[#1d1d1f] text-white shadow-2xs' : 'bg-[#f2f2f7] text-slate-600 hover:bg-[#e8e8ed]'"
                   class="px-2.5 py-0.5 rounded-full text-[10px] font-medium transition-colors cursor-pointer"
                 >
-                  séries
+                  {{ t('typeSeries').toLowerCase() }}
                 </button>
               </div>
 
@@ -861,7 +861,7 @@
                         @click="addSeed({ id: sug.id, name: sug.title, type: sug.type, subtitle: sug.subtitle })"
                         class="px-2.5 py-1 bg-[#1d1d1f] hover:bg-black text-white rounded-lg text-[10px] font-medium transition-colors cursor-pointer"
                       >
-                        + Semente
+                        + {{ t('addAsSeed') }}
                       </button>
                       <span v-else class="text-[10px] font-medium text-teal-600">
                         {{ t('alreadyInLikes') }}
@@ -903,12 +903,12 @@
 
           <!-- Active Domain Filter Banner -->
           <div v-if="targetFilter !== null && recommendations.length > 0" class="flex items-center justify-between py-1.5 px-3 bg-indigo-50/70 border border-indigo-200/80 rounded-xl text-[10px] text-indigo-900 font-medium">
-            <span>{{ isPt ? 'Exibindo lista completa desta categoria' : 'Showing all items for this category' }}</span>
+            <span>{{ t('showingAllCategory') }}</span>
             <button
               @click="setDomainFilter(null)"
               class="font-bold text-indigo-700 hover:text-indigo-900 hover:underline cursor-pointer flex items-center gap-1"
             >
-              <span>← {{ isPt ? 'Destaques em Todos' : 'Back to Highlights' }}</span>
+              <span>← {{ t('highlightsInAll') }}</span>
             </button>
           </div>
 
@@ -1208,7 +1208,7 @@
             <div class="grid grid-cols-2 gap-x-3 gap-y-2 text-[10px] pt-1">
               <span class="flex items-center gap-2">
                 <span class="w-2.5 h-2.5 rounded-full bg-[#0071e3] ring-2 ring-blue-100 shrink-0"></span>
-                <span class="font-medium text-slate-700">Semente (Atração)</span>
+                <span class="font-medium text-slate-700">{{ t('seedLegend') }}</span>
               </span>
               <span class="flex items-center gap-2">
                 <span class="w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-rose-100 shrink-0"></span>
@@ -1284,7 +1284,7 @@
           <button
             @click="closeReceiptModal"
             class="text-slate-400 hover:text-slate-700 p-1.5 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
-            title="Fechar (Esc)"
+            :title="t('closeModalEsc')"
           >
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -1321,7 +1321,7 @@
               @click="closeReceiptModal"
               class="px-4 py-2 text-slate-600 hover:text-slate-900 text-xs font-medium cursor-pointer"
             >
-              Fechar
+              {{ t('close') }}
             </button>
 
             <button

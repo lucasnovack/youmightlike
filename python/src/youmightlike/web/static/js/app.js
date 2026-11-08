@@ -237,7 +237,7 @@ createApp({
       if (tracks.length > 0) groups.push(makeGroup('tracks', t('sectionTracks'), '#0d9488', 'music', tracks));
       if (movies.length > 0) groups.push(makeGroup('movies', t('typeMovies'), '#ca8a04', 'movie', movies));
       if (series.length > 0) groups.push(makeGroup('series', t('typeSeries'), '#9333ea', 'series', series));
-      if (books.length > 0) groups.push(makeGroup('books', 'LIVROS', '#059669', 'book', books));
+      if (books.length > 0) groups.push(makeGroup('books', t('typeBooks'), '#059669', 'book', books));
       return groups;
     });
 
@@ -865,6 +865,7 @@ createApp({
 
     return {
       currentLang,
+      isPt: computed(() => currentLang.value === 'pt'),
       setLang,
       t,
       isOffline,
