@@ -3,9 +3,3 @@ members = [
     "crates/engine",
 ]
 resolver = "2"
-
-[profile.dev]
-debug = 0
-
-[profile.test]
-debug = 0
