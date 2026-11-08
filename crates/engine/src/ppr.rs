@@ -128,30 +128,56 @@ pub fn run_personalized_pagerank_multi_hit(
         .map(|&(k, w)| (k, w / total_w))
         .collect();
 
-    // Compute individual PPR vectors for each seed in parallel
-    let p_vectors: Vec<Vec<f32>> = normalized_seeds
+    // Group into at most 8 representative multi-seed walkers to keep diffusion
+    // sub-second even with 30+ seeds, while preventing correlation explosion
+    const MAX_WALKERS: usize = 8;
+    let seed_groups = cluster_seeds_for_multi_hit(&normalized_seeds, MAX_WALKERS);
+
+    let group_weights: Vec<f32> = seed_groups
+        .iter()
+        .map(|grp| grp.iter().map(|s| s.1).sum::<f32>())
+        .collect();
+
+    // Compute PPR vectors for each cluster group in parallel
+    let p_vectors: Vec<Vec<f32>> = seed_groups
         .par_iter()
-        .map(|&(k, _w)| {
-            let single = [(k, 1.0f32)];
-            run_personalized_pagerank_scores_weighted(graph, &single, alpha, max_iter, tol)
+        .map(|grp| {
+            run_personalized_pagerank_scores_weighted(graph, grp, alpha, max_iter, tol)
         })
         .collect::<Result<Vec<_>>>()?;
 
     let n = graph.num_nodes;
     let mut p_boosted = vec![0.0f32; n];
+    let noise_floor = (0.5f32 / (n as f32)).min(1e-5);
 
-    // Compute ( \sum_q \sqrt{w_q * p_q[v]} )^2 in parallel across all nodes
+    // Compute ( \sum_g \sqrt{W_g * (p_g[v] - noise)_+} )^2 in parallel across all nodes,
+    // applying degree dampening to eliminate hub / supernode monopolies
     p_boosted
         .par_iter_mut()
         .enumerate()
         .for_each(|(v, out)| {
             let mut sum_sqrt = 0.0f32;
             for (i, p_vec) in p_vectors.iter().enumerate() {
-                let w = normalized_seeds[i].1;
-                let val = p_vec[v].max(0.0);
-                sum_sqrt += (w * val).sqrt();
+                let w = group_weights[i];
+                let val = (p_vec[v] - noise_floor).max(0.0);
+                if val > 0.0 {
+                    sum_sqrt += (w * val).sqrt();
+                }
             }
-            *out = sum_sqrt * sum_sqrt;
+            let raw_boosted = sum_sqrt * sum_sqrt;
+            if raw_boosted > 0.0 {
+                let deg = (graph.indptr[v + 1] - graph.indptr[v]).max(1) as f32;
+                // Popularity/Hub dampening: penalizes ubiquitous hubs (blockbusters with hundreds of edges)
+                // so specific cultural matches shine through without generic hubs hogging all top spots.
+                let dampening = if deg > 40.0 {
+                    1.0 / (1.0 + (deg / 40.0).ln())
+                } else {
+                    1.0
+                };
+                *out = raw_boosted * dampening;
+            } else {
+                *out = 0.0;
+            }
         });
 
     // Re-normalize to conserve stochastic probability mass (\sum p_i = 1.0)
@@ -163,6 +189,67 @@ pub fn run_personalized_pagerank_multi_hit(
     }
 
     Ok(p_boosted)
+}
+
+/// Partitions seeds into at most `max_groups` balanced cultural clusters
+/// based on domain prefix to keep multi-hit diffusion fast and prevent
+/// correlation amplification when many seeds are provided.
+fn cluster_seeds_for_multi_hit<'a>(
+    seeds: &[(&'a str, f32)],
+    max_groups: usize,
+) -> Vec<Vec<(&'a str, f32)>> {
+    if seeds.len() <= max_groups {
+        return seeds.iter().map(|&s| vec![s]).collect();
+    }
+
+    use std::collections::HashMap;
+    let mut by_domain: HashMap<&str, Vec<(&str, f32)>> = HashMap::new();
+    for &s in seeds {
+        let prefix = s.0.split(':').next().unwrap_or("other");
+        let domain_key = match prefix {
+            "artist" | "track" | "album" => "music",
+            other => other,
+        };
+        by_domain.entry(domain_key).or_default().push(s);
+    }
+
+    let mut dom_entries: Vec<(&str, Vec<(&str, f32)>)> = by_domain.into_iter().collect();
+    dom_entries.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+
+    let mut groups: Vec<Vec<(&str, f32)>> = Vec::new();
+    let num_domains = dom_entries.len();
+
+    if num_domains >= max_groups {
+        for (i, entry) in dom_entries.into_iter().enumerate() {
+            if i < max_groups - 1 {
+                groups.push(entry.1);
+            } else if groups.len() < max_groups {
+                groups.push(entry.1);
+            } else {
+                groups.last_mut().unwrap().extend(entry.1);
+            }
+        }
+    } else {
+        let mut remaining_slots = max_groups;
+        let mut remaining_domains = num_domains;
+
+        for (_dom, dom_seeds) in dom_entries {
+            let slots_for_dom = (remaining_slots / remaining_domains).max(1).min(dom_seeds.len());
+            remaining_slots = remaining_slots.saturating_sub(slots_for_dom);
+            remaining_domains -= 1;
+
+            if slots_for_dom == 1 {
+                groups.push(dom_seeds);
+            } else {
+                let chunk_size = (dom_seeds.len() + slots_for_dom - 1) / slots_for_dom;
+                for chunk in dom_seeds.chunks(chunk_size) {
+                    groups.push(chunk.to_vec());
+                }
+            }
+        }
+    }
+
+    groups
 }
 
 /// Applies repulsive negative feedback penalty:

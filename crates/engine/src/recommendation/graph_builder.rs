@@ -207,29 +207,37 @@ pub fn init_subgraph_anchors(
         }
 
         let mut selected_bridge_kids: Vec<i64> = Vec::new();
+
+        // Score each shared tag by the number of distinct seed pairs it bridges
+        let mut bridge_pair_counts: HashMap<i64, (usize, f32)> = HashMap::new();
         for i in 0..per_seed_tags.len() {
             for j in (i + 1)..per_seed_tags.len() {
-                let mut pair_shared: Vec<(i64, usize, f32)> = per_seed_tags[i]
-                    .iter()
-                    .filter_map(|(&kid, &w_i)| {
-                        per_seed_tags[j].get(&kid).map(|&w_j| {
-                            let global_cnt = seed_tag_counts.get(&kid).copied().unwrap_or(2);
-                            (kid, global_cnt, w_i + w_j)
-                        })
-                    })
-                    .collect();
-
-                pair_shared.sort_by(|a, b| {
-                    b.1.cmp(&a.1)
-                        .then_with(|| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal))
-                        .then_with(|| a.0.cmp(&b.0))
-                });
-
-                for (kid, _, _) in pair_shared.into_iter().take(2) {
-                    if !selected_bridge_kids.contains(&kid) {
-                        selected_bridge_kids.push(kid);
+                for (&kid, &w_i) in &per_seed_tags[i] {
+                    if let Some(&w_j) = per_seed_tags[j].get(&kid) {
+                        let entry = bridge_pair_counts.entry(kid).or_insert((0, 0.0));
+                        entry.0 += 1; // number of seed pairs bridged
+                        entry.1 += w_i + w_j;
                     }
                 }
+            }
+        }
+
+        let mut sorted_bridges: Vec<(i64, usize, f32)> = bridge_pair_counts
+            .into_iter()
+            .map(|(kid, (pairs, w))| (kid, pairs, w))
+            .collect();
+
+        // Sort by pair coverage descending, then total weight, then kid deterministic
+        sorted_bridges.sort_by(|a, b| {
+            b.1.cmp(&a.1)
+                .then_with(|| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal))
+                .then_with(|| a.0.cmp(&b.0))
+        });
+
+        // Cap to at most 20 pairwise bridges to prevent combinatorial explosion on 30+ seeds
+        for (kid, _, _) in sorted_bridges.into_iter().take(20) {
+            if !selected_bridge_kids.contains(&kid) {
+                selected_bridge_kids.push(kid);
             }
         }
 
@@ -337,7 +345,35 @@ pub fn build_subgraph_and_prune(
             })
         });
 
-        links.extend(extracted);
+        // To prevent visual hub monopolies / dense spiderwebs in the visual graph:
+        // A single bridge/tag node should not connect to 30+ items.
+        // Cap the maximum direct links per hub node (keyword/developer) to the top 5 strongest links.
+        let is_hub = |k: &str| k.starts_with("keyword:") || k.starts_with("developer:");
+        let mut hub_link_counts: HashMap<String, usize> = HashMap::new();
+        let mut filtered_extracted: Vec<GraphLinkPayload> = Vec::with_capacity(extracted.len());
+
+        const MAX_LINKS_PER_HUB: usize = 5;
+        for link in extracted {
+            let src_hub = is_hub(&link.source);
+            let tgt_hub = is_hub(&link.target);
+
+            if src_hub && hub_link_counts.get(&link.source).copied().unwrap_or(0) >= MAX_LINKS_PER_HUB {
+                continue;
+            }
+            if tgt_hub && hub_link_counts.get(&link.target).copied().unwrap_or(0) >= MAX_LINKS_PER_HUB {
+                continue;
+            }
+
+            if src_hub {
+                *hub_link_counts.entry(link.source.clone()).or_insert(0) += 1;
+            }
+            if tgt_hub {
+                *hub_link_counts.entry(link.target.clone()).or_insert(0) += 1;
+            }
+            filtered_extracted.push(link);
+        }
+
+        links.extend(filtered_extracted);
     };
 
     extract_direct_links(graph_nodes, graph_links);

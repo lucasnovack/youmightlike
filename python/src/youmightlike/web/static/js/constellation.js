@@ -151,6 +151,10 @@ export class ConstellationEngine {
       this.scheduleDraw();
       return;
     }
+    const n = this.canvasNodes.length;
+    // Adapt alphaDecay dynamically: when graph has > 50 nodes, cool down faster
+    // so physics stabilizes within ~1.2s instead of consuming CPU for 3+ seconds.
+    this.alphaDecay = n > 70 ? 0.93 : (n > 40 ? 0.95 : 0.965);
     this.alpha = Math.max(this.alpha, alpha);
     if (!this.simRunning && this.canvasNodes.length > 0) {
       this.simRunning = true;
