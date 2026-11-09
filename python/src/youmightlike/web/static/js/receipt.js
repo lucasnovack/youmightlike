@@ -506,20 +506,112 @@ function drawPillBadge(ctx, text, x, y, badgeConf) {
   return w;
 }
 
+const CODE128_PATTERNS = {
+  '0': [2, 1, 2, 2, 2, 2],
+  '1': [2, 2, 2, 1, 2, 2],
+  '2': [2, 2, 2, 2, 2, 1],
+  '3': [1, 2, 1, 2, 2, 3],
+  '4': [1, 2, 1, 3, 2, 2],
+  '5': [1, 3, 1, 2, 2, 2],
+  '6': [1, 2, 2, 2, 1, 3],
+  '7': [1, 2, 2, 3, 1, 2],
+  '8': [1, 3, 2, 2, 1, 2],
+  '9': [2, 2, 1, 2, 1, 3],
+  'A': [2, 2, 1, 3, 1, 2],
+  'B': [2, 3, 1, 2, 1, 2],
+  'C': [1, 1, 2, 2, 3, 2],
+  'D': [1, 2, 2, 1, 3, 2],
+  'E': [1, 2, 2, 2, 3, 1],
+  'F': [1, 1, 3, 2, 2, 2],
+};
+const CODE128_START = [2, 1, 1, 2, 1, 4]; // 11 modules
+const CODE128_STOP = [2, 3, 3, 1, 1, 1, 2]; // 13 modules
+
+function drawCode128Barcode(ctx, text, centerX, y, barcodeH = 28) {
+  const clean = (text || '00000000').toUpperCase().replace(/[^0-9A-F]/g, '').padEnd(8, '0').slice(0, 8);
+  const moduleW = 2.0;
+  const totalModules = 11 + clean.length * 11 + 13; // 112 modules
+  const totalW = totalModules * moduleW; // 224px
+  const startX = Math.round(centerX - totalW / 2);
+
+  let curX = startX;
+  const drawPattern = (pattern, isGuard = false) => {
+    let isBar = true;
+    for (const w of pattern) {
+      const barW = w * moduleW;
+      if (isBar) {
+        ctx.fillStyle = '#1d1d1f';
+        const bh = isGuard ? barcodeH + 3 : barcodeH;
+        ctx.fillRect(Math.round(curX), Math.round(y), Math.round(barW), Math.round(bh));
+      }
+      curX += barW;
+      isBar = !isBar;
+    }
+  };
+
+  // Start guard
+  drawPattern(CODE128_START, true);
+
+  // Data characters
+  for (let i = 0; i < clean.length; i++) {
+    const ch = clean[i];
+    const pat = CODE128_PATTERNS[ch] || CODE128_PATTERNS['0'];
+    drawPattern(pat, false);
+  }
+
+  // Stop guard
+  drawPattern(CODE128_STOP, true);
+
+  return totalW;
+}
+
+function drawPerforatedDivider(ctx, y, width, padX) {
+  ctx.save();
+  const notchR = 7;
+  // Border cutout notches
+  ctx.fillStyle = '#f2f2f7';
+  ctx.beginPath();
+  ctx.arc(1.5, y, notchR, -Math.PI / 2, Math.PI / 2);
+  ctx.fill();
+  ctx.strokeStyle = '#e5e5ea';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(width - 1.5, y, notchR, Math.PI / 2, Math.PI * 1.5);
+  ctx.fill();
+  ctx.strokeStyle = '#e5e5ea';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Dashed perforated line
+  ctx.strokeStyle = '#d1d1d6';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(padX + notchR, y);
+  ctx.lineTo(width - padX - notchR, y);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function computeExactTicketHeight({
   seeds = [],
   negativeSeeds = [],
   topRecs = [],
   mapBoxH = 175,
 }) {
-  let y = 28; // Top padding
+  let y = 24; // Top padding
 
-  // Header (Monogram, brand title, date & engine)
-  y += 42; // Monogram and title
-  y += 16; // Date & engine line
-  y += 18; // Divider
+  // 1. Top document category label
+  y += 18; // Category tracking label
 
-  // Section 1: Seeds
+  // 2. Main Brand & Header Grid
+  y += 46; // Brand mark (34) + title & subtitle
+  y += 16; // Spec / engine metadata line
+  y += 20; // Perforated ticket divider
+
+  // 3. Section 1: Seeds
   y += 18; // Section title
   y += Math.max(1, seeds.length) * 26;
   if (negativeSeeds && negativeSeeds.length > 0) {
@@ -528,30 +620,30 @@ function computeExactTicketHeight({
   }
   y += 18; // Divider
 
-  // Section 2: DNA Tags
+  // 4. Section 2: Aesthetic DNA
   y += 16; // Section title
   y += 22; // Tags capsule row
   y += 18; // Divider
 
-  // Section 3: Constellation Map
+  // 5. Section 3: Constellation Map
   y += 16; // Section title
   y += mapBoxH; // Map canvas
   y += 14; // Legend & spacing
   y += 18; // Divider
 
-  // Section 4: Fresh Discoveries
+  // 6. Section 4: Fresh Discoveries
   y += 16; // Section title
   y += 16; // Subtitle
   y += Math.max(1, topRecs.length) * 40; // 15 title line + 25 reason line
   y += 18; // Divider
 
-  // Section 5: Metrics Cards
+  // 7. Section 5: Metrics Cards
   y += 50; // cardH
   y += 18; // Spacing below cards
   y += 18; // Divider
 
-  // Section 6: Barcode & Footer
-  y += 34; // Barcode (24) + margin (10)
+  // 8. Section 6: Procedural Barcode & Footer
+  y += 38; // Barcode (28) + margin (10)
   y += 16; // Hash code text
   y += 14; // Motto slogan
   y += 14; // Subtext credit
@@ -573,18 +665,20 @@ export function generateCulturalReceipt(canvas, {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
-  const dpr = Math.min(window.devicePixelRatio || 2, 2.5);
+  // Ultra-crisp 3x Retina supersampling regardless of display devicePixelRatio
+  const dpr = Math.max(window.devicePixelRatio || 1, 3);
   const width = 540;
   const isPt = lang === 'pt';
 
-  // Extract unique resonance tags
+  // Extract unique resonance tags (strictly stripped of leading '#' to prevent double hashtags)
   const tagsSet = new Set();
   if (recommendations && recommendations.length > 0) {
     for (const r of recommendations) {
       if (r.tags && Array.isArray(r.tags)) {
         for (const t of r.tags) {
-          if (t && t.length > 1 && tagsSet.size < 7) {
-            tagsSet.add(t.toLowerCase().replace(/\s+/g, '-'));
+          const clean = (t || '').toLowerCase().replace(/^#+/, '').replace(/\s+/g, '-').trim();
+          if (clean.length > 1 && tagsSet.size < 6) {
+            tagsSet.add(clean);
           }
         }
       }
@@ -592,8 +686,11 @@ export function generateCulturalReceipt(canvas, {
   }
   if (tagsSet.size < 4 && graph && graph.nodes) {
     for (const n of graph.nodes) {
-      if ((n.type === 'tag' || n.type === 'keyword') && tagsSet.size < 7) {
-        tagsSet.add((n.label || '').toLowerCase().replace(/\s+/g, '-'));
+      if (n.type === 'tag' || n.type === 'keyword') {
+        const clean = (n.label || '').toLowerCase().replace(/^#+/, '').replace(/\s+/g, '-').trim();
+        if (clean.length > 1 && tagsSet.size < 6) {
+          tagsSet.add(clean);
+        }
       }
     }
   }
@@ -617,12 +714,14 @@ export function generateCulturalReceipt(canvas, {
 
   ctx.save();
   ctx.scale(dpr, dpr);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 
   // 1. Draw Apple Card Canvas Background (Porcelain White with Soft Outer Border)
   drawRoundedRect(ctx, 1.5, 1.5, width - 3, height - 3, 20, '#ffffff', '#e5e5ea', 1.5);
 
   // Layout Cursor
-  let curY = 28;
+  let curY = 24;
   const padX = 32;
   const contentWidth = width - padX * 2;
 
@@ -649,56 +748,100 @@ export function generateCulturalReceipt(canvas, {
     minute: '2-digit',
   });
 
-  // 2. HEADER: Brand & Order Metadata (Apple Passbook Style)
+  // 2. HEADER: Apple Passbook / Cultural Identity Passport Header
+  // Top tracking category label
+  ctx.textAlign = 'left';
+  ctx.font = `700 8.5px ${APPLE_FONTS.mono}`;
+  ctx.fillStyle = '#86868b';
+  ctx.fillText(
+    isPt ? 'PASSAPORTE DE AFINIDADE CULTURAL' : 'CULTURAL AFFINITY IDENTITY PASSPORT',
+    padX,
+    curY + 10
+  );
+
+  ctx.textAlign = 'right';
+  ctx.font = `600 8.5px ${APPLE_FONTS.mono}`;
+  ctx.fillStyle = '#0071e3';
+  ctx.fillText('YML-OS // v0.3.0', width - padX, curY + 10);
+  curY += 18;
+
+  // Main Brand Squircle Icon
+  const markX = padX;
+  const markY = curY;
+  const markSize = 34;
+  drawRoundedRect(ctx, markX, markY, markSize, markSize, 9, '#1d1d1f', null, 0);
+
+  // Stylized transmedia confluence glyph inside
+  ctx.save();
+  ctx.translate(markX + markSize / 2, markY + markSize / 2);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+  ctx.lineWidth = 1;
+  const angles = [-Math.PI / 2, Math.PI / 6, Math.PI * 5 / 6];
+  for (const a of angles) {
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(a) * 8.5, Math.sin(a) * 8.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * 8.5, Math.sin(a) * 8.5, 1.8, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+  }
   ctx.beginPath();
-  ctx.arc(padX + 16, curY + 16, 16, 0, Math.PI * 2);
-  ctx.fillStyle = '#1d1d1f';
+  ctx.arc(0, 0, 3.2, 0, Math.PI * 2);
+  ctx.fillStyle = '#0071e3';
   ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  ctx.restore();
 
-  ctx.fillStyle = '#ffffff';
-  ctx.font = `700 12px ${APPLE_FONTS.sans}`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('Y', padX + 16, curY + 16);
-
+  // Brand Name & Subtitle
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
-  ctx.font = `700 15px ${APPLE_FONTS.sans}`;
+  ctx.font = `800 17px ${APPLE_FONTS.sans}`;
   ctx.fillStyle = '#1d1d1f';
-  ctx.fillText('youmightlike', padX + 40, curY + 14);
+  ctx.fillText('youmightlike', padX + 44, curY + 16);
 
   ctx.font = `500 10.5px ${APPLE_FONTS.sans}`;
   ctx.fillStyle = '#86868b';
   ctx.fillText(
-    isPt ? 'Passaporte de Afinidade Cultural' : 'Cultural Affinity Passport',
-    padX + 40,
-    curY + 28
+    isPt ? 'Motor Transmidiático de Recomendação' : 'Transmedia Recommendation Engine',
+    padX + 44,
+    curY + 31
   );
 
-  // Top-right pill for Order / Date
+  // Top-right Taste Hash Pill
   const metaCode = `#YM-${tasteHash}`;
-  ctx.font = `600 9.5px ${APPLE_FONTS.mono}`;
+  ctx.font = `700 10px ${APPLE_FONTS.mono}`;
   const metaW = ctx.measureText(metaCode).width + 16;
-  drawRoundedRect(ctx, width - padX - metaW, curY + 4, metaW, 22, 11, '#f2f2f7', '#e5e5ea', 1);
+  drawRoundedRect(ctx, width - padX - metaW, curY + 2, metaW, 22, 11, '#f2f2f7', '#e5e5ea', 1);
 
   ctx.fillStyle = '#1d1d1f';
   ctx.textAlign = 'center';
-  ctx.fillText(metaCode, width - padX - metaW / 2, curY + 18);
+  ctx.fillText(metaCode, width - padX - metaW / 2, curY + 16);
 
-  curY += 42;
+  // Issued Date below pill
+  ctx.textAlign = 'right';
+  ctx.font = `500 8.5px ${APPLE_FONTS.mono}`;
+  ctx.fillStyle = '#86868b';
+  ctx.fillText(`${dateStr} • ${timeStr}`, width - padX, curY + 32);
 
-  // Subheader line: Date & Engine Specs
+  curY += 46;
+
+  // Metadata Strip: Engine specs
   ctx.textAlign = 'left';
   ctx.font = `500 9.5px ${APPLE_FONTS.sans}`;
-  ctx.fillStyle = '#86868b';
-  ctx.fillText(`${dateStr} • ${timeStr}`, padX, curY);
+  ctx.fillStyle = '#64748b';
+  ctx.fillText('Stochastic PPR Diffusion (α: 0.15 • β: 1.2x)', padX, curY);
 
   ctx.textAlign = 'right';
-  ctx.fillText('Engine: Stochastic PPR • Transmedia Graph', width - padX, curY);
+  ctx.fillText('Transmedia Bipartite Projection Graph', width - padX, curY);
   curY += 16;
 
-  drawDivider(curY);
-  curY += 18;
+  // Perforated ticket divider
+  drawPerforatedDivider(ctx, curY, width, padX);
+  curY += 20;
 
   // 3. SECTION 1: Base Ingredients (Profile Seeds)
   ctx.textAlign = 'left';
@@ -1057,41 +1200,21 @@ export function generateCulturalReceipt(canvas, {
   drawDivider(curY);
   curY += 18;
 
-  // 8. SECTION 6: Procedural Barcode, Link & Closing Motto
+  // 8. SECTION 6: Procedural Code 128 Barcode & Footer
   const barcodeY = curY;
-  const barcodeH = 24;
-  const barcodeW = 200;
-  const barcodeX = (width - barcodeW) / 2;
-
-  ctx.fillStyle = '#1d1d1f';
-  let curBx = barcodeX;
-  for (let i = 0; i < tasteHash.length; i++) {
-    const val = parseInt(tasteHash[i], 16);
-    const pattern = [
-      (val & 1) ? 2 : 1,
-      (val & 2) ? 3 : 1,
-      (val & 4) ? 1 : 2,
-      (val & 8) ? 4 : 2,
-      2,
-    ];
-    for (const p of pattern) {
-      if (curBx + p > barcodeX + barcodeW) break;
-      ctx.fillRect(curBx, barcodeY, p, barcodeH);
-      curBx += p + 2;
-    }
-  }
-
+  const barcodeH = 28;
+  drawCode128Barcode(ctx, tasteHash, width / 2, barcodeY, barcodeH);
   curY = barcodeY + barcodeH + 10;
 
   // Numeric code below barcode
   ctx.textAlign = 'center';
-  ctx.font = `500 9.5px ${APPLE_FONTS.mono}`;
-  ctx.fillStyle = '#86868b';
-  ctx.fillText(`YM - ${tasteHash} - ${now.getFullYear()}`, width / 2, curY);
+  ctx.font = `600 10px ${APPLE_FONTS.mono}`;
+  ctx.fillStyle = '#1d1d1f';
+  ctx.fillText(`YM  •  ${tasteHash}  •  ${now.getFullYear()}`, width / 2, curY);
   curY += 16;
 
   // Footer slogan
-  ctx.font = `600 9.5px ${APPLE_FONTS.sans}`;
+  ctx.font = `700 9.5px ${APPLE_FONTS.sans}`;
   ctx.fillStyle = '#1d1d1f';
   ctx.fillText(
     isPt ? 'CULTIVE SEU PRÓPRIO REPERTÓRIO CULTURAL' : 'CULTIVATE YOUR OWN CULTURAL REPERTOIRE',
@@ -1100,7 +1223,7 @@ export function generateCulturalReceipt(canvas, {
   );
   curY += 14;
 
-  ctx.font = `400 8.5px ${APPLE_FONTS.sans}`;
+  ctx.font = `500 8.5px ${APPLE_FONTS.sans}`;
   ctx.fillStyle = '#86868b';
   ctx.fillText(
     'youmightlike • transmedia discovery engine',
