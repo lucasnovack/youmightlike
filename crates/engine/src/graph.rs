@@ -132,27 +132,58 @@ impl RawEdges {
         let mut rows = stmt.query([])?;
 
         const COUNTRY_KEYWORD_IDS: &[&str] = &[
-            "keyword:300",
-            "keyword:301",
-            "keyword:529",
-            "keyword:647",
-            "keyword:652",
-            "keyword:700",
-            "keyword:974",
-            "keyword:978",
-            "keyword:1098",
-            "keyword:1259",
-            "keyword:1370",
-            "keyword:1473",
-            "keyword:1489",
-            "keyword:2043",
-            "keyword:15288",
-            "keyword:19064",
-            "keyword:19557",
-            "keyword:19654",
-            "keyword:36572",
-            "keyword:42169",
-            "keyword:42224",
+            // Country names
+            "keyword:300",   // uk
+            "keyword:301",   // united kingdom
+            "keyword:519",   // china
+            "keyword:529",   // germany
+            "keyword:557",   // portugal
+            "keyword:647",   // russia
+            "keyword:652",   // france
+            "keyword:676",   // scotland
+            "keyword:700",   // sweden
+            "keyword:974",   // brazil
+            "keyword:978",   // spain
+            "keyword:1098",  // japan
+            "keyword:1207",  // ireland
+            "keyword:1236",  // denmark
+            "keyword:1259",  // united states
+            "keyword:1370",  // canada
+            "keyword:1473",  // australia
+            "keyword:1489",  // italy
+            "keyword:2043",  // mexico
+            "keyword:13402", // norway
+            "keyword:15288", // brasil
+            "keyword:19064", // usa
+            "keyword:19557", // korea
+            "keyword:19654", // south korea
+            "keyword:25010", // us
+            "keyword:25583", // finland
+            "keyword:36572", // argentina
+            "keyword:42169", // colombia
+            "keyword:42224", // chile
+            // Demonyms and Language tags
+            "keyword:258",   // german
+            "keyword:271",   // american
+            "keyword:277",   // italian
+            "keyword:299",   // british
+            "keyword:330",   // french
+            "keyword:361",   // english
+            "keyword:958",   // danish
+            "keyword:1702",  // canadian
+            "keyword:1843",  // scottish
+            "keyword:13177", // swedish
+            "keyword:13329", // finnish
+            "keyword:13496", // irish
+            "keyword:18970", // australian
+            "keyword:18977", // brazilian
+            "keyword:19568", // korean
+            "keyword:24996", // japanese
+            "keyword:25198", // portuguese
+            "keyword:30617", // spanish
+            "keyword:30714", // norwegian
+            "keyword:36364", // chinese
+            "keyword:42125", // russian
         ];
 
         let mut raw = RawEdges::default();
@@ -163,14 +194,14 @@ impl RawEdges {
             let mut base_w: f64 = row.get(2)?;
             let rel_str: String = row.get(3).unwrap_or_else(|_| "connected".to_string());
 
-            // Country tags are geographic metadata, NOT stylistic/aesthetic genres.
-            // Heavily attenuate them when attached to artists so diffusion does not leak
-            // from underground trap to gospel/samba merely because both are from Brazil.
-            if (src_key.starts_with("artist:") && COUNTRY_KEYWORD_IDS.contains(&dst_key.as_str()))
-                || (dst_key.starts_with("artist:")
-                    && COUNTRY_KEYWORD_IDS.contains(&src_key.as_str()))
-            {
-                base_w *= 0.05;
+            // Geographic, nationality and language tags are broad metadata, NOT aesthetic genres.
+            // Heavily attenuate them (by 98%) so diffusion does not leak between completely
+            // unrelated genres (e.g. hip-hop to grunge, or trap to samba) merely because
+            // both works share 'american', 'us', 'english' or 'brazilian'.
+            let is_country_kw = COUNTRY_KEYWORD_IDS.contains(&src_key.as_str())
+                || COUNTRY_KEYWORD_IDS.contains(&dst_key.as_str());
+            if is_country_kw {
+                base_w *= 0.02;
             }
 
             raw.push(&src_key, &dst_key, &rel_str, base_w as f32);
