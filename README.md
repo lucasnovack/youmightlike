@@ -71,7 +71,13 @@ The complete graph is stored and queried locally in `data/processed/taste_graph.
 
 > [!TIP]
 > **Open Dataset on Hugging Face:** The complete feature store and diffusion graph (2.29 GB in Parquet ZSTD, including all 40.4M tracks with audio features) is publicly hosted at [**`lnvck/youmightlike-dataset`**](https://huggingface.co/datasets/lnvck/youmightlike-dataset).
-> For lightweight, zero-cost production demos, `scripts/export_lite_db.py` creates a 140 MB DuckDB file preserving 100% of cinema, anime, TV, games, books, and active music nodes.
+>
+> **Lite Production Profile (`taste_graph_lite.duckdb`):** `scripts/export_lite_db.py` creates a 140 MB DuckDB file preserving 100% of cinema, anime, TV, games, books, and active connected music nodes:
+> * **Unique Connected Nodes:** **357,643**
+> * **Persisted Directed Edges:** **1,956,347**
+> * **In-Memory Stochastic Transitions (`GraphCSR`):** **3,912,424** (bidirectional symmetric expansion for PPR diffusion, discounting self-loops)
+> * **Curated Output Quota:** Calibrated ~24–28 recommendations (4–5 per domain) to prevent visual overload while ensuring cross-domain breadth.
+> * **Printable Cultural Passport:** 3x Retina HTML5 Canvas export (`dpr = 3`), deterministic Code 128 barcode, Apple Passbook squircle emblem, and perforated tear notches.
 
 ---
 

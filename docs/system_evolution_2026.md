@@ -7,7 +7,7 @@ This document records the architectural evolution, critical transmedia topology 
 ## 1. Overview of Key Advancements
 
 The system evolved from an initial prototype into a high-fidelity cultural discovery and recommendation platform:
-* **Semantic Graph Scale:** 3,587,306 active semantic edges in DuckDB, connecting over 34,000 films, 20,000 games, 38,000 books, 3.25 million artists, and 40.4 million tracks.
+* **Semantic Graph Scale:** 1,956,347 active semantic edges in DuckDB (`graph_semantic_edges`), expanding to 3,912,424 in-memory stochastic transitions across 357,643 connected nodes.
 * **Native Rust Bidirectional Engine:** Parallelized Personalized PageRank (PPR) using Rayon, operating over Compressed Sparse Row (CSR) matrices with symmetric diffusion mirroring.
 * **Studio Minimalist Interface:** Modern Single-Page Application (SPA) with FastAPI/Axum, JetBrains Mono typography, calibrated sober color palette, and zero visual noise or emojis.
 * **Interactive Topological Visualization:** Native 2D Canvas ForceGraph renderer with 1-hop neighborhood highlighting, multi-node selection (Shift+Click), and structural bridge inspection.
@@ -82,3 +82,19 @@ The interface uses a 5-tone palette calibrated for high contrast and technical s
 * **Steel Blue (`#2660a4`):** Canonical identifiers and artistic domain nodes.
 * **Typography:** `JetBrains Mono` across the entire visual hierarchy.
 * **Standardization:** Complete elimination of emojis in console logs, CLI outputs, and visual elements, ensuring a refined Unix/Apple aesthetic.
+ 
+---
+
+## 6. Algorithmic Calibration, Noise Attenuation & High-DPI Ticket (November 2026)
+
+### 6.1 Meta-Tag Wormhole Attenuation & Acoustic Leak Mitigation
+* **Symptom:** Unrelated cross-media recommendations (*e.g., grunge film Singles (1992) appearing for high fantasy seeds like The Elder Scrolls V: Skyrim and Jeremy Soule*) due to generic structural descriptors (`#soundtrack`, `#score`, `#vgm`, `#music`, `#game composer`).
+* **Root Cause:** Soundtrack link weights in `graph_semantic_edges` reached 4.0, while genre/thematic tags were ~0.12. Furthermore, `#soundtrack` was not filtered from shared tag explanations, creating an artificial cross-domain probability wormhole.
+* **Resolution:**
+  - Broad structural metadata tags (72 acoustic/soundtrack keywords and 45 country/language tags) are attenuated by 98% (`base_w *= 0.02`) during CSR matrix construction in `crates/engine/src/graph.rs`.
+  - `is_steam_noise_tag` in `crates/engine/src/recommendation/context.rs` filters any tag containing `soundtrack`, `score`, `ost`, `vgm`, `composer`, preventing them from acting as thematic bridges.
+  - Quadratic multi-tag confluence boost ($1.0 + N^2 \times 5.0$) implemented in `movies.rs` and `series.rs`, elevating works with multiple shared thematic anchors (e.g. fantasy, medieval, magic, dragons) while dampening zero-thematic-tag candidates by 85% (`score *= 0.15`).
+
+### 6.2 Quota Calibration & Cultural Passport Polish
+* **Balanced Recommendation Quotas:** Default exploration pool calibrated to 24–28 curated items (4–6 per domain), preventing information overload while preserving cross-domain variety.
+* **3x Retina Cultural Ticket:** Export resolution upgraded to 3x Retina (`dpr = Math.max(window.devicePixelRatio || 1, 3)`), Apple Passbook-style squircle header emblem, centered 224px Code 128 barcode with taller guard bars, and perforated tear notches eliminating bottom whitespace.

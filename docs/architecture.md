@@ -22,9 +22,9 @@ Instead of maintaining cumbersome external graph databases (e.g. Neo4j) or relyi
 │  - Central Vocabulary Table: keywords                       │
 │                                                             │
 │  PROJECTION VIEWS:                                          │
-│    ├─ v_graph_nodes           (Unified nodes: 392k)         │
-│    ├─ v_graph_edges           (Typed edges: 1.23M)          │
-│    └─ v_weighted_graph_edges  (Edges with Adamic-Adar/IDF)  │
+│    ├─ v_graph_nodes           (Unified nodes: 357k)         │
+│    ├─ v_graph_edges           (Active edges: 1.95M directed)│
+│    └─ v_weighted_graph_edges  (Symmetric CSR: 3.91M trans)  │
 └──────────────────────────────┬──────────────────────────────┘
                                │
                      Zero-Copy / Memory Scan
