@@ -267,6 +267,28 @@ pub fn extract_music(
             continue;
         }
 
+        // Confluence requirement for cross-domain music recommendations:
+        // When jumping from non-music domains (movies, games, books, series) into music,
+        // a candidate artist MUST have confluence (at least 2 shared thematic tags,
+        // or a direct soundtrack/OST bridge). A single isolated tag (e.g. #time) is lexical noise.
+        let shared_tag_count = shared_tags.len();
+        if !has_music_seeds && !is_vgm_composer && connected_seeds.is_empty() {
+            if shared_tag_count < 2 {
+                continue;
+            }
+            let has_tracks: bool = ctx
+                .conn
+                .query_row(
+                    "SELECT 1 FROM music_tracks WHERE artist_id = ? LIMIT 1",
+                    params![nid],
+                    |_| Ok(true),
+                )
+                .unwrap_or(false);
+            if !has_tracks {
+                continue;
+            }
+        }
+
         seen_artist_names.insert(aname_norm);
 
         // Explanation assembly
@@ -390,6 +412,13 @@ pub fn extract_music(
             let deg = seed_degrees.get(s_key).copied().unwrap_or(300);
             let deg_factor = ((deg as f32) / 300.0).sqrt().clamp(1.0, 2.3);
             boost *= deg_factor;
+        }
+
+        // Multi-tag thematic confluence boost
+        if !has_music_seeds && !is_vgm_composer {
+            boost *= 1.0 + (shared_tag_count as f32).powi(2) * 3.0;
+        } else if shared_tag_count > 0 {
+            boost *= 1.0 + (shared_tag_count as f32) * 0.4;
         }
 
         // Direct high-confidence peer boost (e.g. Kanye <-> Jay-Z has weight 0.74)

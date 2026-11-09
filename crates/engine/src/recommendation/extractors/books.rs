@@ -1,9 +1,17 @@
 //! Books domain recommendation extractor.
 
 use super::super::context::{is_steam_noise_tag, RecContext};
-use crate::models::{is_tag_relation, parse_node_key, GraphLinkPayload, GraphNodePayload};
+use crate::models::{is_tag_relation, parse_node_key, BookMeta, GraphLinkPayload, GraphNodePayload};
 use crate::ppr::top_k_from_scores;
 use serde_json::{json, Value};
+
+struct CandidateBook<'a> {
+    nkey: String,
+    score: f32,
+    book: &'a BookMeta,
+    best_book_bridge: Option<(String, String, String, f32)>,
+    explanation: String,
+}
 
 pub fn extract_books(
     ctx: &RecContext,
@@ -17,21 +25,21 @@ pub fn extract_books(
         return;
     }
 
+    let has_book_seeds = ctx.active_seed_set.iter().any(|s| s.starts_with("book:"));
+    let pool_size = (book_quota * 40).max(200);
     let top_books = top_k_from_scores(
         &ctx.state.graph,
         ctx.p,
         ctx.exclude_ids,
         "book:",
-        Some(book_quota + 2),
+        Some(pool_size),
     );
-    let mut book_recs_added = 0usize;
+
+    let mut candidate_books: Vec<CandidateBook> = Vec::new();
 
     for item in top_books {
-        if item.score < ctx.min_rec_score {
+        if item.score < ctx.min_rec_score * 0.1 {
             continue;
-        }
-        if book_recs_added >= book_quota || results.len() >= limit {
-            break;
         }
         let nkey = &item.node_key;
         if ctx.seed_set.contains(nkey) {
@@ -48,6 +56,7 @@ pub fn extract_books(
         let mut found_author: Option<String> = None;
         let mut shared_book_tags: Vec<String> = Vec::new();
         let mut best_book_bridge: Option<(String, String, String, f32)> = None;
+        let mut has_adaptation = false;
 
         for e in ctx.state.graph.out_edges_by_key(nkey) {
             if let Some((tpfx, tid)) = parse_node_key(e.target_key) {
@@ -55,6 +64,7 @@ pub fn extract_books(
                     && (e.relation_type == "adapted_as" || e.relation_type == "based_on")
                     && ctx.active_seed_set.contains(e.target_key)
                 {
+                    has_adaptation = true;
                     let title = if tpfx == "movie" {
                         ctx.state.catalog.movies.get(&tid).map(|m| m.title.clone())
                     } else {
@@ -87,7 +97,7 @@ pub fn extract_books(
                 } else if tpfx == "keyword"
                     && is_tag_relation(e.relation_type)
                     && ctx.seed_tag_counts.contains_key(&tid)
-                    && shared_book_tags.len() < 3
+                    && shared_book_tags.len() < 4
                 {
                     if let Some(kname) = ctx.state.catalog.keywords.get(&tid) {
                         let tfmt = format!("#{}", kname);
@@ -107,7 +117,7 @@ pub fn extract_books(
             }
         }
 
-        if let Some(aname) = found_author {
+        if let Some(ref aname) = found_author {
             book_explanation.push(if ctx.is_pt {
                 format!("Mesma autoria ({})", aname)
             } else {
@@ -134,7 +144,50 @@ pub fn extract_books(
             book_explanation.join(" • ")
         };
 
-        let year_str = b
+        let shared_tag_count = shared_book_tags.len();
+        let mut boost = 1.0f32;
+        if has_adaptation {
+            boost *= 3.5;
+        }
+        if found_author.is_some() {
+            boost *= 2.5;
+        }
+        if !has_book_seeds {
+            if shared_tag_count > 0 {
+                boost *= 1.0 + (shared_tag_count as f32).powi(2) * 3.0;
+            } else if !has_adaptation && found_author.is_none() {
+                // Dampen indirect multi-hop gravity without thematic tags
+                boost *= 0.15;
+            }
+        } else if shared_tag_count > 0 {
+            boost *= 1.0 + (shared_tag_count as f32) * 0.5;
+        }
+
+        let boosted_score = item.score * boost;
+
+        candidate_books.push(CandidateBook {
+            nkey: nkey.clone(),
+            score: boosted_score,
+            book: b,
+            best_book_bridge,
+            explanation: full_book_reason,
+        });
+    }
+
+    candidate_books.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let mut book_recs_added = 0usize;
+    for cand in candidate_books {
+        if book_recs_added >= book_quota || results.len() >= limit {
+            break;
+        }
+
+        let year_str = cand
+            .book
             .first_publish_year
             .map(|y| y.to_string())
             .unwrap_or_else(|| "N/A".to_string());
@@ -145,16 +198,16 @@ pub fn extract_books(
         };
 
         results.push(json!({
-            "id": nkey,
-            "title": b.title,
+            "id": cand.nkey,
+            "title": cand.book.title,
             "type": "book",
             "subtitle": book_subtitle,
-            "score": ((item.score as f64) * 1000.0 * 100.0).round() / 100.0,
-            "reason": full_book_reason,
+            "score": ((cand.score as f64) * 1000.0 * 100.0).round() / 100.0,
+            "reason": cand.explanation,
         }));
         graph_nodes.push(GraphNodePayload {
-            id: nkey.clone(),
-            label: b.title.clone(),
+            id: cand.nkey.clone(),
+            label: cand.book.title.clone(),
             node_type: "book".to_string(),
             val: 12.0,
             tags: Vec::new(),
@@ -162,7 +215,7 @@ pub fn extract_books(
             metadata: None,
         });
 
-        if let Some((b_key, b_label, b_type, b_weight)) = best_book_bridge {
+        if let Some((b_key, b_label, b_type, b_weight)) = cand.best_book_bridge {
             if !graph_nodes.iter().any(|n| n.id == b_key) {
                 graph_nodes.push(GraphNodePayload {
                     id: b_key.clone(),
@@ -175,7 +228,7 @@ pub fn extract_books(
                 });
             }
             graph_links.push(GraphLinkPayload {
-                source: nkey.clone(),
+                source: cand.nkey.clone(),
                 target: b_key,
                 label: if ctx.is_pt {
                     "conectado_a".to_string()
@@ -199,19 +252,19 @@ pub fn extract_books(
                     && ctx
                         .state
                         .graph
-                        .out_edges_by_key(nkey)
+                        .out_edges_by_key(&cand.nkey)
                         .iter()
                         .any(|ne| ne.target_key == e.target_key)
             });
             if shares_author
                 && !graph_links.iter().any(|l| {
-                    (l.source == *s_bkey && l.target == *nkey)
-                        || (l.source == *nkey && l.target == *s_bkey)
+                    (l.source == *s_bkey && l.target == cand.nkey)
+                        || (l.source == cand.nkey && l.target == *s_bkey)
                 })
             {
                 graph_links.push(GraphLinkPayload {
                     source: s_bkey.clone(),
-                    target: nkey.clone(),
+                    target: cand.nkey.clone(),
                     label: if ctx.is_pt {
                         "mesmo_autor".to_string()
                     } else {
