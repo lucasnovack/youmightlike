@@ -1,5 +1,10 @@
 # youmightlike
 
+[![Rust Engine](https://img.shields.io/badge/rust-stable-orange?logo=rust)](crates/engine)
+[![DuckDB](https://img.shields.io/badge/DuckDB-in--process-yellow?logo=duckdb)](https://duckdb.org/)
+[![Dataset on HF](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Datasets-blue)](https://huggingface.co/datasets/lnvck/youmightlike-dataset)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 Transmedia cultural recommendation engine connecting **Cinema, TV Series, Music, Literature, and Video Games** into a unified aesthetic affinity graph.
 
 Instead of isolated domain silos, `youmightlike` projects deep cultural relationships—soundtrack compositions, literary adaptations, studio lineages, microgenres, co-listening patterns, and conceptual tropes—onto a high-density graph in DuckDB, computing personalized cross-media recommendations via bidirectional stochastic diffusion (Personalized PageRank) powered by a native Rust engine.
@@ -9,7 +14,7 @@ Instead of isolated domain silos, `youmightlike` projects deep cultural relation
 ## Key Features
 
 * **Pixie-Style Multi-Hit Booster:** When multiple seeds $Q$ are provided, energy is non-linearly aggregated as $p_{\text{multi}}(v) = (\sum_{q \in Q} \sqrt{w_q \cdot p_q(v)})^2$, conferring quadratic reinforcement to candidates at the intersection of diverse taste anchors.
-* **Bipolar Diffusion with Negative Feedback (Anti-Seeds):** Damps unwanted aesthetics using vector subtraction `p_final = max(0.0, p_pos - β · p_neg)` executed in parallel across CPU cores with Rayon. Negative seeds render with distinct crimson repulsion halos on the canvas.
+* **Bipolar Diffusion with Negative Feedback (Anti-Seeds):** Damps unwanted aesthetics using vector subtraction $p_{\text{final}} = \max\left(0.0, p_{\text{pos}} - \beta \cdot p_{\text{neg}}\right)$ executed in parallel across CPU cores with Rayon. Negative seeds render with distinct crimson repulsion halos on the canvas.
 * **Cultural Ticket (Receiptify / Aesthetic Snapshot):** Generates high-DPI (2x) thermal receipts on HTML5 `<canvas>` with perforated saw-tooth tear, functional taste hash barcode, orbital constellation mini-map, and unconsumed recommendations ready for PNG export or clipboard copy.
 * **"Already Know" & Serendipity Filter:** Neutral discard action (`[Already Know]`) that stores consumed works locally (`known_items`) and frees recommendation quota for undiscovered works without negatively warping taste diffusion.
 * **Explainable Behavioral Bridges:** Explicit contextual resonance labels: Last.fm listener co-audition overlap (`match_score`), Steam co-play similarity ("Players of X also play Y"), cross-domain literary adaptations, and composed original soundtracks.
@@ -41,6 +46,12 @@ Negative seeds inject a repulsive vector subtracted from positive energy:
 $$p_{\text{final}}(v) = \max\left(0.0,\, p_{\text{pos}}(v) - \beta \cdot p_{\text{neg}}(v)\right)$$
 
 Where `β` (default 1.2) tunes repulsion strength, zeroing out aversive clusters without negative probability artifacts.
+
+### 5. High-Throughput CSR Personalized PageRank Solver
+The stochastic diffusion solver runs on a thread-safe Compressed Sparse Row (`GraphCSR`) matrix representation entirely resident in RAM:
+* **Power Iteration with $L_1$ Convergence:** Solves the linear system $p^{(k+1)} = (1 - \alpha) M^T p^{(k)} + \alpha s$ via iterative sparse matrix-vector multiplications until $\Vert p^{(k+1)} - p^{(k)} \Vert_1 < \epsilon$ (configured with damping factor $\alpha = 0.15$, tolerance $\epsilon = 10^{-6}$, and $k_{\max} = 25$).
+* **Computational Complexity:** Each iteration performs $\mathcal{O}(|E|)$ operations, completing across 3.9M directed transitions in under $15\text{ms}$ on standard CPU cores using Rayon parallelism.
+* **Cluster-Based Multi-Hit Walks:** When multiple taste anchors are selected, seeds are clustered into representative walkers and non-linearly combined via $p_{\text{multi}}(v) = \left(\sum_{q \in Q} \sqrt{w_q \cdot p_q(v)}\right)^2$, eliminating cross-domain dilution while elevating confluence nodes.
 
 ---
 
@@ -125,22 +136,33 @@ pip install -e "python/[dev]"
 ./scripts/setup_duckdb.sh
 ```
 
-### 3. Launching the Native Web Server
-The HTTP server and CSR diffusion engine run natively in Rust (`youmightlike-server` via Tokio and Axum), keeping the semantic graph in memory for sub-millisecond responses:
+### 3. Obtain Database (Lite Profile)
+The production graph and catalog are hosted publicly on Hugging Face. Download or assemble the lite profile (`taste_graph_lite.duckdb`, ~140 MB) locally:
+
+```bash
+# Assembles the lite database directly from Hugging Face Parquets:
+python scripts/download_lite_db.py
+```
+
+### 4. Launching the Native Web Server
+The HTTP server and CSR diffusion engine run natively in Rust (`youmightlike-server` via Tokio and Axum), keeping the semantic graph in memory for sub-15ms responses:
 
 ```bash
 # Build release binaries
 cargo build --release
 
-# Run Rust server on port 8000
+# Run Rust server on port 8000 (auto-detects taste_graph_lite.duckdb)
 ./target/release/youmightlike-server --port 8000
+
+# Or explicitly pass the database path:
+./target/release/youmightlike-server --db-path data/processed/taste_graph_lite.duckdb --port 8000
 ```
 
 Open `http://localhost:8000` in your browser:
 * **Add Seeds:** Search across movies, series, games, books, artists, or tracks (`[+ Like]` or `[− Avoid]`).
 * **Interactive Constellation:** Explore 3-ring orbital graph rendered in HTML5 Canvas.
 * **Multi-Node Selection:** `Shift + Click` nodes to inspect mutual connection paths and bridge origins.
-* **Thermal Receipt:** Click `[Receiptify]` in the header to preview and export your printable cultural ticket.
+* **Cultural Passport:** Click `[Passaporte Cultural]` in the header to preview and export your printable high-DPI ticket.
 
 ---
 

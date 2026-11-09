@@ -33,7 +33,24 @@ struct ServerArgs {
 async fn main() -> Result<()> {
     let args = ServerArgs::parse();
 
-    let state = load_app_state(&args.db_path)?;
+    let db_path = if !std::path::Path::new(&args.db_path).exists()
+        && args.db_path == "data/processed/taste_graph.duckdb"
+    {
+        let lite = "data/processed/taste_graph_lite.duckdb";
+        if std::path::Path::new(lite).exists() {
+            println!(
+                "[youmightlike-server] Full DB not found, using lite profile: {}",
+                lite
+            );
+            lite.to_string()
+        } else {
+            args.db_path
+        }
+    } else {
+        args.db_path
+    };
+
+    let state = load_app_state(&db_path)?;
     let app = build_router(state, args.static_dir);
 
     let bind_addr = format!("{}:{}", args.host, args.port);
