@@ -127,3 +127,35 @@ For live queries and fine-grained enrichment of specific titles, the project mai
 * `wikidata.py`: Extracts semantic metadata via SPARQL (directors, original soundtrack composers, literary adaptations, and cross-domain entity IDs).
 * `music.py`: REST integration with MusicBrainz and Last.fm for live microgenres.
 * `books.py`: Integration with the OpenLibrary API (Internet Archive) for edition metadata.
+
+---
+
+## 9. Open Dataset on Hugging Face (Public Parquet Store)
+
+The complete feature store, all 27 dimensional tables, and the unified diffusion graph are publicly hosted on Hugging Face Datasets with zero-cost global CDN access:
+
+* **Repository:** [https://huggingface.co/datasets/lnvck/youmightlike-dataset](https://huggingface.co/datasets/lnvck/youmightlike-dataset)
+* **Total Volume:** **2.29 GB** (compacted from ~22 GB DuckDB using ZSTD columnar Parquet)
+* **Key Contents:**
+  - `music_tracks.parquet`: **40,418,287** tracks with audio features (*BPM, valence, energy, danceability*)
+  - `music_albums.parquet`: **18,034,542** studio albums, EPs, and OSTs
+  - `music_artists.parquet`: **3,257,918** artists, bands, and composers
+  - `graph_semantic_edges.parquet`: **1,956,347** active bidirectional semantic edges
+  - All cinema, anime, TV series, console games, PC titles, and literature tables.
+
+### Remote Querying via DuckDB (HTTP Range Requests)
+Researchers and developers can query any table remotely without downloading the full gigabytes:
+
+```sql
+SELECT title, popularity, tempo, energy, valence
+FROM read_parquet('https://huggingface.co/datasets/lnvck/youmightlike-dataset/resolve/main/music_tracks.parquet')
+WHERE popularity > 80
+ORDER BY popularity DESC
+LIMIT 10;
+```
+
+Export & sync scripts are maintained in:
+- `scripts/export_parquets_for_hf.py`: Exports all tables from DuckDB into ZSTD Parquets and builds the Dataset Card.
+- `scripts/upload_to_huggingface.py`: Synchronizes the dataset to Hugging Face Hub.
+- `scripts/export_lite_db.py`: Exports `taste_graph_lite.duckdb` (140 MB) for low-memory production deployments.
+

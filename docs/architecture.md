@@ -82,9 +82,12 @@ The entire graph is projected dynamically over the underlying tables:
 
 For an in-depth breakdown of bidirectional diffusion in Rust, structural seed anchors, soundtrack link tables, and the zero-freeze HTML5 Canvas force rendering engine, see [System Evolution (November 2026)](./system_evolution_2026.md).
 
-* **Active Semantic Edges:** 3,587,306 active edges in DuckDB (`graph_semantic_edges`).
-* **Catalog Coverage:** >34k films, >20k games, >38k books, >3.25M artists, and >40.4M tracks.
+* **Active Semantic Edges:** 1,956,347 active edges in DuckDB (`graph_semantic_edges`), expanding to 3.91M directed transitions with symmetric diffusion mirroring.
+* **Catalog Coverage:** >34k films, >20k games, >41k books, >3.25M artists, and >40.4M tracks.
 * **Diffusion Engine:** `youmightlike-engine` in Rust (bidirectional Personalized PageRank over CSR matrix parallelized with Rayon and hosted via Axum).
+* **Public Feature Store:** The complete dataset (2.29 GB Parquet ZSTD) is published on Hugging Face: [**`lnvck/youmightlike-dataset`**](https://huggingface.co/datasets/lnvck/youmightlike-dataset).
+* **Lite Deployment Profile:** `scripts/export_lite_db.py` creates a 140 MB DuckDB file (`taste_graph_lite.duckdb`) preserving 100% of cinema, anime, TV, games, books, and connected artists for low-memory production hosting (GCP Always Free / Cloud Run).
 
 For academic foundations and theoretical lineage (Pixie, Topic-Sensitive PageRank, Adamic-Adar, PathSim), see [Academic Foundations & Prior Art](./references.md).
+
 

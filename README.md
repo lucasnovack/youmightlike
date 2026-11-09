@@ -67,7 +67,11 @@ The complete graph is stored and queried locally in `data/processed/taste_graph.
 | **Music Albums** (`music_albums`) | **18,034,542** | Discographies and studio releases |
 | **Music Tracks** (`music_tracks`) | **40,418,286** | Audio features (BPM, Valence, Energy, Danceability) |
 | **Artist Similarities** (`artist_similarities`) | **61,680** | Last.fm Co-listening Graph (HetRec) |
-| **Active Semantic Edges** (`graph_semantic_edges`) | **3,818,452** | Filtered, cleaned, and IDF-attenuated edges |
+| **Active Semantic Edges** (`graph_semantic_edges`) | **1,956,347** | Filtered, cleaned, and IDF-attenuated edges |
+
+> [!TIP]
+> **Open Dataset on Hugging Face:** The complete feature store and diffusion graph (2.29 GB in Parquet ZSTD, including all 40.4M tracks with audio features) is publicly hosted at [**`lnvck/youmightlike-dataset`**](https://huggingface.co/datasets/lnvck/youmightlike-dataset).
+> For lightweight, zero-cost production demos, `scripts/export_lite_db.py` creates a 140 MB DuckDB file preserving 100% of cinema, anime, TV, games, books, and active music nodes.
 
 ---
 
