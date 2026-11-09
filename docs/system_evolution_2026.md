@@ -98,3 +98,11 @@ The interface uses a 5-tone palette calibrated for high contrast and technical s
 ### 6.2 Quota Calibration & Cultural Passport Polish
 * **Balanced Recommendation Quotas:** Default exploration pool calibrated to 24–28 curated items (4–6 per domain), preventing information overload while preserving cross-domain variety.
 * **3x Retina Cultural Ticket:** Export resolution upgraded to 3x Retina (`dpr = Math.max(window.devicePixelRatio || 1, 3)`), Apple Passbook-style squircle header emblem, centered 224px Code 128 barcode with taller guard bars, and perforated tear notches eliminating bottom whitespace.
+
+### 6.3 The Boundary: Structural Affinity vs. Atmospheric Resonance (The Interstellar Case Study)
+Auditing recommendations generated from the seminal prompt `Interstellar (2014)` identified the clear distinction between topological correctness and atmospheric/emotional cohesion:
+* **Organic Confluence:** *Westworld* (shared co-writer Jonathan Nolan, existential sci-fi, temporal distortion, memory ethics) represents optimal graph convergence.
+* **Authorial Gravitational Bias:** Works such as *The Dark Knight Rises* and *American Prometheus* surface due to Christopher Nolan's authorial weight. Topologically sound, yet emotionally disparate from cosmic existential solitude (*Arrival*, *Contact*, *Solaris* serve as more intuitive tonal counterparts).
+* **Lexical Leakage via Broad Monosemic Tags:** Recommending country/roots rock track *Where There's Smoke There's Whiskey* (Steve Rivers) solely via the isolated tag `#time` underscores the peril of pure lexical tag overlap without harmonic or acoustic anchoring.
+* **Architectural Takeaway:** Abstract, broad conceptual tags (`#time`, `#life`, `#love`) must undergo hub dampening analogous to structural meta-tags, demanding quadratic multi-tag concurrence before bridging distant creative domains.
+
