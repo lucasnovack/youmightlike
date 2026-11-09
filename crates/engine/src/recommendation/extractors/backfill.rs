@@ -63,7 +63,7 @@ pub fn extract_backfill(
 
     let max_score = best_remaining.first().map(|i| i.score).unwrap_or(0.0);
     let min_score_cutoff = if max_score > 0.0 {
-        (max_score * 0.01).max(1e-6)
+        (max_score * 0.05).max(ctx.min_rec_score * 0.2)
     } else {
         ctx.min_rec_score
     };
@@ -190,6 +190,24 @@ pub fn extract_backfill(
             }
             "movie" => {
                 if let Some(m) = ctx.state.catalog.movies.get(&nid) {
+                    let has_shared_tags = ctx.state.graph.out_edges_by_key(nkey).iter().any(|e| {
+                        if let Some(("keyword", tid)) = parse_node_key(e.target_key) {
+                            ctx.seed_tag_counts.contains_key(&tid)
+                        } else {
+                            false
+                        }
+                    });
+                    let has_shared_person = ctx.state.graph.out_edges_by_key(nkey).iter().any(|e| {
+                        if let Some(("person", pid)) = parse_node_key(e.target_key) {
+                            ctx.seed_people.contains(&pid)
+                        } else {
+                            false
+                        }
+                    });
+                    if !has_shared_tags && !has_shared_person && item.score < ctx.min_rec_score {
+                        continue;
+                    }
+
                     already_chosen.insert(nkey.clone());
                     let year_str = m
                         .release_year
@@ -227,6 +245,24 @@ pub fn extract_backfill(
             }
             "series" => {
                 if let Some(s) = ctx.state.catalog.series.get(&nid) {
+                    let has_shared_tags = ctx.state.graph.out_edges_by_key(nkey).iter().any(|e| {
+                        if let Some(("keyword", tid)) = parse_node_key(e.target_key) {
+                            ctx.seed_tag_counts.contains_key(&tid)
+                        } else {
+                            false
+                        }
+                    });
+                    let has_shared_person = ctx.state.graph.out_edges_by_key(nkey).iter().any(|e| {
+                        if let Some(("person", pid)) = parse_node_key(e.target_key) {
+                            ctx.seed_people.contains(&pid)
+                        } else {
+                            false
+                        }
+                    });
+                    if !has_shared_tags && !has_shared_person && item.score < ctx.min_rec_score {
+                        continue;
+                    }
+
                     already_chosen.insert(nkey.clone());
                     let year_str = s
                         .start_year

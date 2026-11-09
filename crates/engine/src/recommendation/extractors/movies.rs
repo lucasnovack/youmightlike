@@ -5,9 +5,21 @@ use crate::models::{
     is_soundtrack_relation, is_tag_relation, lookup_artist_meta, parse_node_key, GraphLinkPayload,
     GraphNodePayload,
 };
-use crate::ppr::{top_k_from_scores, ScoredNode};
+use crate::ppr::top_k_from_scores;
 use serde_json::{json, Value};
 use std::collections::HashSet;
+
+struct CandidateMovie {
+    node_key: String,
+    score: f32,
+    ost_artists: Vec<(String, String)>,
+    found_person: Option<String>,
+    touches_seed_person: bool,
+    shared_movie_tags: Vec<String>,
+    fallback_movie_tags: Vec<String>,
+    book_adaptation: Option<String>,
+    best_movie_bridge: Option<(String, String, String, f32)>,
+}
 
 pub fn extract_movies(
     ctx: &RecContext,
@@ -20,7 +32,7 @@ pub fn extract_movies(
         return;
     }
 
-    let candidate_pool_size = (movie_quota * 100).max(1500);
+    let candidate_pool_size = (movie_quota * 200).max(3000);
     let raw_movies = top_k_from_scores(
         &ctx.state.graph,
         ctx.p,
@@ -29,9 +41,9 @@ pub fn extract_movies(
         Some(candidate_pool_size),
     );
 
-    let mut ranked_movies: Vec<(ScoredNode, Vec<(String, String)>)> = Vec::new();
+    let mut ranked_movies: Vec<CandidateMovie> = Vec::new();
     for m_item in raw_movies {
-        if m_item.score < 1e-8 {
+        if m_item.score < 1e-9 {
             continue;
         }
         let Some(("movie", nid)) = parse_node_key(&m_item.node_key) else {
@@ -43,6 +55,13 @@ pub fn extract_movies(
 
         let mut ost_artists: Vec<(String, String)> = Vec::new();
         let mut seen_ost_names: HashSet<String> = HashSet::new();
+
+        let mut found_person: Option<String> = None;
+        let mut touches_seed_person = false;
+        let mut shared_movie_tags: Vec<String> = Vec::new();
+        let mut fallback_movie_tags: Vec<String> = Vec::new();
+        let mut book_adaptation: Option<String> = None;
+        let mut best_movie_bridge: Option<(String, String, String, f32)> = None;
 
         for e in ctx.state.graph.out_edges_by_key(&m_item.node_key) {
             if is_soundtrack_relation(e.relation_type)
@@ -61,106 +80,21 @@ pub fn extract_movies(
                         }
                     }
                 }
-            }
-        }
-
-        let mut ost_boost = 1.0 + (ost_artists.len() as f32) * 1.5;
-        let vote = m.vote_average.unwrap_or(5.0) as f32;
-        let pop_factor = if vote >= 7.5 {
-            1.5
-        } else if vote >= 6.5 {
-            1.2
-        } else {
-            1.0
-        };
-        ost_boost *= pop_factor;
-
-        let boosted = ScoredNode {
-            node_key: m_item.node_key,
-            score: m_item.score * ost_boost,
-        };
-        ranked_movies.push((boosted, ost_artists));
-    }
-
-    ranked_movies.sort_by(|a, b| {
-        b.0.score
-            .partial_cmp(&a.0.score)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
-
-    let mut movie_recs_added = 0usize;
-    for (item, ost_artists) in ranked_movies {
-        if movie_recs_added >= movie_quota {
-            break;
-        }
-        let nkey = &item.node_key;
-        if ctx.seed_set.contains(nkey) {
-            continue;
-        }
-        let Some(("movie", nid)) = parse_node_key(nkey) else {
-            continue;
-        };
-        let Some(m) = ctx.state.catalog.movies.get(&nid) else {
-            continue;
-        };
-
-        let mut movie_explanation: Vec<String> = Vec::new();
-        let mut best_movie_bridge: Option<(String, String, String, f32)> = None;
-
-        if !ost_artists.is_empty() {
-            let names: Vec<&str> = ost_artists
-                .iter()
-                .take(4)
-                .map(|(_, n)| n.as_str())
-                .collect();
-            movie_explanation.push(if ctx.is_pt {
-                format!("Trilha sonora com {}", names.join(", "))
-            } else {
-                format!("Soundtrack featuring {}", names.join(", "))
-            });
-
-            for (art_key, art_name) in ost_artists.iter().take(2) {
-                if !graph_nodes.iter().any(|n| &n.id == art_key) {
-                    graph_nodes.push(GraphNodePayload {
-                        id: art_key.clone(),
-                        label: art_name.clone(),
-                        node_type: "artist".to_string(),
-                        val: 11.5,
-                        tags: Vec::new(),
-                        desc: String::new(),
-                        metadata: None,
-                    });
-                }
-                if best_movie_bridge.is_none() {
-                    best_movie_bridge =
-                        Some((art_key.clone(), art_name.clone(), "artist".to_string(), 3.0));
-                }
-            }
-        }
-
-        let mut found_person: Option<String> = None;
-        let mut touches_seed_person = false;
-        let mut shared_movie_tags: Vec<String> = Vec::new();
-        let mut fallback_movie_tags: Vec<String> = Vec::new();
-
-        for e in ctx.state.graph.out_edges_by_key(nkey) {
-            if let Some((tpfx, tid)) = parse_node_key(e.target_key) {
+            } else if let Some((tpfx, tid)) = parse_node_key(e.target_key) {
                 if tpfx == "book"
                     && (e.relation_type == "based_on" || e.relation_type == "adapted_as")
                     && ctx.active_seed_set.contains(e.target_key)
                 {
                     if let Some(b) = ctx.state.catalog.books.get(&tid) {
-                        movie_explanation.push(if ctx.is_pt {
-                            format!("Adaptação da obra literária ({})", b.title)
-                        } else {
-                            format!("Adapted from the book ({})", b.title)
-                        });
-                        best_movie_bridge = Some((
-                            e.target_key.to_string(),
-                            b.title.clone(),
-                            "book".to_string(),
-                            3.5,
-                        ));
+                        book_adaptation = Some(b.title.clone());
+                        if best_movie_bridge.is_none() {
+                            best_movie_bridge = Some((
+                                e.target_key.to_string(),
+                                b.title.clone(),
+                                "book".to_string(),
+                                3.5,
+                            ));
+                        }
                     }
                 } else if tpfx == "person" && found_person.is_none() {
                     found_person = ctx.state.catalog.people.get(&tid).cloned();
@@ -182,8 +116,7 @@ pub fn extract_movies(
                         let tfmt = format!("#{}", kname);
                         if !is_steam_noise_tag(kname.as_str()) {
                             if ctx.seed_tag_counts.contains_key(&tid) {
-                                if shared_movie_tags.len() < 4 && !shared_movie_tags.contains(&tfmt)
-                                {
+                                if shared_movie_tags.len() < 4 && !shared_movie_tags.contains(&tfmt) {
                                     shared_movie_tags.push(tfmt);
                                 }
                                 if best_movie_bridge.is_none() {
@@ -194,9 +127,7 @@ pub fn extract_movies(
                                         e.base_weight,
                                     ));
                                 }
-                            } else if fallback_movie_tags.len() < 3
-                                && !fallback_movie_tags.contains(&tfmt)
-                            {
+                            } else if fallback_movie_tags.len() < 3 && !fallback_movie_tags.contains(&tfmt) {
                                 fallback_movie_tags.push(tfmt);
                             }
                         }
@@ -205,8 +136,110 @@ pub fn extract_movies(
             }
         }
 
-        if let Some(ref pname) = found_person {
-            if touches_seed_person {
+        if best_movie_bridge.is_none() {
+            if let Some((art_key, art_name)) = ost_artists.first() {
+                best_movie_bridge = Some((art_key.clone(), art_name.clone(), "artist".to_string(), 3.0));
+            }
+        }
+
+        let shared_tag_count = shared_movie_tags.len();
+        let tag_boost = if shared_tag_count > 0 {
+            1.0 + (shared_tag_count as f32).powi(2) * 5.0
+        } else if !ost_artists.is_empty() || touches_seed_person || book_adaptation.is_some() {
+            1.0
+        } else {
+            0.15
+        };
+
+        let ost_boost = 1.0 + (ost_artists.len() as f32) * 1.5;
+        let vote = m.vote_average.unwrap_or(5.0) as f32;
+        let pop_factor = if vote >= 7.5 {
+            1.5
+        } else if vote >= 6.5 {
+            1.2
+        } else {
+            1.0
+        };
+
+        let boosted_score = m_item.score * ost_boost * pop_factor * tag_boost;
+        if boosted_score < ctx.min_rec_score * 0.15 {
+            continue;
+        }
+
+        ranked_movies.push(CandidateMovie {
+            node_key: m_item.node_key,
+            score: boosted_score,
+            ost_artists,
+            found_person,
+            touches_seed_person,
+            shared_movie_tags,
+            fallback_movie_tags,
+            book_adaptation,
+            best_movie_bridge,
+        });
+    }
+
+    ranked_movies.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let mut movie_recs_added = 0usize;
+    for cand in ranked_movies {
+        if movie_recs_added >= movie_quota {
+            break;
+        }
+        let nkey = &cand.node_key;
+        if ctx.seed_set.contains(nkey) {
+            continue;
+        }
+        let Some(("movie", nid)) = parse_node_key(nkey) else {
+            continue;
+        };
+        let Some(m) = ctx.state.catalog.movies.get(&nid) else {
+            continue;
+        };
+
+        let mut movie_explanation: Vec<String> = Vec::new();
+
+        if !cand.ost_artists.is_empty() {
+            let names: Vec<&str> = cand.ost_artists
+                .iter()
+                .take(4)
+                .map(|(_, n)| n.as_str())
+                .collect();
+            movie_explanation.push(if ctx.is_pt {
+                format!("Trilha sonora com {}", names.join(", "))
+            } else {
+                format!("Soundtrack featuring {}", names.join(", "))
+            });
+
+            for (art_key, art_name) in cand.ost_artists.iter().take(2) {
+                if !graph_nodes.iter().any(|n| &n.id == art_key) {
+                    graph_nodes.push(GraphNodePayload {
+                        id: art_key.clone(),
+                        label: art_name.clone(),
+                        node_type: "artist".to_string(),
+                        val: 11.5,
+                        tags: Vec::new(),
+                        desc: String::new(),
+                        metadata: None,
+                    });
+                }
+            }
+        }
+
+        if let Some(ref btitle) = cand.book_adaptation {
+            movie_explanation.push(if ctx.is_pt {
+                format!("Adaptação da obra literária ({})", btitle)
+            } else {
+                format!("Adapted from the book ({})", btitle)
+            });
+        }
+
+        if let Some(ref pname) = cand.found_person {
+            if cand.touches_seed_person {
                 movie_explanation.push(if ctx.is_pt {
                     format!("Mesma direção/realização ({})", pname)
                 } else {
@@ -214,8 +247,9 @@ pub fn extract_movies(
                 });
             }
         }
-        if !shared_movie_tags.is_empty() {
-            let tag_str = shared_movie_tags.join(", ");
+
+        if !cand.shared_movie_tags.is_empty() {
+            let tag_str = cand.shared_movie_tags.join(", ");
             movie_explanation.push(if ctx.is_pt {
                 format!("Conexão temática por tags: {}", tag_str)
             } else {
@@ -227,25 +261,25 @@ pub fn extract_movies(
             let mut parts = Vec::new();
             if ctx.is_pt {
                 parts.push("Descoberta transmidiática no grafo".to_string());
-                if let Some(ref pname) = found_person {
+                if let Some(ref pname) = cand.found_person {
                     parts.push(format!("Direção: {}", pname));
                 }
                 if let Some(v) = m.vote_average {
                     parts.push(format!("Nota: {:.1} ★", v));
                 }
-                if !fallback_movie_tags.is_empty() {
-                    parts.push(format!("Tags: {}", fallback_movie_tags.join(", ")));
+                if !cand.fallback_movie_tags.is_empty() {
+                    parts.push(format!("Tags: {}", cand.fallback_movie_tags.join(", ")));
                 }
             } else {
                 parts.push("Transmedia graph discovery".to_string());
-                if let Some(ref pname) = found_person {
+                if let Some(ref pname) = cand.found_person {
                     parts.push(format!("Director: {}", pname));
                 }
                 if let Some(v) = m.vote_average {
                     parts.push(format!("Rating: {:.1} ★", v));
                 }
-                if !fallback_movie_tags.is_empty() {
-                    parts.push(format!("Tags: {}", fallback_movie_tags.join(", ")));
+                if !cand.fallback_movie_tags.is_empty() {
+                    parts.push(format!("Tags: {}", cand.fallback_movie_tags.join(", ")));
                 }
             }
             if parts.is_empty() {
@@ -280,7 +314,7 @@ pub fn extract_movies(
             "title": m.title,
             "type": "movie",
             "subtitle": movie_subtitle,
-            "score": ((item.score as f64) * 1000.0 * 100.0).round() / 100.0,
+            "score": ((cand.score as f64) * 1000.0 * 100.0).round() / 100.0,
             "reason": full_movie_reason,
         }));
         graph_nodes.push(GraphNodePayload {
@@ -293,7 +327,7 @@ pub fn extract_movies(
             metadata: None,
         });
 
-        if let Some((b_key, b_label, b_type, b_weight)) = best_movie_bridge {
+        if let Some((b_key, b_label, b_type, b_weight)) = cand.best_movie_bridge {
             if !graph_nodes.iter().any(|n| n.id == b_key) {
                 graph_nodes.push(GraphNodePayload {
                     id: b_key.clone(),

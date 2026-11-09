@@ -27,14 +27,30 @@ pub struct RecContext<'a> {
 
 pub const MIN_REC_SCORE: f32 = 5e-5;
 
-/// Filter list of generic Steam infrastructure, accessibility, hardware platform, and nationality metadata tags
+/// Filter list of generic Steam infrastructure, accessibility, hardware platform, nationality, and audio/soundtrack meta-tags
 pub fn is_steam_noise_tag(tag: &str) -> bool {
     if tag.starts_with("console-") {
         return true;
     }
+    if tag.contains("soundtrack") {
+        return true;
+    }
     matches!(
         tag,
-        "adjustable difficulty"
+        "score"
+            | "film score"
+            | "ost"
+            | "vgm"
+            | "video game music"
+            | "game composer"
+            | "composer"
+            | "composers"
+            | "music"
+            | "instrumental"
+            | "scorecore"
+            | "theme song"
+            | "background music"
+            | "adjustable difficulty"
             | "adjustable text size"
             | "camera comfort"
             | "captions available"

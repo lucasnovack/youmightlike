@@ -186,6 +186,88 @@ impl RawEdges {
             "keyword:42125", // russian
         ];
 
+        const SOUNDTRACK_KEYWORD_IDS: &[&str] = &[
+            "keyword:7",     // instrumental
+            "keyword:13",    // composer
+            "keyword:15",    // easy listening soundtracks and musicals
+            "keyword:17",    // film score
+            "keyword:18",    // film soundtrack
+            "keyword:22",    // soundtrack
+            "keyword:23",    // soundtrack composer
+            "keyword:260",   // score
+            "keyword:261",   // soundtracks
+            "keyword:264",   // video game music
+            "keyword:276",   // classic soundtrack
+            "keyword:278",   // italian soundtrack
+            "keyword:279",   // orchestral soundtrack
+            "keyword:281",   // vintage italian soundtrack
+            "keyword:364",   // game composer
+            "keyword:365",   // vgm
+            "keyword:388",   // composers
+            "keyword:1377",  // music
+            "keyword:6958",  // copyright free soundtracks
+            "keyword:6967",  // soundtrack composers
+            "keyword:7329",
+            "keyword:7350",
+            "keyword:9550",  // canadian soundtrack
+            "keyword:12749", // film music soundtracks
+            "keyword:12754", // royalty free soundtracks
+            "keyword:13112",
+            "keyword:13325", // alternative soundtrack
+            "keyword:13468", // scorecore
+            "keyword:14030", // original soundtrack
+            "keyword:14169", // theme song
+            "keyword:14769", // ost
+            "keyword:15262", // japanese soundtrack
+            "keyword:16403", // soundtrack music
+            "keyword:18470", // royalty free music soundtrack
+            "keyword:19262", // background music
+            "keyword:20879", // soundtrack production
+            "keyword:21057", // star trek soundtracks
+            "keyword:21398", // nordic soundtrack
+            "keyword:24328", // movie soundtrack composers
+            "keyword:24329",
+            "keyword:24896", // game soundtrack
+            "keyword:25015", // marathi soundtrack
+            "keyword:27099", // tv soundtracks
+            "keyword:27140", // game soundtrack composer
+            "keyword:28072", // anime soundtrack
+            "keyword:30075",
+            "keyword:30519",
+            "keyword:32824", // video game soundtracks
+            "keyword:34744", // soundtrack release
+            "keyword:35911", // free soundtrack
+            "keyword:36539", // video game soundtrack
+            "keyword:39457",
+            "keyword:39708",
+            "keyword:40209", // movie soundtrack
+            "keyword:41189",
+            "keyword:41430",
+            "keyword:41643",
+            "keyword:41650",
+            "keyword:41654",
+            "keyword:41862",
+            "keyword:43276",
+            "keyword:43381",
+            "keyword:44342", // indie game soundtrack
+            "keyword:45223", // originalsoundtrack
+            "keyword:46460",
+            "keyword:47442",
+            "keyword:47458", // piano soundtrack
+            "keyword:48009", // great soundtrack
+            "keyword:48333", // notable soundtrack
+            "keyword:48511", // good soundtrack
+            "keyword:48714", // awesome soundtrack
+            "keyword:49520", // bioshock soundtrack
+        ];
+
+        let mut meta_keywords: std::collections::HashSet<&'static str> =
+            std::collections::HashSet::with_capacity(
+                COUNTRY_KEYWORD_IDS.len() + SOUNDTRACK_KEYWORD_IDS.len(),
+            );
+        meta_keywords.extend(COUNTRY_KEYWORD_IDS);
+        meta_keywords.extend(SOUNDTRACK_KEYWORD_IDS);
+
         let mut raw = RawEdges::default();
 
         while let Some(row) = rows.next()? {
@@ -194,13 +276,13 @@ impl RawEdges {
             let mut base_w: f64 = row.get(2)?;
             let rel_str: String = row.get(3).unwrap_or_else(|_| "connected".to_string());
 
-            // Geographic, nationality and language tags are broad metadata, NOT aesthetic genres.
-            // Heavily attenuate them (by 98%) so diffusion does not leak between completely
-            // unrelated genres (e.g. hip-hop to grunge, or trap to samba) merely because
-            // both works share 'american', 'us', 'english' or 'brazilian'.
-            let is_country_kw = COUNTRY_KEYWORD_IDS.contains(&src_key.as_str())
-                || COUNTRY_KEYWORD_IDS.contains(&dst_key.as_str());
-            if is_country_kw {
+            // Geographic, nationality, language, and generic soundtrack/score meta-tags
+            // are broad structural descriptors, NOT aesthetic themes or genres.
+            // Heavily attenuate them (by 98%) so diffusion does not leak across completely
+            // unrelated media or genres through artificial meta-tag wormholes.
+            let is_meta_kw = meta_keywords.contains(src_key.as_str())
+                || meta_keywords.contains(dst_key.as_str());
+            if is_meta_kw {
                 base_w *= 0.02;
             }
 
