@@ -241,9 +241,9 @@ pub fn extract_movies(
         if let Some(ref pname) = cand.found_person {
             if cand.touches_seed_person {
                 movie_explanation.push(if ctx.is_pt {
-                    format!("Mesma direção/realização ({})", pname)
+                    format!("Direção: {}", pname)
                 } else {
-                    format!("Same director/crew ({})", pname)
+                    format!("Director: {}", pname)
                 });
             }
         }
@@ -251,9 +251,9 @@ pub fn extract_movies(
         if !cand.shared_movie_tags.is_empty() {
             let tag_str = cand.shared_movie_tags.join(", ");
             movie_explanation.push(if ctx.is_pt {
-                format!("Conexão temática por tags: {}", tag_str)
+                format!("Tags: {}", tag_str)
             } else {
-                format!("Thematic tags in common: {}", tag_str)
+                format!("Tags: {}", tag_str)
             });
         }
 

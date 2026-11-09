@@ -245,9 +245,9 @@ pub fn extract_series(
         if let Some(ref pname) = cand.found_person {
             if cand.touches_seed_person {
                 series_explanation.push(if ctx.is_pt {
-                    format!("Mesma equipe/roteiro ({})", pname)
+                    format!("Roteiro/Criação: {}", pname)
                 } else {
-                    format!("Same showrunner/writer ({})", pname)
+                    format!("Writer/Creator: {}", pname)
                 });
             }
         }
@@ -255,9 +255,9 @@ pub fn extract_series(
         if !cand.shared_series_tags.is_empty() {
             let tag_str = cand.shared_series_tags.join(", ");
             series_explanation.push(if ctx.is_pt {
-                format!("Conexão temática por tags: {}", tag_str)
+                format!("Tags: {}", tag_str)
             } else {
-                format!("Thematic tags in common: {}", tag_str)
+                format!("Tags: {}", tag_str)
             });
         }
 

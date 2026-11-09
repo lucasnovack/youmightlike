@@ -119,17 +119,17 @@ pub fn extract_books(
 
         if let Some(ref aname) = found_author {
             book_explanation.push(if ctx.is_pt {
-                format!("Mesma autoria ({})", aname)
+                format!("Autoria: {}", aname)
             } else {
-                format!("Same author ({})", aname)
+                format!("Author: {}", aname)
             });
         }
         if !shared_book_tags.is_empty() {
             let tag_str = shared_book_tags.join(", ");
             book_explanation.push(if ctx.is_pt {
-                format!("Temas literários em comum: {}", tag_str)
+                format!("Temas: {}", tag_str)
             } else {
-                format!("Shared literary subjects: {}", tag_str)
+                format!("Themes: {}", tag_str)
             });
         }
 

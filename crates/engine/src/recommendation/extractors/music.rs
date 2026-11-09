@@ -354,9 +354,9 @@ pub fn extract_music(
         if !shared_tags.is_empty() {
             let tags_joined = shared_tags.join(", ");
             explanation_parts.push(if ctx.is_pt {
-                format!("Tags estéticas em comum: {}", tags_joined)
+                format!("Tags: {}", tags_joined)
             } else {
-                format!("Shared aesthetic tags: {}", tags_joined)
+                format!("Tags: {}", tags_joined)
             });
         }
 
@@ -417,6 +417,25 @@ pub fn extract_music(
         // Multi-tag thematic confluence boost
         if !has_music_seeds && !is_vgm_composer {
             boost *= 1.0 + (shared_tag_count as f32).powi(2) * 3.0;
+
+            // Popular acclaim weighting for cross-media discovery:
+            // Favors recognized seminal works over obscure bedroom uploads
+            let max_pop: f32 = ctx
+                .conn
+                .query_row(
+                    "SELECT COALESCE(MAX(popularity), 0) FROM music_tracks WHERE artist_id = ?",
+                    params![nid],
+                    |r| r.get(0),
+                )
+                .unwrap_or(0.0);
+            let pop_factor = if max_pop < 15.0 {
+                0.25
+            } else if max_pop < 40.0 {
+                0.70
+            } else {
+                1.0 + (max_pop / 50.0).min(2.0) * 0.5
+            };
+            boost *= pop_factor;
         } else if shared_tag_count > 0 {
             boost *= 1.0 + (shared_tag_count as f32) * 0.4;
         }
@@ -1455,9 +1474,9 @@ pub fn extract_music(
                     format!("Track by {}{}{}", item.artist_name, alb_str, bpm_str)
                 };
                 let trk_reason = if ctx.is_pt {
-                    format!("Faixa essencial de {} ({})", item.artist_name, item.reason)
+                    format!("Faixa essencial de {} • {}", item.artist_name, item.reason)
                 } else {
-                    format!("Essential track by {} ({})", item.artist_name, item.reason)
+                    format!("Essential track by {} • {}", item.artist_name, item.reason)
                 };
 
                 results.push(json!({

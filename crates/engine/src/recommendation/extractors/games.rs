@@ -61,8 +61,10 @@ pub fn extract_games(
 
     let mut scored_candidates: Vec<CandidateGame> = Vec::new();
 
+    let has_game_seeds = ctx.seed_set.iter().any(|s| s.starts_with("game:"));
+
     for item in raw_games {
-        if item.score < ctx.min_rec_score * 0.2 {
+        if item.score < ctx.min_rec_score * 0.04 {
             continue;
         }
         let nkey = &item.node_key;
@@ -188,6 +190,16 @@ pub fn extract_games(
         let shared_tag_hits = specific_tags.len();
         let total_shared_tags = active_tag_hits + shared_tag_hits;
 
+        // When crossing domain boundaries without direct game/developer/composer seeds,
+        // require at least 2 independent thematic confluence tags to avoid lexical noise.
+        if !has_game_seeds
+            && !touches_direct_seed_artist
+            && !touches_seed_dev
+            && total_shared_tags < 2
+        {
+            continue;
+        }
+
         // If a game only connected via an indirect game composer (e.g. Mikolai Stroinski -> Sniper Ghost Warrior 3)
         // and has fewer than 3 shared thematic tags with the user's profile, skip it!
         if found_composer.is_some()
@@ -206,9 +218,13 @@ pub fn extract_games(
             boost *= 0.25;
         }
 
-        if total_shared_tags > 0 {
+        // Multi-tag confluence boost
+        if !has_game_seeds {
+            boost *= 1.0 + (total_shared_tags as f32).powi(2) * 3.0;
+        } else if total_shared_tags > 0 {
             boost *= 1.0 + (total_shared_tags as f32).min(6.0) * 0.45;
         }
+
         if touches_direct_seed_artist {
             boost *= 1.8;
         }
@@ -282,9 +298,9 @@ pub fn extract_games(
         if !display_tags.is_empty() {
             let tag_str = display_tags.join(", ");
             game_explanation.push(if ctx.is_pt {
-                format!("Tags temáticas em comum: {}", tag_str)
+                format!("Tags: {}", tag_str)
             } else {
-                format!("Shared thematic tags: {}", tag_str)
+                format!("Tags: {}", tag_str)
             });
         }
 

@@ -62,48 +62,81 @@ function translateSubtitle(sub, isPt) {
 }
 
 // Select a balanced, transmedia basket of discoveries across domains
-function selectBalancedTicketRecs(recs = [], seeds = [], maxRecs = 7) {
+function selectBalancedTicketRecs(recs = [], seeds = [], maxRecs = 5) {
   if (!recs || recs.length === 0) return [];
 
+  // Categorize items by cultural medium
   const byType = {
-    game: recs.filter(r => r.type === 'game'),
-    artist: recs.filter(r => r.type === 'artist'),
-    track: recs.filter(r => r.type === 'track'),
     movie: recs.filter(r => r.type === 'movie'),
     series: recs.filter(r => r.type === 'series'),
     book: recs.filter(r => r.type === 'book'),
+    game: recs.filter(r => r.type === 'game'),
+    // Combine artist and track under music to avoid creative entity redundancy
+    music: recs.filter(r => r.type === 'artist' || r.type === 'track'),
   };
 
   const seedTypes = new Set(seeds.map(s => s.type));
   const chosen = [];
   const chosenIds = new Set();
+  const chosenArtists = new Set();
 
   const takeBest = (list) => {
     for (const item of list) {
-      if (!chosenIds.has(item.id)) {
-        chosen.push(item);
-        chosenIds.add(item.id);
-        return true;
+      if (chosenIds.has(item.id)) continue;
+      // Deduplicate music entity (don't pick both Rush and Rush's track)
+      if (item.type === 'artist' || item.type === 'track') {
+        const nameLower = (item.title || item.name || '').toLowerCase();
+        const subLower = (item.subtitle || '').toLowerCase();
+        let alreadyHasArtist = false;
+        for (const a of chosenArtists) {
+          if (nameLower.includes(a) || subLower.includes(a)) {
+            alreadyHasArtist = true;
+            break;
+          }
+        }
+        if (alreadyHasArtist) continue;
+        chosenArtists.add(nameLower);
       }
+      chosen.push(item);
+      chosenIds.add(item.id);
+      return true;
     }
     return false;
   };
 
-  // Prioritize domains present in user's active seeds first
-  const domainOrder = ['artist', 'game', 'movie', 'series', 'track', 'book'];
-  domainOrder.sort((a, b) => (seedTypes.has(b) ? 1 : 0) - (seedTypes.has(a) ? 1 : 0));
+  // Order mediums: seed mediums first, followed by remaining cultural domains
+  const domainOrder = ['movie', 'series', 'book', 'game', 'music'];
+  domainOrder.sort((a, b) => {
+    const aInSeeds = seedTypes.has(a) || (a === 'music' && (seedTypes.has('artist') || seedTypes.has('track')));
+    const bInSeeds = seedTypes.has(b) || (b === 'music' && (seedTypes.has('artist') || seedTypes.has('track')));
+    return (bInSeeds ? 1 : 0) - (aInSeeds ? 1 : 0);
+  });
 
+  // Pass 1: Select top representative from each distinct cultural domain
   for (const dom of domainOrder) {
     if (chosen.length < maxRecs && byType[dom] && byType[dom].length > 0) {
       takeBest(byType[dom]);
     }
   }
 
-  // Fill remaining slots with the highest-scoring items overall
+  // Pass 2: Fill any remaining slots with highest scoring items overall
   const sortedOverall = [...recs].sort((a, b) => (b.score || 0) - (a.score || 0));
   for (const item of sortedOverall) {
     if (chosen.length >= maxRecs) break;
     if (!chosenIds.has(item.id)) {
+      if (item.type === 'artist' || item.type === 'track') {
+        const nameLower = (item.title || item.name || '').toLowerCase();
+        const subLower = (item.subtitle || '').toLowerCase();
+        let alreadyHasArtist = false;
+        for (const a of chosenArtists) {
+          if (nameLower.includes(a) || subLower.includes(a)) {
+            alreadyHasArtist = true;
+            break;
+          }
+        }
+        if (alreadyHasArtist) continue;
+        chosenArtists.add(nameLower);
+      }
       chosen.push(item);
       chosenIds.add(item.id);
     }
@@ -1055,7 +1088,7 @@ export function generateCulturalReceipt(canvas, {
 
   // Draw Collision-Free Text Labels
   for (const n of layoutNodes) {
-    const labelText = truncate(n.name, n.isSeed ? 14 : 12);
+    const labelText = truncate(n.name, n.isSeed ? 26 : 24);
     const { align, lx, ly } = computeLabelPlacement(n, layoutNodes, mapBoxX, mapBoxY, mapBoxW, mapBoxH);
 
     ctx.save();
@@ -1158,10 +1191,23 @@ export function generateCulturalReceipt(canvas, {
 
       curY += 15;
 
-      // Line 2: Reason / Bridge (Indented)
+      // Line 2: Reason / Bridge (Indented, clean word-boundary measurement)
       ctx.font = `400 9.5px ${APPLE_FONTS.sans}`;
       ctx.fillStyle = '#86868b';
-      ctx.fillText(`↳ ${truncate(reason, 54)}`, padX + 20, curY);
+      const maxReasonW = contentWidth - 24;
+      let displayReason = reason;
+      if (ctx.measureText(`↳ ${displayReason}`).width > maxReasonW) {
+        while (ctx.measureText(`↳ ${displayReason}…`).width > maxReasonW && displayReason.length > 10) {
+          const lastSpace = displayReason.lastIndexOf(' ');
+          if (lastSpace > 12) {
+            displayReason = displayReason.slice(0, lastSpace);
+          } else {
+            displayReason = displayReason.slice(0, -1);
+          }
+        }
+        displayReason = `${displayReason}…`;
+      }
+      ctx.fillText(`↳ ${displayReason}`, padX + 20, curY);
       curY += 25;
     }
   }
