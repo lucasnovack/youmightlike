@@ -214,16 +214,14 @@ fn cluster_seeds_for_multi_hit<'a>(
     }
 
     let mut dom_entries: Vec<(&str, Vec<(&str, f32)>)> = by_domain.into_iter().collect();
-    dom_entries.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+    dom_entries.sort_by_key(|a| std::cmp::Reverse(a.1.len()));
 
     let mut groups: Vec<Vec<(&str, f32)>> = Vec::new();
     let num_domains = dom_entries.len();
 
     if num_domains >= max_groups {
-        for (i, entry) in dom_entries.into_iter().enumerate() {
-            if i < max_groups - 1 {
-                groups.push(entry.1);
-            } else if groups.len() < max_groups {
+        for entry in dom_entries {
+            if groups.len() < max_groups {
                 groups.push(entry.1);
             } else {
                 groups.last_mut().unwrap().extend(entry.1);
@@ -241,7 +239,7 @@ fn cluster_seeds_for_multi_hit<'a>(
             if slots_for_dom == 1 {
                 groups.push(dom_seeds);
             } else {
-                let chunk_size = (dom_seeds.len() + slots_for_dom - 1) / slots_for_dom;
+                let chunk_size = dom_seeds.len().div_ceil(slots_for_dom);
                 for chunk in dom_seeds.chunks(chunk_size) {
                     groups.push(chunk.to_vec());
                 }
@@ -521,6 +519,38 @@ mod tests {
         assert!(
             ratio_multi > ratio_linear,
             "Multi-hit booster must amplify intersection node ratio ({ratio_multi} > {ratio_linear})"
+        );
+    }
+
+    #[test]
+    fn test_cluster_seeds_for_multi_hit_preserves_elements_and_bounds_groups() {
+        let seeds = vec![
+            ("movie:1", 0.1),
+            ("movie:2", 0.1),
+            ("movie:3", 0.1),
+            ("game:1", 0.1),
+            ("game:2", 0.1),
+            ("book:1", 0.1),
+            ("artist:1", 0.1),
+            ("track:1", 0.1),
+            ("album:1", 0.1),
+        ];
+
+        let max_groups = 4;
+        let groups = cluster_seeds_for_multi_hit(&seeds, max_groups);
+
+        assert!(
+            groups.len() <= max_groups,
+            "Group count ({}) must not exceed max_groups ({})",
+            groups.len(),
+            max_groups
+        );
+
+        let total_grouped_seeds: usize = groups.iter().map(|g| g.len()).sum();
+        assert_eq!(
+            total_grouped_seeds,
+            seeds.len(),
+            "All seeds must be preserved across clusters"
         );
     }
 }
