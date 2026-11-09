@@ -17,6 +17,8 @@ build/
 *.sqlite3
 data/raw/*
 data/processed/*
+data/parquet_export/
+*.parquet
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 
