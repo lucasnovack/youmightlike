@@ -276,7 +276,7 @@ pub fn default_multi_hit() -> bool {
 }
 
 pub fn default_rec_limit() -> usize {
-    12
+    28
 }
 
 pub fn default_lang() -> String {

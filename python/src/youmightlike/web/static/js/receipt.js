@@ -311,8 +311,8 @@ function layoutConstellationGraph({
   });
 
   // 4. Force-directed Micro-relaxation (85 iterations)
-  const targetDistSeed = 115;
-  const targetDistRec = 66;
+  const targetDistSeed = 95;
+  const targetDistRec = 52;
 
   for (let iter = 0; iter < 85; iter++) {
     const alpha = Math.max(0.08, 1 - iter / 85);
@@ -326,7 +326,7 @@ function layoutConstellationGraph({
         let dy = n2.y - n1.y;
         let d = Math.hypot(dx, dy) || 1;
 
-        const minDist = (n1.isSeed && n2.isSeed) ? 92 : (n1.isSeed || n2.isSeed) ? 68 : 54;
+        const minDist = (n1.isSeed && n2.isSeed) ? 75 : (n1.isSeed || n2.isSeed) ? 55 : 42;
         if (d < minDist * 2.2) {
           const force = ((minDist * minDist) / (d * d)) * alpha * 1.6;
           const fx = (dx / d) * force;
@@ -506,6 +506,60 @@ function drawPillBadge(ctx, text, x, y, badgeConf) {
   return w;
 }
 
+function computeExactTicketHeight({
+  seeds = [],
+  negativeSeeds = [],
+  topRecs = [],
+  mapBoxH = 175,
+}) {
+  let y = 28; // Top padding
+
+  // Header (Monogram, brand title, date & engine)
+  y += 42; // Monogram and title
+  y += 16; // Date & engine line
+  y += 18; // Divider
+
+  // Section 1: Seeds
+  y += 18; // Section title
+  y += Math.max(1, seeds.length) * 26;
+  if (negativeSeeds && negativeSeeds.length > 0) {
+    y += 22; // Negative seeds title
+    y += negativeSeeds.length * 22;
+  }
+  y += 18; // Divider
+
+  // Section 2: DNA Tags
+  y += 16; // Section title
+  y += 22; // Tags capsule row
+  y += 18; // Divider
+
+  // Section 3: Constellation Map
+  y += 16; // Section title
+  y += mapBoxH; // Map canvas
+  y += 14; // Legend & spacing
+  y += 18; // Divider
+
+  // Section 4: Fresh Discoveries
+  y += 16; // Section title
+  y += 16; // Subtitle
+  y += Math.max(1, topRecs.length) * 40; // 15 title line + 25 reason line
+  y += 18; // Divider
+
+  // Section 5: Metrics Cards
+  y += 50; // cardH
+  y += 18; // Spacing below cards
+  y += 18; // Divider
+
+  // Section 6: Barcode & Footer
+  y += 34; // Barcode (24) + margin (10)
+  y += 16; // Hash code text
+  y += 14; // Motto slogan
+  y += 14; // Subtext credit
+  y += 24; // Symmetrical bottom padding
+
+  return Math.round(y);
+}
+
 export function generateCulturalReceipt(canvas, {
   seeds = [],
   negativeSeeds = [],
@@ -520,7 +574,7 @@ export function generateCulturalReceipt(canvas, {
   if (!ctx) return;
 
   const dpr = Math.min(window.devicePixelRatio || 2, 2.5);
-  const width = 640;
+  const width = 540;
   const isPt = lang === 'pt';
 
   // Extract unique resonance tags
@@ -545,31 +599,16 @@ export function generateCulturalReceipt(canvas, {
   }
   const resonanceTags = Array.from(tagsSet);
 
-  // Take balanced transmedia recommendations (up to 7)
-  const topRecs = selectBalancedTicketRecs(recommendations, seeds, 7);
+  // Take balanced transmedia recommendations (curated top 5)
+  const topRecs = selectBalancedTicketRecs(recommendations, seeds, 5);
 
-  // Compute dynamic height
-  let estimatedHeight = 0;
-  estimatedHeight += 36; // Top padding
-  estimatedHeight += 90; // Header & order meta
-  estimatedHeight += 24; // Divider
-  estimatedHeight += 32 + (seeds.length * 36); // Seeds section
-  if (negativeSeeds.length > 0) {
-    estimatedHeight += 28 + (negativeSeeds.length * 32); // Negative seeds
-  }
-  estimatedHeight += 22; // Divider
-  estimatedHeight += 58; // DNA Tags
-  estimatedHeight += 24; // Divider
-  estimatedHeight += 270; // Mini-map frame with generous breathing space
-  estimatedHeight += 24; // Divider
-  estimatedHeight += 38 + (topRecs.length * 48); // Fresh recommendations
-  estimatedHeight += 24; // Divider
-  estimatedHeight += 95; // Totals metric cards
-  estimatedHeight += 24; // Divider
-  estimatedHeight += 110; // Barcode, link & footer
-  estimatedHeight += 36; // Bottom margin
-
-  const height = Math.round(estimatedHeight);
+  const mapBoxH = 175;
+  const height = computeExactTicketHeight({
+    seeds,
+    negativeSeeds,
+    topRecs,
+    mapBoxH,
+  });
 
   canvas.width = Math.round(width * dpr);
   canvas.height = Math.round(height * dpr);
@@ -580,11 +619,11 @@ export function generateCulturalReceipt(canvas, {
   ctx.scale(dpr, dpr);
 
   // 1. Draw Apple Card Canvas Background (Porcelain White with Soft Outer Border)
-  drawRoundedRect(ctx, 1.5, 1.5, width - 3, height - 3, 24, '#ffffff', '#e5e5ea', 1.5);
+  drawRoundedRect(ctx, 1.5, 1.5, width - 3, height - 3, 20, '#ffffff', '#e5e5ea', 1.5);
 
   // Layout Cursor
-  let curY = 36;
-  const padX = 40;
+  let curY = 28;
+  const padX = 32;
   const contentWidth = width - padX * 2;
 
   const drawDivider = (y) => {
@@ -611,47 +650,46 @@ export function generateCulturalReceipt(canvas, {
   });
 
   // 2. HEADER: Brand & Order Metadata (Apple Passbook Style)
-  // Monogram circle
   ctx.beginPath();
-  ctx.arc(padX + 18, curY + 18, 18, 0, Math.PI * 2);
+  ctx.arc(padX + 16, curY + 16, 16, 0, Math.PI * 2);
   ctx.fillStyle = '#1d1d1f';
   ctx.fill();
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = `700 13px ${APPLE_FONTS.sans}`;
+  ctx.font = `700 12px ${APPLE_FONTS.sans}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('Y', padX + 18, curY + 18);
+  ctx.fillText('Y', padX + 16, curY + 16);
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
-  ctx.font = `700 16px ${APPLE_FONTS.sans}`;
+  ctx.font = `700 15px ${APPLE_FONTS.sans}`;
   ctx.fillStyle = '#1d1d1f';
-  ctx.fillText('youmightlike', padX + 46, curY + 16);
+  ctx.fillText('youmightlike', padX + 40, curY + 14);
 
-  ctx.font = `500 11px ${APPLE_FONTS.sans}`;
+  ctx.font = `500 10.5px ${APPLE_FONTS.sans}`;
   ctx.fillStyle = '#86868b';
   ctx.fillText(
     isPt ? 'Passaporte de Afinidade Cultural' : 'Cultural Affinity Passport',
-    padX + 46,
-    curY + 31
+    padX + 40,
+    curY + 28
   );
 
   // Top-right pill for Order / Date
   const metaCode = `#YM-${tasteHash}`;
-  ctx.font = `600 10px ${APPLE_FONTS.mono}`;
-  const metaW = ctx.measureText(metaCode).width + 20;
-  drawRoundedRect(ctx, width - padX - metaW, curY + 4, metaW, 24, 12, '#f2f2f7', '#e5e5ea', 1);
+  ctx.font = `600 9.5px ${APPLE_FONTS.mono}`;
+  const metaW = ctx.measureText(metaCode).width + 16;
+  drawRoundedRect(ctx, width - padX - metaW, curY + 4, metaW, 22, 11, '#f2f2f7', '#e5e5ea', 1);
 
   ctx.fillStyle = '#1d1d1f';
   ctx.textAlign = 'center';
-  ctx.fillText(metaCode, width - padX - metaW / 2, curY + 20);
+  ctx.fillText(metaCode, width - padX - metaW / 2, curY + 18);
 
-  curY += 48;
+  curY += 42;
 
   // Subheader line: Date & Engine Specs
   ctx.textAlign = 'left';
-  ctx.font = `500 10px ${APPLE_FONTS.sans}`;
+  ctx.font = `500 9.5px ${APPLE_FONTS.sans}`;
   ctx.fillStyle = '#86868b';
   ctx.fillText(`${dateStr} • ${timeStr}`, padX, curY);
 
@@ -660,129 +698,134 @@ export function generateCulturalReceipt(canvas, {
   curY += 16;
 
   drawDivider(curY);
-  curY += 24;
+  curY += 18;
 
   // 3. SECTION 1: Base Ingredients (Profile Seeds)
   ctx.textAlign = 'left';
   ctx.fillStyle = '#1d1d1f';
-  ctx.font = `700 12px ${APPLE_FONTS.sans}`;
+  ctx.font = `700 11.5px ${APPLE_FONTS.sans}`;
   ctx.fillText(
     isPt ? 'Sementes do Perfil (Atração)' : 'Profile Seeds (Attraction Poles)',
     padX,
     curY
   );
-  curY += 20;
+  curY += 18;
 
-  for (let i = 0; i < seeds.length; i++) {
-    const s = seeds[i];
-    const bInfo = getBadgeInfo(s.type);
-    const bLabel = isPt ? bInfo.labelPt : bInfo.labelEn;
-    const name = s.name || s.id;
-    const sub = translateSubtitle(s.subtitle, isPt);
+  if (seeds.length === 0) {
+    ctx.font = `400 11px ${APPLE_FONTS.sans}`;
+    ctx.fillStyle = '#86868b';
+    ctx.fillText(isPt ? 'Nenhuma semente adicionada' : 'No seeds added', padX, curY);
+    curY += 26;
+  } else {
+    for (let i = 0; i < seeds.length; i++) {
+      const s = seeds[i];
+      const bInfo = getBadgeInfo(s.type);
+      const bLabel = isPt ? bInfo.labelPt : bInfo.labelEn;
+      const name = s.name || s.id;
+      const sub = translateSubtitle(s.subtitle, isPt);
 
-    const badgeW = drawPillBadge(ctx, bLabel, padX, curY, bInfo);
+      const badgeW = drawPillBadge(ctx, bLabel, padX, curY, bInfo);
 
-    ctx.font = `600 12px ${APPLE_FONTS.sans}`;
-    ctx.fillStyle = '#1d1d1f';
-    ctx.fillText(truncate(name, 34), padX + badgeW + 10, curY);
+      ctx.font = `600 11.5px ${APPLE_FONTS.sans}`;
+      ctx.fillStyle = '#1d1d1f';
+      ctx.fillText(truncate(name, 28), padX + badgeW + 8, curY);
 
-    if (sub) {
-      ctx.textAlign = 'right';
-      ctx.font = `400 11px ${APPLE_FONTS.sans}`;
-      ctx.fillStyle = '#86868b';
-      ctx.fillText(truncate(sub, 22), width - padX, curY);
-      ctx.textAlign = 'left';
+      if (sub) {
+        ctx.textAlign = 'right';
+        ctx.font = `400 10.5px ${APPLE_FONTS.sans}`;
+        ctx.fillStyle = '#86868b';
+        ctx.fillText(truncate(sub, 20), width - padX, curY);
+        ctx.textAlign = 'left';
+      }
+      curY += 26;
     }
-    curY += 28;
   }
 
   // Negative seeds (if any)
   if (negativeSeeds && negativeSeeds.length > 0) {
-    curY += 8;
-    ctx.font = `700 11px ${APPLE_FONTS.sans}`;
+    ctx.font = `700 10.5px ${APPLE_FONTS.sans}`;
     ctx.fillStyle = '#e11d48';
     ctx.fillText(
       isPt ? `Pólos de Repulsão (Evitados • β: ${negativeBeta.toFixed(1)}x)` : `Repulsive Poles (Avoided • β: ${negativeBeta.toFixed(1)}x)`,
       padX,
       curY
     );
-    curY += 18;
+    curY += 16;
 
     for (const neg of negativeSeeds) {
       const negBadge = { bg: '#fee2e2', text: '#991b1b', border: 'rgba(239, 68, 68, 0.25)' };
       const bW = drawPillBadge(ctx, isPt ? 'EVITAR' : 'AVOID', padX, curY, negBadge);
 
-      ctx.font = `500 11.5px ${APPLE_FONTS.sans}`;
+      ctx.font = `500 11px ${APPLE_FONTS.sans}`;
       ctx.fillStyle = '#475569';
-      ctx.fillText(truncate(neg.name || neg.id, 40), padX + bW + 10, curY);
-      curY += 24;
+      ctx.fillText(truncate(neg.name || neg.id, 32), padX + bW + 8, curY);
+      curY += 22;
     }
+    curY += 6;
   }
 
-  curY += 6;
   drawDivider(curY);
-  curY += 22;
+  curY += 18;
 
   // 4. SECTION 2: Aesthetic DNA & Resonance Tags (Pill Capsules)
   ctx.textAlign = 'left';
   ctx.fillStyle = '#1d1d1f';
-  ctx.font = `700 12px ${APPLE_FONTS.sans}`;
+  ctx.font = `700 11.5px ${APPLE_FONTS.sans}`;
   ctx.fillText(
     isPt ? 'DNA Estético & Confluências' : 'Aesthetic DNA & Confluences',
     padX,
     curY
   );
-  curY += 18;
+  curY += 16;
 
   if (resonanceTags.length > 0) {
     let tagCursorX = padX;
-    ctx.font = `500 10px ${APPLE_FONTS.sans}`;
+    ctx.font = `500 9.5px ${APPLE_FONTS.sans}`;
     for (const tag of resonanceTags) {
       const tagText = `#${tag}`;
       const tMetrics = ctx.measureText(tagText);
-      const tagW = tMetrics.width + 16;
+      const tagW = tMetrics.width + 14;
       if (tagCursorX + tagW > width - padX) break;
 
-      drawRoundedRect(ctx, tagCursorX, curY - 12, tagW, 20, 10, '#f2f2f7', '#e5e5ea', 0.8);
+      drawRoundedRect(ctx, tagCursorX, curY - 11, tagW, 18, 9, '#f2f2f7', '#e5e5ea', 0.8);
       ctx.fillStyle = '#475569';
-      ctx.fillText(tagText, tagCursorX + 8, curY + 2);
+      ctx.fillText(tagText, tagCursorX + 7, curY + 1);
       tagCursorX += tagW + 6;
     }
   } else {
-    ctx.font = `400 11px ${APPLE_FONTS.sans}`;
+    ctx.font = `400 10.5px ${APPLE_FONTS.sans}`;
     ctx.fillStyle = '#86868b';
     ctx.fillText(isPt ? 'Confluência transmidiática multidimensional' : 'Multidimensional transmedia confluence', padX, curY);
   }
-  curY += 24;
+  curY += 22;
 
   drawDivider(curY);
-  curY += 22;
+  curY += 18;
 
   // 5. SECTION 3: Constellation Topological Map (Apple Canvas View)
   ctx.textAlign = 'left';
   ctx.fillStyle = '#1d1d1f';
-  ctx.font = `700 12px ${APPLE_FONTS.sans}`;
+  ctx.font = `700 11.5px ${APPLE_FONTS.sans}`;
   ctx.fillText(
     isPt ? 'Mapa Topológico da Constelação' : 'Topological Constellation Map',
     padX,
     curY
   );
-  curY += 14;
+  curY += 16;
 
   const mapBoxX = padX;
   const mapBoxY = curY;
   const mapBoxW = contentWidth;
-  const mapBoxH = 210;
 
   // Rounded container for graph
-  drawRoundedRect(ctx, mapBoxX, mapBoxY, mapBoxW, mapBoxH, 16, '#fbfbfd', '#e5e5ea', 1);
+  drawRoundedRect(ctx, mapBoxX, mapBoxY, mapBoxW, mapBoxH, 14, '#fbfbfd', '#e5e5ea', 1);
 
   // Background subtle dot matrix grid
   ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
-  for (let gx = mapBoxX + 16; gx < mapBoxX + mapBoxW; gx += 20) {
-    for (let gy = mapBoxY + 16; gy < mapBoxY + mapBoxH; gy += 20) {
+  for (let gx = mapBoxX + 14; gx < mapBoxX + mapBoxW; gx += 18) {
+    for (let gy = mapBoxY + 14; gy < mapBoxY + mapBoxH; gy += 18) {
       ctx.beginPath();
-      ctx.arc(gx, gy, 1.0, 0, Math.PI * 2);
+      ctx.arc(gx, gy, 0.9, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -790,7 +833,7 @@ export function generateCulturalReceipt(canvas, {
   // Run Force-Directed Simulation Layout for organic constellation topology
   const { nodes: layoutNodes, edges: layoutEdges } = layoutConstellationGraph({
     seeds,
-    recs: topRecs.slice(0, 6),
+    recs: topRecs.slice(0, 5),
     graph,
     boxX: mapBoxX,
     boxY: mapBoxY,
@@ -832,15 +875,13 @@ export function generateCulturalReceipt(canvas, {
   for (const n of layoutNodes.filter(n => !n.isSeed)) {
     const col = DOMAIN_COLORS[n.type] || '#0071e3';
 
-    // Faint halo
     ctx.beginPath();
-    ctx.arc(n.x, n.y, 6.5, 0, Math.PI * 2);
+    ctx.arc(n.x, n.y, 6.0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
     ctx.fill();
 
-    // Solid core
     ctx.beginPath();
-    ctx.arc(n.x, n.y, 4.5, 0, Math.PI * 2);
+    ctx.arc(n.x, n.y, 4.0, 0, Math.PI * 2);
     ctx.fillStyle = col;
     ctx.fill();
     ctx.strokeStyle = '#ffffff';
@@ -850,46 +891,41 @@ export function generateCulturalReceipt(canvas, {
 
   // Draw Seed Nodes (Apple Blue Double-Ring Stars)
   for (const n of layoutNodes.filter(n => n.isSeed)) {
-    // Outer blue halo
     ctx.beginPath();
-    ctx.arc(n.x, n.y, 9, 0, Math.PI * 2);
+    ctx.arc(n.x, n.y, 8.5, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(0, 113, 227, 0.15)';
     ctx.fill();
 
-    // Outer ring
     ctx.beginPath();
-    ctx.arc(n.x, n.y, 5.5, 0, Math.PI * 2);
+    ctx.arc(n.x, n.y, 5.0, 0, Math.PI * 2);
     ctx.fillStyle = '#0071e3';
     ctx.fill();
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Inner bright white pin
     ctx.beginPath();
-    ctx.arc(n.x, n.y, 2.0, 0, Math.PI * 2);
+    ctx.arc(n.x, n.y, 1.8, 0, Math.PI * 2);
     ctx.fillStyle = '#ffffff';
     ctx.fill();
   }
 
-  // Draw Collision-Free Text Labels with protective white background pills
+  // Draw Collision-Free Text Labels
   for (const n of layoutNodes) {
-    const labelText = truncate(n.name, n.isSeed ? 16 : 14);
+    const labelText = truncate(n.name, n.isSeed ? 14 : 12);
     const { align, lx, ly } = computeLabelPlacement(n, layoutNodes, mapBoxX, mapBoxY, mapBoxW, mapBoxH);
 
     ctx.save();
-    ctx.font = n.isSeed ? `600 9px ${APPLE_FONTS.sans}` : `500 8.5px ${APPLE_FONTS.sans}`;
+    ctx.font = n.isSeed ? `600 8.5px ${APPLE_FONTS.sans}` : `500 8px ${APPLE_FONTS.sans}`;
     const tw = ctx.measureText(labelText).width;
-    const th = 13;
+    const th = 12;
     let px = lx;
     if (align === 'center') px = lx - tw / 2;
     else if (align === 'right') px = lx - tw;
-    const py = ly - 9.5;
+    const py = ly - 9;
 
-    // Semi-transparent pill background for guaranteed legibility
-    drawRoundedRect(ctx, px - 3, py, tw + 6, th, 4, 'rgba(255, 255, 255, 0.95)', '#e5e5ea', 0.6);
+    drawRoundedRect(ctx, px - 3, py, tw + 6, th, 3, 'rgba(255, 255, 255, 0.95)', '#e5e5ea', 0.6);
 
-    // Text stroke & fill
     ctx.textAlign = align;
     ctx.fillStyle = n.isSeed ? '#0071e3' : '#1d1d1f';
     ctx.fillText(labelText, lx, ly);
@@ -897,23 +933,23 @@ export function generateCulturalReceipt(canvas, {
   }
 
   // Mini-map legend footer
-  ctx.font = `500 9px ${APPLE_FONTS.sans}`;
+  ctx.font = `500 8.5px ${APPLE_FONTS.sans}`;
   ctx.fillStyle = '#86868b';
   ctx.textAlign = 'center';
   ctx.fillText(
     isPt ? '● Sementes   ○ Descobertas Transmidiáticas   ── Pontes de Confluência' : '● Seeds   ○ Transmedia Discoveries   ── Confluence Bridges',
     mapBoxX + mapBoxW / 2,
-    mapBoxY + mapBoxH - 9
+    mapBoxY + mapBoxH - 8
   );
 
-  curY = mapBoxY + mapBoxH + 18;
+  curY = mapBoxY + mapBoxH + 14;
   drawDivider(curY);
-  curY += 22;
+  curY += 18;
 
-  // 6. SECTION 4: Fresh Discoveries Menu (Apple Table Row Style)
+  // 6. SECTION 4: Fresh Discoveries Menu
   ctx.textAlign = 'left';
   ctx.fillStyle = '#1d1d1f';
-  ctx.font = `700 12px ${APPLE_FONTS.sans}`;
+  ctx.font = `700 11.5px ${APPLE_FONTS.sans}`;
   ctx.fillText(
     isPt ? 'Descobertas Recomendadas' : 'Curated Fresh Discoveries',
     padX,
@@ -921,90 +957,95 @@ export function generateCulturalReceipt(canvas, {
   );
   curY += 16;
 
-  ctx.font = `400 10.5px ${APPLE_FONTS.sans}`;
+  ctx.font = `400 10px ${APPLE_FONTS.sans}`;
   ctx.fillStyle = '#86868b';
   ctx.fillText(
     isPt ? 'Obras inéditas selecionadas pelo grafo para expandir seu repertório' : 'Fresh works selected by the graph to expand your repertoire',
     padX,
     curY
   );
-  curY += 18;
+  curY += 16;
 
   const maxRecScore = topRecs.reduce((m, r) => Math.max(m, Number(r.score) || 0), 1);
 
-  for (let i = 0; i < topRecs.length; i++) {
-    const item = topRecs[i];
-    const rankStr = String(i + 1).padStart(2, '0');
-    const bInfo = getBadgeInfo(item.type);
-    const bLabel = isPt ? bInfo.labelPt : bInfo.labelEn;
-    const title = cleanItemTitle(item.title || item.name || item.id, item);
-
-    // Intuitive log-normalized match percentage (68% to 99% Match) instead of raw 25000%
-    const rawS = Number(item.score) || 0;
-    const ratio = maxRecScore > 0 ? Math.max(0, Math.min(1, Math.log10(1 + rawS) / Math.log10(1 + maxRecScore))) : 0.8;
-    const matchPct = Math.round(68 + ratio * 31);
-    const affinityLabel = `${matchPct}% Match`;
-    const reason = item.reason || (isPt ? 'Confluência multidimensional no grafo' : 'Multidimensional graph confluence');
-
-    // Line 1: Rank + Type Pill + Title ............... Affinity Match%
-    ctx.font = `500 11px ${APPLE_FONTS.mono}`;
+  if (topRecs.length === 0) {
+    ctx.font = `400 11px ${APPLE_FONTS.sans}`;
     ctx.fillStyle = '#86868b';
-    ctx.fillText(rankStr, padX, curY);
+    ctx.fillText(isPt ? 'Nenhuma descoberta disponível' : 'No discoveries available', padX, curY);
+    curY += 40;
+  } else {
+    for (let i = 0; i < topRecs.length; i++) {
+      const item = topRecs[i];
+      const rankStr = String(i + 1).padStart(2, '0');
+      const bInfo = getBadgeInfo(item.type);
+      const bLabel = isPt ? bInfo.labelPt : bInfo.labelEn;
+      const title = cleanItemTitle(item.title || item.name || item.id, item);
 
-    const bW = drawPillBadge(ctx, bLabel, padX + 22, curY, bInfo);
+      const rawS = Number(item.score) || 0;
+      const ratio = maxRecScore > 0 ? Math.max(0, Math.min(1, Math.log10(1 + rawS) / Math.log10(1 + maxRecScore))) : 0.8;
+      const matchPct = Math.round(68 + ratio * 31);
+      const affinityLabel = `${matchPct}% Match`;
+      const reason = item.reason || (isPt ? 'Confluência multidimensional no grafo' : 'Multidimensional graph confluence');
 
-    // Affinity pill in emerald green
-    ctx.font = `600 9px ${APPLE_FONTS.sans}`;
-    const affMetrics = ctx.measureText(affinityLabel);
-    const affW = affMetrics.width + 14;
-    drawRoundedRect(ctx, width - padX - affW, curY - 11, affW, 17, 8.5, '#ecfdf5', 'rgba(16, 185, 129, 0.25)', 0.8);
-    ctx.fillStyle = '#047857';
-    ctx.textAlign = 'center';
-    ctx.fillText(affinityLabel, width - padX - affW / 2, curY + 1);
-    ctx.textAlign = 'left';
+      // Line 1: Rank + Type Pill + Title ............... Affinity Match%
+      ctx.font = `500 10.5px ${APPLE_FONTS.mono}`;
+      ctx.fillStyle = '#86868b';
+      ctx.fillText(rankStr, padX, curY);
 
-    // Dynamic title truncation so it never touches the affinity badge
-    const availTitleW = width - padX * 2 - bW - affW - 36;
-    ctx.font = `600 12px ${APPLE_FONTS.sans}`;
-    let displayTitle = title;
-    while (ctx.measureText(displayTitle).width > availTitleW && displayTitle.length > 5) {
-      displayTitle = displayTitle.slice(0, -2) + '…';
+      const bW = drawPillBadge(ctx, bLabel, padX + 20, curY, bInfo);
+
+      // Affinity pill in emerald green
+      ctx.font = `600 8.5px ${APPLE_FONTS.sans}`;
+      const affMetrics = ctx.measureText(affinityLabel);
+      const affW = affMetrics.width + 12;
+      drawRoundedRect(ctx, width - padX - affW, curY - 10, affW, 16, 8, '#ecfdf5', 'rgba(16, 185, 129, 0.25)', 0.8);
+      ctx.fillStyle = '#047857';
+      ctx.textAlign = 'center';
+      ctx.fillText(affinityLabel, width - padX - affW / 2, curY + 1);
+      ctx.textAlign = 'left';
+
+      const availTitleW = width - padX * 2 - bW - affW - 32;
+      ctx.font = `600 11.5px ${APPLE_FONTS.sans}`;
+      let displayTitle = title;
+      while (ctx.measureText(displayTitle).width > availTitleW && displayTitle.length > 5) {
+        displayTitle = displayTitle.slice(0, -2) + '…';
+      }
+      ctx.fillStyle = '#1d1d1f';
+      ctx.fillText(displayTitle, padX + 24 + bW, curY);
+
+      curY += 15;
+
+      // Line 2: Reason / Bridge (Indented)
+      ctx.font = `400 9.5px ${APPLE_FONTS.sans}`;
+      ctx.fillStyle = '#86868b';
+      ctx.fillText(`↳ ${truncate(reason, 54)}`, padX + 20, curY);
+      curY += 25;
     }
-    ctx.fillStyle = '#1d1d1f';
-    ctx.fillText(displayTitle, padX + 26 + bW, curY);
-
-    curY += 16;
-
-    // Line 2: Reason / Bridge (Indented)
-    ctx.font = `400 10px ${APPLE_FONTS.sans}`;
-    ctx.fillStyle = '#86868b';
-    ctx.fillText(`↳ ${truncate(reason, 64)}`, padX + 24, curY);
-    curY += 26;
   }
 
   drawDivider(curY);
-  curY += 20;
+  curY += 18;
 
   // 7. SECTION 5: Graph Totals & Audit (3 Metrics Cards)
-  const cardGap = 12;
+  const cardGap = 10;
   const cardW = (contentWidth - cardGap * 2) / 3;
-  const cardH = 58;
+  const cardH = 50;
 
   const drawMetricCard = (x, y, label, value, sub = '') => {
-    drawRoundedRect(ctx, x, y, cardW, cardH, 12, '#fbfbfd', '#e5e5ea', 1);
-    ctx.font = `500 9.5px ${APPLE_FONTS.sans}`;
+    drawRoundedRect(ctx, x, y, cardW, cardH, 10, '#fbfbfd', '#e5e5ea', 1);
+    ctx.font = `500 9px ${APPLE_FONTS.sans}`;
     ctx.fillStyle = '#86868b';
     ctx.textAlign = 'center';
-    ctx.fillText(label, x + cardW / 2, y + 18);
+    ctx.fillText(label, x + cardW / 2, y + 16);
 
-    ctx.font = `700 15px ${APPLE_FONTS.sans}`;
+    ctx.font = `700 14px ${APPLE_FONTS.sans}`;
     ctx.fillStyle = '#1d1d1f';
-    ctx.fillText(String(value), x + cardW / 2, y + 38);
+    ctx.fillText(String(value), x + cardW / 2, y + 33);
 
     if (sub) {
-      ctx.font = `400 8.5px ${APPLE_FONTS.sans}`;
+      ctx.font = `400 8px ${APPLE_FONTS.sans}`;
       ctx.fillStyle = '#86868b';
-      ctx.fillText(sub, x + cardW / 2, y + 50);
+      ctx.fillText(sub, x + cardW / 2, y + 44);
     }
   };
 
@@ -1012,14 +1053,14 @@ export function generateCulturalReceipt(canvas, {
   drawMetricCard(padX + cardW + cardGap, curY, isPt ? 'Conhecidas' : 'Known Items', knownCount);
   drawMetricCard(padX + (cardW + cardGap) * 2, curY, isPt ? 'Serendipidade' : 'Serendipity', '100%', isPt ? 'Inédito' : 'Fresh');
 
-  curY += cardH + 22;
+  curY += cardH + 18;
   drawDivider(curY);
-  curY += 24;
+  curY += 18;
 
   // 8. SECTION 6: Procedural Barcode, Link & Closing Motto
   const barcodeY = curY;
-  const barcodeH = 30;
-  const barcodeW = 240;
+  const barcodeH = 24;
+  const barcodeW = 200;
   const barcodeX = (width - barcodeW) / 2;
 
   ctx.fillStyle = '#1d1d1f';
@@ -1040,17 +1081,17 @@ export function generateCulturalReceipt(canvas, {
     }
   }
 
-  curY = barcodeY + barcodeH + 12;
+  curY = barcodeY + barcodeH + 10;
 
   // Numeric code below barcode
   ctx.textAlign = 'center';
-  ctx.font = `500 10px ${APPLE_FONTS.mono}`;
+  ctx.font = `500 9.5px ${APPLE_FONTS.mono}`;
   ctx.fillStyle = '#86868b';
   ctx.fillText(`YM - ${tasteHash} - ${now.getFullYear()}`, width / 2, curY);
-  curY += 20;
+  curY += 16;
 
   // Footer slogan
-  ctx.font = `600 10px ${APPLE_FONTS.sans}`;
+  ctx.font = `600 9.5px ${APPLE_FONTS.sans}`;
   ctx.fillStyle = '#1d1d1f';
   ctx.fillText(
     isPt ? 'CULTIVE SEU PRÓPRIO REPERTÓRIO CULTURAL' : 'CULTIVATE YOUR OWN CULTURAL REPERTOIRE',
@@ -1059,13 +1100,14 @@ export function generateCulturalReceipt(canvas, {
   );
   curY += 14;
 
-  ctx.font = `400 9px ${APPLE_FONTS.sans}`;
+  ctx.font = `400 8.5px ${APPLE_FONTS.sans}`;
   ctx.fillStyle = '#86868b';
   ctx.fillText(
     'youmightlike • transmedia discovery engine',
     width / 2,
     curY
   );
+  curY += 14;
 
   ctx.restore();
 }

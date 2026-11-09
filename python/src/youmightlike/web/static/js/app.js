@@ -2,7 +2,7 @@ import { createTranslator } from './i18n.js?v=3.3';
 import { getTypeBadgeClass, getTypeIcon, getSeedDotColor, getAffinityLabel, getAffinityBadgeClass, getRawType } from './config.js?v=3.3';
 import { searchEntities, fetchRecommendations } from './api.js?v=3.3';
 import { ConstellationEngine } from './constellation.js?v=3.3';
-import { generateCulturalReceipt } from './receipt.js?v=3.4';
+import { generateCulturalReceipt } from './receipt.js?v=3.5';
 
 const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
@@ -190,7 +190,7 @@ createApp({
     const groupedRecommendations = computed(() => {
       const all = recommendations.value;
       const isAllMode = targetFilter.value === null;
-      const maxHighlights = 4;
+      const maxHighlights = 5;
 
       if (targetFilter.value === 'game') {
         const games = all.filter(r => r.type === 'game');
@@ -605,7 +605,7 @@ createApp({
             knownItems: knownItems.value.map(k => k.id),
             beta: Number(negativeBeta.value) || 1.2,
             targetType: null,
-            limit: 80,
+            limit: 28,
             lang: currentLang.value,
             signal: recsAbortController.signal,
           });

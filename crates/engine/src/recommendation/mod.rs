@@ -701,14 +701,16 @@ pub fn run_recommendation_pipeline(
             Some("game") => (0, 0, 0, 0, req.limit, 0),
             Some("book") => (0, 0, 0, 0, 0, req.limit),
             _ => {
-                // Multi-domain balanced quotas: provide generous pools for each category (~15-20 each)
-                // so the user can filter by domain seamlessly in the sidebar without mutating the graph.
-                let a_q = 10;
-                let t_q = 15;
-                let m_q = 15;
-                let s_q = 15;
-                let g_q = 15;
-                let b_q = 5;
+                // Multi-domain balanced quotas: calibrated curated pool (~4-5 per category)
+                // Total ~24-28 recommendations to maintain graph clarity and avoid visual overload.
+                let target = req.limit.clamp(18, 60);
+                let d = target / 5;
+                let a_q = d.clamp(3, 6);
+                let t_q = d.clamp(3, 6);
+                let m_q = d.clamp(3, 6);
+                let s_q = d.clamp(3, 6);
+                let g_q = d.clamp(3, 6);
+                let b_q = (target.saturating_sub(a_q + t_q + m_q + s_q + g_q)).clamp(2, 5);
                 (a_q, t_q, m_q, s_q, g_q, b_q)
             }
         };
