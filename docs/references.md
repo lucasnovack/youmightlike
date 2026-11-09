@@ -67,9 +67,9 @@ This document formalizes the primary academic papers and industry systems that i
 * **DOI / Paper:** [https://doi.org/10.14778/3402707.3402736](https://doi.org/10.14778/3402707.3402736)
 * **Direct Influence on `youmightlike`:**
   * **Cross-Media Meta-Paths:** Cultural affinity is inherently heterogeneous. `youmightlike` operationalizes multi-hop semantic bridges:
-    * $\text{Movie} \xrightarrow{\text{soundtrack}} \text{Track} \xrightarrow{\text{performed\_by}} \text{Artist}$
-    * $\text{Movie} \xrightarrow{\text{based\_on}} \text{Book} \xrightarrow{\text{written\_by}} \text{Author}$
-    * $\text{Game} \xrightarrow{\text{shares\_tag}} \text{Concept} \xleftarrow{\text{shares\_tag}} \text{Anime}$
+    * $\text{Movie} \xrightarrow{\text{soundtrack}} \text{Track} \xrightarrow{\text{performed by}} \text{Artist}$
+    * $\text{Movie} \xrightarrow{\text{based on}} \text{Book} \xrightarrow{\text{written by}} \text{Author}$
+    * $\text{Game} \xrightarrow{\text{shares tag}} \text{Concept} \xleftarrow{\text{shares tag}} \text{Anime}$
   * **Symmetric Adjacency:** Directed bipartite projections receive mirror pairs during CSR construction to enable bidirectional Markovian energy exchange.
 
 ---
